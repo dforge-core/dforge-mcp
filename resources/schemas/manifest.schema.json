@@ -86,6 +86,11 @@
 			"type": "string",
 			"description": "Module category for display (e.g. 'Integration', 'Finance')"
 		},
+		"tags": {
+			"type": "array",
+			"items": { "type": "string" },
+			"description": "Free-form tags for search and discovery (e.g. ['crm', 'sales', 'leads']). Convention: lowercase, hyphen-separated."
+		},
 		"icon": {
 			"type": "string",
 			"description": "Bootstrap icon class (e.g. 'bi-link-45deg')"
@@ -94,6 +99,16 @@
 			"type": "array",
 			"items": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$" },
 			"description": "Non-English locales the package promises to translate. Each entry MUST match a translations/<locale>.json file, and every translatable resource (entity/field labels, folders, views, menus + items, actions + params, reports + datasets + params, settings) MUST have a label in that file. English is the default — don't list 'en' or 'en-US'."
+		},
+		"created": {
+			"type": "string",
+			"format": "date",
+			"description": "Initial creation date of the module package (YYYY-MM-DD). Informational only; not enforced by the installer."
+		},
+		"updated": {
+			"type": "string",
+			"format": "date",
+			"description": "Last edit date of the manifest (YYYY-MM-DD). Informational; bump when shipping a new version."
 		}
 	},
 	"additionalProperties": false

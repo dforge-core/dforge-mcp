@@ -27,9 +27,9 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@dforge-core/dforge-cli": "0.1.0-rc.7",
-		"@modelcontextprotocol/sdk": "^1.0.4",
-		"zod": "^3.24.1"
+		"@dforge-core/dforge-cli": "^0.1.0",
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.2",

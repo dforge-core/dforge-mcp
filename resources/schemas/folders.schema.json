@@ -32,6 +32,10 @@
 					"type": "string",
 					"description": "Folder accent color (hex)"
 				},
+				"icon": {
+					"type": "string",
+					"description": "Bootstrap icon class (e.g. 'bi-folder')"
+				},
 				"inheritSecurity": {
 					"type": "boolean",
 					"description": "Whether to inherit security from parent folder"

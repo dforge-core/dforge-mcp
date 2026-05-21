@@ -1,0 +1,55 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/settings.schema.json",
+	"title": "dForge Module Settings",
+	"description": "Module-level settings definitions: a flat map of setting code → setting definition. Settings are folder-scoped at runtime (values inherit through the folder tree) and surface in the Module Settings UI.",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/setting"
+	},
+	"$defs": {
+		"setting": {
+			"type": "object",
+			"required": ["fieldTypeCd"],
+			"properties": {
+				"fieldTypeCd": {
+					"type": "string",
+					"description": "Field type code (must match one in dforge.field_type). Common values: text, number, integer, decimal, boolean, checkbox, dropdown, multiSelect, date, dateTime, time, image, file, fileList, lookup, color, currency, percent, html, markdown, password, email, phone, url, textarea, json."
+				},
+				"baseDatatypeCd": {
+					"type": "string",
+					"enum": ["string", "number", "bool", "date", "dateTime", "time", "json"],
+					"description": "Underlying primitive datatype. Older settings declare this explicitly; newer settings (using `formula`) often omit it."
+				},
+				"label": {
+					"type": "string",
+					"description": "Display label (newer style). Prefer this over `description`/`desc` for new settings."
+				},
+				"description": {
+					"type": "string",
+					"description": "Display label (older style). Use `label` for new settings."
+				},
+				"desc": {
+					"type": "string",
+					"description": "Alternative label key used by some older modules. Prefer `label`."
+				},
+				"defaultValue": {
+					"description": "Default value before the user sets one. Type matches `baseDatatypeCd`."
+				},
+				"formula": {
+					"type": "string",
+					"description": "Formula expression to evaluate the default (e.g. \"'USD'\"). Alternative to `defaultValue`."
+				},
+				"required": {
+					"type": "boolean",
+					"description": "If true, the setting must be set somewhere in the folder chain for installation to proceed."
+				},
+				"params": {
+					"type": "object",
+					"description": "Field-type-specific parameters. Examples: dropdown → { options: [...] }; number → { min, max }; lookup → { link: { entity, otherKey } }."
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

@@ -1,0 +1,204 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/reports.schema.json",
+	"title": "dForge Module Reports",
+	"description": "Report definitions for a dForge module: a map of report code → report definition. Reports are not listed in manifest.json; the install pipeline picks up ui/reports.json automatically.",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/report"
+	},
+	"$defs": {
+		"report": {
+			"type": "object",
+			"required": ["description", "layout", "datasets"],
+			"properties": {
+				"description": {
+					"type": "string",
+					"description": "Human-readable report title"
+				},
+				"layout": {
+					"$ref": "#/$defs/layout"
+				},
+				"datasets": {
+					"type": "object",
+					"description": "Map of dataset code → dataset definition. Panels reference datasets by code via `datasetCd`.",
+					"additionalProperties": { "$ref": "#/$defs/dataset" }
+				},
+				"parameters": {
+					"type": "object",
+					"description": "Report-level parameters (alternative to per-dataset `params`). Map of param code → param definition.",
+					"additionalProperties": { "$ref": "#/$defs/paramDef" }
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"layout": {
+			"type": "object",
+			"required": ["panels"],
+			"properties": {
+				"panels": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/panel" }
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"panel": {
+			"type": "object",
+			"required": ["vizType", "datasetCd"],
+			"properties": {
+				"vizType": {
+					"type": "string",
+					"enum": ["table", "chart", "metric", "pivot"],
+					"description": "Visualization type"
+				},
+				"datasetCd": {
+					"type": "string",
+					"description": "Dataset code (key in the parent `datasets` map)"
+				},
+				"title": { "type": "string" },
+				"config": {
+					"type": "object",
+					"description": "Viz-type-specific configuration. For chart: { chartType, categoryCol, valueCol, agg, chartSize }. For table: { groupRules, aggregations }."
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"dataset": {
+			"type": "object",
+			"required": ["datasetType"],
+			"properties": {
+				"caption": {
+					"type": "string",
+					"description": "Display label for the dataset (used in panel headings if no `title`)"
+				},
+				"datasetType": {
+					"type": "string",
+					"enum": ["Q", "S"],
+					"description": "Q = SQL/entity query, S = stored procedure"
+				},
+				"query": {
+					"$ref": "#/$defs/query",
+					"description": "Used when datasetType is 'Q'"
+				},
+				"procedureName": {
+					"type": "string",
+					"description": "Used when datasetType is 'S'"
+				},
+				"columnsDef": {
+					"type": "object",
+					"description": "Optional column metadata overrides: field code → { label, visible, ... }",
+					"additionalProperties": { "$ref": "#/$defs/columnDef" }
+				},
+				"params": {
+					"type": "object",
+					"description": "Dataset-level parameters (alternative to top-level `parameters`)",
+					"additionalProperties": { "$ref": "#/$defs/paramDef" }
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"query": {
+			"type": "object",
+			"required": ["entityCd"],
+			"properties": {
+				"entityCd": {
+					"type": "string",
+					"description": "Source entity code"
+				},
+				"columns": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Column codes to select (supports dot navigation: 'customer.name')"
+				},
+				"filter": {
+					"$ref": "#/$defs/filter"
+				},
+				"sort": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/sortClause" }
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"sortClause": {
+			"type": "object",
+			"required": ["c"],
+			"properties": {
+				"c": { "type": "string", "description": "Column code" },
+				"d": {
+					"type": "string",
+					"enum": ["asc", "desc"],
+					"description": "Sort direction (default: asc)"
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"columnDef": {
+			"type": "object",
+			"properties": {
+				"label": { "type": "string" },
+				"visible": { "type": "boolean" },
+				"width": { "type": "integer", "minimum": 1 }
+			},
+			"additionalProperties": false
+		},
+
+		"paramDef": {
+			"type": "object",
+			"required": ["fieldTypeCd"],
+			"properties": {
+				"fieldTypeCd": {
+					"type": "string",
+					"description": "Field type code (see settings.schema.json for the common list)"
+				},
+				"label": { "type": "string" },
+				"required": { "type": "boolean", "default": false },
+				"default": {
+					"description": "Default value applied if the user doesn't provide one"
+				},
+				"params": {
+					"type": "object",
+					"description": "Field-type-specific params (e.g. lookup → { link: { entity, otherKey } })"
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"filter": {
+			"description": "Canonical dForge filter expression — same shape as data_views.json filter. Either `{c, o, v}` or `{g, i: [...]}`.",
+			"oneOf": [
+				{ "$ref": "#/$defs/filterCondition" },
+				{ "$ref": "#/$defs/filterGroup" }
+			]
+		},
+		"filterCondition": {
+			"type": "object",
+			"required": ["c", "o"],
+			"properties": {
+				"c": { "type": "string" },
+				"o": { "type": "string" },
+				"v": {}
+			},
+			"additionalProperties": false
+		},
+		"filterGroup": {
+			"type": "object",
+			"required": ["g", "i"],
+			"properties": {
+				"g": { "type": "string", "enum": ["and", "or"] },
+				"i": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/filter" }
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

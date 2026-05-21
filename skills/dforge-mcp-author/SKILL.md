@@ -23,14 +23,23 @@ You're authoring a dForge module via the `dforge-mcp` MCP server. dForge is a me
 
 ## Resources
 
-Read these *before* generating any module content so your output matches the canonical schema:
+Read these *before* generating any module content so your output matches the canonical schema. Don't memorise — load each on demand when you're about to write that kind of file.
 
-- `dforge://schema/manifest` — manifest.json shape (required fields, patterns)
-- `dforge://schema/entity` — entity JSON shape (fields, traits, refs)
-- `dforge://schema/data-view` — data view shape (viewType, dataSources)
-- `dforge://docs/conventions` — naming, FK+Reference pattern, traits, security model
-
-Load them when you start a session, not after a wrong guess.
+| URI | What it covers |
+|---|---|
+| `dforge://schema/manifest` | manifest.json — required fields, semver, dependencies, `entities` map, `tags` |
+| `dforge://schema/entity` | entities/*.json — `description`, `dbObject`, `toString`, `traits`, `fields` |
+| `dforge://schema/data-views` | ui/data_views.json — `viewType` enum, `dataSources[]` (with per-source `filter` + `order`), `viewConfig` per view type, the canonical `filter` shape (`{c,o,v}` or `{g,i:[]}`) |
+| `dforge://schema/folders` | ui/folders.json — folder tree, per-entity view bindings, icon, color |
+| `dforge://schema/menus` | ui/menus.json — menus + items (with nested `children` for sections), `itemType: V/D/R/null` |
+| `dforge://schema/roles` | security/roles.json — role → entity → rights string (`SIUDC` or `E`) |
+| `dforge://schema/jobs` | logic/jobs.json — cron + action binding for the scheduler |
+| `dforge://schema/seed-data` | seed-data/*.json — initial rows inserted at install |
+| `dforge://schema/settings` | settings.json — `fieldTypeCd`, `defaultValue`/`formula`, `params` per setting |
+| `dforge://schema/reports` | ui/reports.json — `layout.panels[]`, `datasets` (Q/S types), filter reuse |
+| `dforge://schema/traits` | reference for entity trait codes |
+| `dforge://schema/webhooks` | ui/webhooks.json — outbound webhooks |
+| `dforge://docs/conventions` | naming, FK+Reference pattern, traits cheat sheet, security model |
 
 ---
 

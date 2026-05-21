@@ -85,6 +85,16 @@ export const resources: ResourceDef[] = [
 		"Webhooks JSON schema",
 		"JSON Schema for ui/webhooks.json — outbound webhook definitions.",
 	),
+	schema(
+		"settings",
+		"Module settings JSON schema",
+		"JSON Schema for settings.json — flat map of setting code → { fieldTypeCd, baseDatatypeCd?, label/description, defaultValue, params, formula?, required? }.",
+	),
+	schema(
+		"reports",
+		"Reports JSON schema",
+		"JSON Schema for ui/reports.json — map of report code → { description, layout.panels[], datasets, parameters? }. Datasets and panel queries reuse the filter shape from data_views.",
+	),
 	{
 		uri: "dforge://docs/conventions",
 		name: "dForge module conventions",

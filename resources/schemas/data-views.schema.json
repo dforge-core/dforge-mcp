@@ -38,7 +38,8 @@
 					"description": "Data sources providing data for this view"
 				},
 				"filter": {
-					"description": "Default filter criteria"
+					"$ref": "#/$defs/filter",
+					"description": "Default filter criteria (applied to all dataSources unless one declares its own)"
 				},
 				"order": {
 					"description": "Default sort order"
@@ -291,6 +292,56 @@
 				"parentSetField": {
 					"type": "string",
 					"description": "Set field name on parent entity linking to this detail level"
+				},
+				"filter": {
+					"$ref": "#/$defs/filter",
+					"description": "Per-source filter criteria; overrides the view-level filter for this source"
+				},
+				"order": {
+					"description": "Per-source sort order (array of {c, d} entries, where d is 'asc' or 'desc')"
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"filter": {
+			"description": "Canonical dForge filter expression. Either a single condition `{c, o, v}` or a group `{g, i: [...]}`. Used by data views, reports, folders (row-level security), and the API.",
+			"oneOf": [
+				{ "$ref": "#/$defs/filterCondition" },
+				{ "$ref": "#/$defs/filterGroup" }
+			]
+		},
+		"filterCondition": {
+			"type": "object",
+			"required": ["c", "o"],
+			"properties": {
+				"c": {
+					"type": "string",
+					"description": "Column code (supports dot navigation: 'customer.name')"
+				},
+				"o": {
+					"type": "string",
+					"description": "Operator: eq, neq, =, !=, gt, gtEq, grEq, lt, ltEq, in, nIn, like, isNull, isNotNull, etc."
+				},
+				"v": {
+					"description": "Comparison value. Scalars, arrays (for in/nIn), or parameter references like '@param_code'."
+				}
+			},
+			"additionalProperties": false
+		},
+		"filterGroup": {
+			"type": "object",
+			"required": ["g", "i"],
+			"properties": {
+				"g": {
+					"type": "string",
+					"enum": ["and", "or"],
+					"description": "Group combinator"
+				},
+				"i": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/filter" },
+					"description": "Group items: nested conditions or sub-groups"
 				}
 			},
 			"additionalProperties": false

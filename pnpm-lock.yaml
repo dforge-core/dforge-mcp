@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@dforge-core/dforge-cli':
-        specifier: 0.1.0-rc.7
-        version: 0.1.0-rc.7
+        specifier: ^0.1.0
+        version: 0.1.0
       '@modelcontextprotocol/sdk':
-        specifier: ^1.0.4
-        version: 1.29.0(zod@3.25.76)
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       zod:
-        specifier: ^3.24.1
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -36,8 +36,38 @@ packages:
   '@clack/prompts@0.11.0':
     resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
 
-  '@dforge-core/dforge-cli@0.1.0-rc.7':
-    resolution: {integrity: sha512-O12K8iXRck+g07Ag07iXYCpN2CEB3MaPr2OJwexPEi11YB/ZkO/Xraxf8K6RFGzD1BQ22YtEerm7f36jRtu4WQ==}
+  '@dforge-core/dforge-cli-darwin-arm64@0.1.0':
+    resolution: {integrity: sha512-lgmT5wKv9drb87uRFIZzZSP58FcTEiBtlbgiJSVBa/+d8UkBBlduUVnBmZSiw+3TaPVi3v8bc26YQp8Lgl8p9Q==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@dforge-core/dforge-cli-darwin-x64@0.1.0':
+    resolution: {integrity: sha512-XWNOTCVquZtPSgdad7K91bd2a0xp92UbUs86Ca8L2m8XafaDZLinFdsOJ3/IWOXzUW2nyb6qOEdwJh8q9tDcQg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@dforge-core/dforge-cli-linux-arm64@0.1.0':
+    resolution: {integrity: sha512-OzizoS7B5eYhkTh0Ouj9gxz43TJWw0MjZbfGeZemGREK3ZsyHlQIijZkmOzChgYxS5mbokkQdT88/9WG9GOcww==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@dforge-core/dforge-cli-linux-x64@0.1.0':
+    resolution: {integrity: sha512-7eJ3KYKQH5efWLAwKHIxn5zl15VLTWC6u9XSxwKIJpLtzab/kpyTLFym23TJzs6jXAEGhpHXcrUgbM87SdUWRA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@dforge-core/dforge-cli-win32-arm64@0.1.0':
+    resolution: {integrity: sha512-MF0FIh8mTpUP723QS453ebRZ1J5X1f7AyxtzFJSSs34aQ0xjDi7pY0nnQKd72QLity3W0BZfLNNcNtIbWuqKCw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@dforge-core/dforge-cli-win32-x64@0.1.0':
+    resolution: {integrity: sha512-pdlVOHcXuTTlIGUvpUq6C6PUqFGyZgQM+VdSfprQBP/TdR53uc+4px9xJY/RceMg5jKw4vQ24nwcFFaoZrbRtQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@dforge-core/dforge-cli@0.1.0':
+    resolution: {integrity: sha512-kopIHFDzJAWglSOpp3oJr2kfQqlypUCCiM9OyUfjXE5g82dVVLWtUYhCiUHShNXZQjOt/xKzOenr2mw9D56iug==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -911,8 +941,8 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -927,9 +957,34 @@ snapshots:
       picocolors: 1.1.1
       sisteransi: 1.0.5
 
-  '@dforge-core/dforge-cli@0.1.0-rc.7':
+  '@dforge-core/dforge-cli-darwin-arm64@0.1.0':
+    optional: true
+
+  '@dforge-core/dforge-cli-darwin-x64@0.1.0':
+    optional: true
+
+  '@dforge-core/dforge-cli-linux-arm64@0.1.0':
+    optional: true
+
+  '@dforge-core/dforge-cli-linux-x64@0.1.0':
+    optional: true
+
+  '@dforge-core/dforge-cli-win32-arm64@0.1.0':
+    optional: true
+
+  '@dforge-core/dforge-cli-win32-x64@0.1.0':
+    optional: true
+
+  '@dforge-core/dforge-cli@0.1.0':
     dependencies:
       '@clack/prompts': 0.11.0
+    optionalDependencies:
+      '@dforge-core/dforge-cli-darwin-arm64': 0.1.0
+      '@dforge-core/dforge-cli-darwin-x64': 0.1.0
+      '@dforge-core/dforge-cli-linux-arm64': 0.1.0
+      '@dforge-core/dforge-cli-linux-x64': 0.1.0
+      '@dforge-core/dforge-cli-win32-arm64': 0.1.0
+      '@dforge-core/dforge-cli-win32-x64': 0.1.0
 
   '@esbuild/aix-ppc64@0.27.7':
     optional: true
@@ -1027,7 +1082,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.21)
       ajv: 8.20.0
@@ -1044,8 +1099,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -1698,8 +1753,8 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
+  zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
-  zod@3.25.76: {}
+  zod@4.4.3: {}
