@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@dforge-core/dforge-cli':
-        specifier: file:../dforge-cli
-        version: file:../dforge-cli
+        specifier: ^0.1.0-rc.6
+        version: 0.1.0-test.5
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
@@ -30,14 +30,38 @@ importers:
 
 packages:
 
-  '@clack/core@0.5.0':
-    resolution: {integrity: sha512-p3y0FIOwaYRUPRcMO7+dlmLh8PSRcrjuTndsiA0WAFbWES0mLZlrjVoBRZ9DzkPFJZG6KGkJmoEAY0ZcVWTkow==}
+  '@dforge-core/dforge-cli-darwin-arm64@0.1.0-test.5':
+    resolution: {integrity: sha512-02AjoRf1sf2F370Hm/ezBlPuw0PHf9QhQ8+b52C+YnAkjSiHkqQrM54QqtvOEcpWNwzoa3yeLt8FVjcTwaiylA==}
+    cpu: [arm64]
+    os: [darwin]
 
-  '@clack/prompts@0.11.0':
-    resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
+  '@dforge-core/dforge-cli-darwin-x64@0.1.0-test.5':
+    resolution: {integrity: sha512-64XWSZ/qvwqNb2ydPowjUepuUypho3BlIpIiiYmN2pMJZQUsoi6uxZN3t1cWVuFPgHV9ZmwNUyb0wlo1c4AXxw==}
+    cpu: [x64]
+    os: [darwin]
 
-  '@dforge-core/dforge-cli@file:../dforge-cli':
-    resolution: {directory: ../dforge-cli, type: directory}
+  '@dforge-core/dforge-cli-linux-arm64@0.1.0-test.5':
+    resolution: {integrity: sha512-M9GHMvShzHXWGvYVvsDSkIggtBk/CPq2m/hVeHYXbYdDH64tMHnDXdxLsbgnLCZ8rBsShJenDHlcF4M18Btong==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@dforge-core/dforge-cli-linux-x64@0.1.0-test.5':
+    resolution: {integrity: sha512-u/B4tI9QJF3InQokpM5kvYRlTc1O0st16hCVS7uH2Gn0Gmf1I3j7Rivj5fR3foL2FFm2y8U7gW019o/XUX1urg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@dforge-core/dforge-cli-win32-arm64@0.1.0-test.5':
+    resolution: {integrity: sha512-TIDzV9+SUd2M2Of/AA/yEmjhgvp84SXBMZT+w0CtIo65fxj/565RVDqMgv9If0YVgMXn8epbHObgR2wFbHC1ww==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@dforge-core/dforge-cli-win32-x64@0.1.0-test.5':
+    resolution: {integrity: sha512-/WoqPWtqkMCTiMfDT0inDraAUbBIigSEXA7MJ23KisOED5Rti/n5NYUpjXlERFEgMJKYcT+oxMyPXUvyJHM4hw==}
+    cpu: [x64]
+    os: [win32]
+
+  '@dforge-core/dforge-cli@0.1.0-test.5':
+    resolution: {integrity: sha512-dBoCdMp2i+TICposiAkvRdN2I42Uu3NNYrtCAw3z7USfnWFfFxFqPhiT3Au8h96RuOYXnl16iRXQn9ZIOs+0SA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -815,9 +839,6 @@ packages:
     resolution: {integrity: sha512-ZX99e6tRweoUXqR+VBrslhda51Nh5MTQwou5tnUDgbtyM0dBgmhEDtWGP/xbKn6hqfPRHujUNwz5fy/wbbhnpw==}
     engines: {node: '>= 0.4'}
 
-  sisteransi@1.0.5:
-    resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
-
   source-map@0.7.6:
     resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
     engines: {node: '>= 12'}
@@ -916,20 +937,32 @@ packages:
 
 snapshots:
 
-  '@clack/core@0.5.0':
-    dependencies:
-      picocolors: 1.1.1
-      sisteransi: 1.0.5
+  '@dforge-core/dforge-cli-darwin-arm64@0.1.0-test.5':
+    optional: true
 
-  '@clack/prompts@0.11.0':
-    dependencies:
-      '@clack/core': 0.5.0
-      picocolors: 1.1.1
-      sisteransi: 1.0.5
+  '@dforge-core/dforge-cli-darwin-x64@0.1.0-test.5':
+    optional: true
 
-  '@dforge-core/dforge-cli@file:../dforge-cli':
-    dependencies:
-      '@clack/prompts': 0.11.0
+  '@dforge-core/dforge-cli-linux-arm64@0.1.0-test.5':
+    optional: true
+
+  '@dforge-core/dforge-cli-linux-x64@0.1.0-test.5':
+    optional: true
+
+  '@dforge-core/dforge-cli-win32-arm64@0.1.0-test.5':
+    optional: true
+
+  '@dforge-core/dforge-cli-win32-x64@0.1.0-test.5':
+    optional: true
+
+  '@dforge-core/dforge-cli@0.1.0-test.5':
+    optionalDependencies:
+      '@dforge-core/dforge-cli-darwin-arm64': 0.1.0-test.5
+      '@dforge-core/dforge-cli-darwin-x64': 0.1.0-test.5
+      '@dforge-core/dforge-cli-linux-arm64': 0.1.0-test.5
+      '@dforge-core/dforge-cli-linux-x64': 0.1.0-test.5
+      '@dforge-core/dforge-cli-win32-arm64': 0.1.0-test.5
+      '@dforge-core/dforge-cli-win32-x64': 0.1.0-test.5
 
   '@esbuild/aix-ppc64@0.27.7':
     optional: true
@@ -1611,8 +1644,6 @@ snapshots:
       side-channel-list: 1.0.1
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
-
-  sisteransi@1.0.5: {}
 
   source-map@0.7.6: {}
 
