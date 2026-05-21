@@ -27,13 +27,13 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@dforge-core/dforge-cli": "^0.1.0-rc.6",
+		"@dforge-core/dforge-cli": "0.1.0-rc.6",
 		"@modelcontextprotocol/sdk": "^1.0.4",
 		"zod": "^3.24.1"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.2",
 		"tsup": "^8.5.1",
-		"typescript": "^5.7.2"
+		"typescript": "^6.0.3"
 	}
 }

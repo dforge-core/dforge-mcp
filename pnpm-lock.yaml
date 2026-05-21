@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@dforge-core/dforge-cli':
-        specifier: ^0.1.0-rc.6
-        version: 0.1.0-test.5
+        specifier: 0.1.0-rc.6
+        version: 0.1.0-rc.6
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
@@ -23,45 +23,21 @@ importers:
         version: 22.19.19
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(typescript@5.9.3)
+        version: 8.5.1(typescript@6.0.3)
       typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
+        specifier: ^6.0.3
+        version: 6.0.3
 
 packages:
 
-  '@dforge-core/dforge-cli-darwin-arm64@0.1.0-test.5':
-    resolution: {integrity: sha512-02AjoRf1sf2F370Hm/ezBlPuw0PHf9QhQ8+b52C+YnAkjSiHkqQrM54QqtvOEcpWNwzoa3yeLt8FVjcTwaiylA==}
-    cpu: [arm64]
-    os: [darwin]
+  '@clack/core@0.5.0':
+    resolution: {integrity: sha512-p3y0FIOwaYRUPRcMO7+dlmLh8PSRcrjuTndsiA0WAFbWES0mLZlrjVoBRZ9DzkPFJZG6KGkJmoEAY0ZcVWTkow==}
 
-  '@dforge-core/dforge-cli-darwin-x64@0.1.0-test.5':
-    resolution: {integrity: sha512-64XWSZ/qvwqNb2ydPowjUepuUypho3BlIpIiiYmN2pMJZQUsoi6uxZN3t1cWVuFPgHV9ZmwNUyb0wlo1c4AXxw==}
-    cpu: [x64]
-    os: [darwin]
+  '@clack/prompts@0.11.0':
+    resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
 
-  '@dforge-core/dforge-cli-linux-arm64@0.1.0-test.5':
-    resolution: {integrity: sha512-M9GHMvShzHXWGvYVvsDSkIggtBk/CPq2m/hVeHYXbYdDH64tMHnDXdxLsbgnLCZ8rBsShJenDHlcF4M18Btong==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@dforge-core/dforge-cli-linux-x64@0.1.0-test.5':
-    resolution: {integrity: sha512-u/B4tI9QJF3InQokpM5kvYRlTc1O0st16hCVS7uH2Gn0Gmf1I3j7Rivj5fR3foL2FFm2y8U7gW019o/XUX1urg==}
-    cpu: [x64]
-    os: [linux]
-
-  '@dforge-core/dforge-cli-win32-arm64@0.1.0-test.5':
-    resolution: {integrity: sha512-TIDzV9+SUd2M2Of/AA/yEmjhgvp84SXBMZT+w0CtIo65fxj/565RVDqMgv9If0YVgMXn8epbHObgR2wFbHC1ww==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@dforge-core/dforge-cli-win32-x64@0.1.0-test.5':
-    resolution: {integrity: sha512-/WoqPWtqkMCTiMfDT0inDraAUbBIigSEXA7MJ23KisOED5Rti/n5NYUpjXlERFEgMJKYcT+oxMyPXUvyJHM4hw==}
-    cpu: [x64]
-    os: [win32]
-
-  '@dforge-core/dforge-cli@0.1.0-test.5':
-    resolution: {integrity: sha512-dBoCdMp2i+TICposiAkvRdN2I42Uu3NNYrtCAw3z7USfnWFfFxFqPhiT3Au8h96RuOYXnl16iRXQn9ZIOs+0SA==}
+  '@dforge-core/dforge-cli@0.1.0-rc.6':
+    resolution: {integrity: sha512-BTF7yzrISyzaTZmS7Wx8ixu0pdXL6Qf00kKONaks6vGldq9ss0M8w4PCCa1cREQ/Hov+tD7ee3WV3vgpUUicuQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -839,6 +815,9 @@ packages:
     resolution: {integrity: sha512-ZX99e6tRweoUXqR+VBrslhda51Nh5MTQwou5tnUDgbtyM0dBgmhEDtWGP/xbKn6hqfPRHujUNwz5fy/wbbhnpw==}
     engines: {node: '>= 0.4'}
 
+  sisteransi@1.0.5:
+    resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
+
   source-map@0.7.6:
     resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
     engines: {node: '>= 12'}
@@ -900,8 +879,8 @@ packages:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
 
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -937,32 +916,20 @@ packages:
 
 snapshots:
 
-  '@dforge-core/dforge-cli-darwin-arm64@0.1.0-test.5':
-    optional: true
+  '@clack/core@0.5.0':
+    dependencies:
+      picocolors: 1.1.1
+      sisteransi: 1.0.5
 
-  '@dforge-core/dforge-cli-darwin-x64@0.1.0-test.5':
-    optional: true
+  '@clack/prompts@0.11.0':
+    dependencies:
+      '@clack/core': 0.5.0
+      picocolors: 1.1.1
+      sisteransi: 1.0.5
 
-  '@dforge-core/dforge-cli-linux-arm64@0.1.0-test.5':
-    optional: true
-
-  '@dforge-core/dforge-cli-linux-x64@0.1.0-test.5':
-    optional: true
-
-  '@dforge-core/dforge-cli-win32-arm64@0.1.0-test.5':
-    optional: true
-
-  '@dforge-core/dforge-cli-win32-x64@0.1.0-test.5':
-    optional: true
-
-  '@dforge-core/dforge-cli@0.1.0-test.5':
-    optionalDependencies:
-      '@dforge-core/dforge-cli-darwin-arm64': 0.1.0-test.5
-      '@dforge-core/dforge-cli-darwin-x64': 0.1.0-test.5
-      '@dforge-core/dforge-cli-linux-arm64': 0.1.0-test.5
-      '@dforge-core/dforge-cli-linux-x64': 0.1.0-test.5
-      '@dforge-core/dforge-cli-win32-arm64': 0.1.0-test.5
-      '@dforge-core/dforge-cli-win32-x64': 0.1.0-test.5
+  '@dforge-core/dforge-cli@0.1.0-rc.6':
+    dependencies:
+      '@clack/prompts': 0.11.0
 
   '@esbuild/aix-ppc64@0.27.7':
     optional: true
@@ -1645,6 +1612,8 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
+  sisteransi@1.0.5: {}
+
   source-map@0.7.6: {}
 
   statuses@2.0.2: {}
@@ -1680,7 +1649,7 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  tsup@8.5.1(typescript@5.9.3):
+  tsup@8.5.1(typescript@6.0.3):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.7)
       cac: 6.7.14
@@ -1700,7 +1669,7 @@ snapshots:
       tinyglobby: 0.2.16
       tree-kill: 1.2.2
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - jiti
       - supports-color
@@ -1713,7 +1682,7 @@ snapshots:
       media-typer: 1.1.0
       mime-types: 3.0.2
 
-  typescript@5.9.3: {}
+  typescript@6.0.3: {}
 
   ufo@1.6.4: {}
 
