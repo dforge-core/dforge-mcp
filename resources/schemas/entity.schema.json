@@ -1,0 +1,444 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/entity.schema.json",
+	"title": "dForge Entity Definition",
+	"description": "Defines an entity (table/view mapping) for a dForge module",
+	"type": "object",
+	"required": ["fields"],
+	"properties": {
+		"extends": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+			"description": "Qualified entity code of the target entity to extend (e.g. 'fin.invoice'). When set, this entity definition adds columns to an existing entity owned by another module instead of creating a new entity. Physical columns are stored in a 1:1 extension table."
+		},
+		"description": {
+			"type": "string",
+			"description": "Human-readable description of the entity"
+		},
+		"schema": {
+			"type": "string",
+			"description": "Database schema name override (defaults to module schema)"
+		},
+		"dbObject": {
+			"type": "string",
+			"description": "Database table or view name (defaults to entity code)"
+		},
+		"isView": {
+			"type": "boolean",
+			"description": "When true, entity maps to a SQL view (read-only, no DDL generation). Default: false (table-backed).",
+			"default": false
+		},
+		"viewSql": {
+			"type": "string",
+			"description": "SQL SELECT statement for view-backed entities (isView=true). Executed as CREATE OR REPLACE VIEW during module install."
+		},
+		"toString": {
+			"type": "string",
+			"description": "Display pattern using column placeholders, e.g. \"{first_name} {last_name}\""
+		},
+		"traits": {
+			"type": "array",
+			"description": "Entity traits expanded during module install (authoring shortcut). Trait definitions loaded from DB (seeded by metadata module).",
+			"items": {
+				"type": "string",
+				"enum": ["identity", "audit", "audit-full", "soft-delete", "sorting", "postable", "accumulation", "ledger", "period", "file-library"]
+			},
+			"uniqueItems": true
+		},
+		"fields": {
+			"type": "object",
+			"description": "Column definitions keyed by column code",
+			"additionalProperties": {
+				"$ref": "#/$defs/field"
+			}
+		},
+		"constraints": {
+			"type": "object",
+			"description": "Database constraints (unique, check, etc.)"
+		},
+		"references": {
+			"type": "object",
+			"description": "Foreign key reference definitions (legacy format, prefer 'link' on field)",
+			"additionalProperties": {
+				"$ref": "#/$defs/entityReference"
+			}
+		},
+		"indexes": {
+			"type": "object",
+			"description": "Database index definitions"
+		},
+		"numberSequence": {
+			"$ref": "#/$defs/numberSequence",
+			"description": "Automatic document numbering configuration for this entity"
+		},
+		"period": {
+			"$ref": "#/$defs/periodConfig",
+			"description": "Period entity configuration. Requires 'period' trait."
+		},
+		"accumulation": {
+			"$ref": "#/$defs/accumulationConfig",
+			"description": "Accumulation registry configuration (simple document without lines). Requires 'accumulation' trait."
+		},
+		"params": {
+			"type": "object",
+			"description": "Entity-level parameters for platform behavior flags",
+			"properties": {
+				"restricted": {
+					"type": "boolean",
+					"description": "When true, blocks generic data.get/data.set access. Entity must be accessed via dedicated API methods.",
+					"default": false
+				}
+			},
+			"additionalProperties": true
+		}
+	},
+	"additionalProperties": false,
+	"$defs": {
+		"field": {
+			"type": "object",
+			"description": "Entity column/field definition",
+			"properties": {
+				"dbDatatype": {
+					"type": "string",
+					"description": "PostgreSQL data type (e.g. uuid, varchar, int4, bool, text, json, numeric, date, timestamp, timestamptz, bpchar)"
+				},
+				"baseDatatypeCd": {
+					"type": "string",
+					"enum": ["binary", "bool", "cuid", "culture", "date", "guid", "link", "number", "project", "string", "time", "timestamp", "xml", "json"],
+					"description": "Base data type code from field_type table (e.g. string, number, boolean, date, time, timestamp, json, binary)"
+				},
+				"columnType": {
+					"type": "string",
+					"enum": ["D", "R", "S", "F", "A", "L", "G"],
+					"description": "Column type: D=Data (physical column), R=Reference (N:1 lookup), S=Set (1:N collection), F=Formula (virtual calculated), G=Generated/Computed (physical, auto-maintained), A=Accumulation registry, L=Ledger registry"
+				},
+				"fieldTypeCd": {
+					"type": "string",
+					"enum": [
+						"text", "email", "phone", "url", "textarea", "number", "currency", "percent",
+						"checkbox", "date", "datetime", "time",
+						"dropdown", "flags", "tags", "json", "hidden", "color", "image", "file",
+						"richtext", "lookup", "user", "grid", "entitylink", "code"
+					],
+					"description": "UI field type code from field_type table"
+				},
+				"flags": {
+					"type": "string",
+					"pattern": "^[VIEMH]*$",
+					"description": "Display flags: V=Visible, I=Identity, E=Editable, M=Mandatory, H=Hidden"
+				},
+				"isPk": {
+					"type": "boolean",
+					"description": "Whether this column is part of the primary key"
+				},
+				"isNullable": {
+					"type": "boolean",
+					"description": "Whether the column allows NULL values"
+				},
+				"isIdentity": {
+					"type": "boolean",
+					"description": "Whether the column value is auto-generated (e.g. CUID primary key). Identity columns are not editable and excluded from required validation."
+				},
+				"formula": {
+					"type": "string",
+					"description": "Formula expression (for columnType 'F' or default values)"
+				},
+				"orderNum": {
+					"type": "integer",
+					"description": "Display order number"
+				},
+				"description": {
+					"type": "string",
+					"description": "Human-readable column description"
+				},
+				"maxLen": {
+					"type": "integer",
+					"description": "Maximum length for varchar/text columns"
+				},
+				"precision": {
+					"type": "integer",
+					"description": "Numeric precision for decimal/currency columns"
+				},
+				"editMask": {
+					"type": "string",
+					"description": "Input mask pattern for editing"
+				},
+				"displayFmt": {
+					"type": "string",
+					"description": "Display format pattern"
+				},
+				"params": {
+					"type": "object",
+					"description": "Field-type-specific configuration (e.g. dropdown options, currency settings)",
+					"properties": {
+						"options": {
+							"type": "array",
+							"items": {
+								"oneOf": [
+									{ "type": "string" },
+									{
+										"type": "object",
+										"required": ["value", "label"],
+										"properties": {
+											"value": { "type": "string" },
+											"label": { "type": "string" },
+											"icon": { "type": "string" },
+											"color": { "type": "string" }
+										},
+										"additionalProperties": false
+									}
+								]
+							},
+							"description": "Options for dropdown/flags field types"
+						}
+					}
+				},
+				"link": {
+					"$ref": "#/$defs/fieldLink",
+					"description": "Relationship link for Reference (R) and Set (S) columns"
+				},
+				"refFilter": {
+					"description": "Filter criteria for reference lookups"
+				}
+			},
+			"oneOf": [
+				{
+					"title": "Data column",
+					"description": "Physical DB column (columnType 'D' or unspecified). Requires 'dbDatatype'. Must NOT have 'link'.",
+					"required": ["dbDatatype"],
+					"properties": {
+						"columnType": { "enum": ["D"] },
+						"link": false
+					}
+				},
+				{
+					"title": "Inferred-type column",
+					"description": "Physical column where dbDatatype is inferred from fieldTypeCd (e.g. user, color)",
+					"required": ["fieldTypeCd"],
+					"properties": {
+						"columnType": { "enum": ["D"] },
+						"link": false,
+						"dbDatatype": false
+					}
+				},
+				{
+					"title": "Reference column (R)",
+					"description": "N:1 lookup (columnType 'R'). Requires 'link' and 'fieldTypeCd'. Must NOT have 'dbDatatype'.",
+					"required": ["columnType", "fieldTypeCd", "link"],
+					"properties": {
+						"columnType": { "const": "R" },
+						"dbDatatype": false
+					}
+				},
+				{
+					"title": "Set column (S)",
+					"description": "1:N collection (columnType 'S'). Requires 'link' and 'fieldTypeCd'. Must NOT have 'dbDatatype'.",
+					"required": ["columnType", "fieldTypeCd", "link"],
+					"properties": {
+						"columnType": { "const": "S" },
+						"dbDatatype": false
+					}
+				},
+				{
+					"title": "Formula column (F)",
+					"description": "Calculated virtual column (columnType 'F'). Requires 'formula'. Must NOT have 'link' or 'dbDatatype'.",
+					"required": ["columnType", "formula", "baseDatatypeCd"],
+					"properties": {
+						"columnType": { "const": "F" },
+						"link": false,
+						"baseDatatypeCd": true,
+						"dbDatatype": false
+					}
+				},
+				{
+					"title": "Accumulation registry column (A)",
+					"description": "Accumulation registry state (bool) + config. Physical column storing posted state. Config in params defines balance entity, dimensions, resources.",
+					"required": ["columnType", "dbDatatype", "params"],
+					"properties": {
+						"columnType": { "const": "A" },
+						"dbDatatype": { "const": "bool" },
+						"link": false
+					}
+				},
+				{
+					"title": "Ledger registry column (L)",
+					"description": "Ledger registry state (bool) + config. Physical column storing posted state. Config in params defines lines, movement entity, balance entity.",
+					"required": ["columnType", "dbDatatype", "params"],
+					"properties": {
+						"columnType": { "const": "L" },
+						"dbDatatype": { "const": "bool" },
+						"link": false
+					}
+				},
+				{
+					"title": "Generated/Computed column (G)",
+					"description": "Physical column auto-computed by DB trigger (aggregate over child set) or PostgreSQL GENERATED ALWAYS AS (same-row expression). Requires 'dbDatatype' and 'formula'. Formula syntax: SUM([setCol].[childField]) for aggregates, or plain SQL expression for same-row generated columns.",
+					"required": ["columnType", "dbDatatype", "formula"],
+					"properties": {
+						"columnType": { "const": "G" },
+						"link": false
+					}
+				}
+			],
+			"required": ["orderNum", "description"],
+			"additionalProperties": false
+		},
+		"fieldLink": {
+			"type": "object",
+			"description": "Relationship definition for Reference and Set columns",
+			"required": ["entity", "thisKey", "otherKey"],
+			"properties": {
+				"entity": {
+					"type": "string",
+					"description": "Target entity code (the entity being referenced or collected)"
+				},
+				"thisKey": {
+					"type": "string",
+					"description": "Column(s) in this entity (comma-separated for compound keys)"
+				},
+				"otherKey": {
+					"type": "string",
+					"description": "Column(s) in the target entity (comma-separated for compound keys)"
+				}
+			},
+			"additionalProperties": false
+		},
+		"numberSequence": {
+			"type": "object",
+			"description": "Automatic document numbering. Auto-generates a formatted number on INSERT when the target column is empty.",
+			"required": ["column", "defaultPrefix"],
+			"properties": {
+				"column": {
+					"type": "string",
+					"description": "Column code that receives the auto-generated number"
+				},
+				"prefixSettingCd": {
+					"type": "string",
+					"description": "Module setting code to resolve the prefix from (folder-scoped inheritance)"
+				},
+				"defaultPrefix": {
+					"type": "string",
+					"description": "Fallback prefix when no setting is configured"
+				},
+				"pattern": {
+					"type": "string",
+					"description": "Number format pattern. Placeholders: {prefix}, {yyyy}, {yy}, {mm}, {dd}, {seq:N}",
+					"default": "{prefix}{yyyy}-{seq:3}"
+				},
+				"resetPeriod": {
+					"type": "string",
+					"enum": ["year", "month", "day", "never"],
+					"description": "Counter reset period",
+					"default": "year"
+				}
+			},
+			"additionalProperties": false
+		},
+		"periodConfig": {
+			"type": "object",
+			"description": "Configuration for entities with the 'period' trait. Defines how date values map to period keys.",
+			"required": ["keyFormat"],
+			"properties": {
+				"keyFormat": {
+					"type": "string",
+					"description": "Format string for deriving period key from a date. Placeholders: {yyyy}, {yy}, {MM}, {dd}, {q} (quarter 1-4).",
+					"examples": ["{yyyy}-{MM}", "{yyyy}-Q{q}", "FY{yyyy}"]
+				}
+			},
+			"additionalProperties": false
+		},
+		"accumulationConfig": {
+			"type": "object",
+			"description": "Configuration for simple accumulation (document without lines, e.g. receipt → stock).",
+			"required": ["balanceEntity", "dimensions", "resources"],
+			"properties": {
+				"balanceEntity": { "type": "string", "description": "Balance entity code (e.g. 'stock')" },
+				"dimensions": {
+					"description": "Balance row lookup dimensions. Array of field names (same name on both entities) or object mapping balance_field → document_field.",
+					"oneOf": [
+						{ "type": "array", "items": { "type": "string" } },
+						{ "type": "object", "additionalProperties": { "type": "string" } }
+					]
+				},
+				"resources": {
+					"type": "object",
+					"description": "Document field → balance field resource mappings",
+					"additionalProperties": {
+						"type": "object",
+						"required": ["balanceField"],
+						"properties": {
+							"balanceField": { "type": "string" }
+						}
+					}
+				},
+				"direction": { "type": "string", "enum": ["increase", "decrease"], "description": "Fixed direction for all postings" },
+				"sign": { "$ref": "#/$defs/signConfig", "description": "Dynamic sign based on a field value (alternative to direction)" },
+				"autoCreateBalance": { "type": "boolean", "default": true },
+				"allowNegative": { "type": "boolean", "default": true },
+				"lockedFields": { "type": "array", "items": { "type": "string" }, "description": "Document fields locked when posted" }
+			},
+			"additionalProperties": false
+		},
+		"signConfig": {
+			"type": "object",
+			"description": "Dynamic sign determination based on a field value",
+			"required": ["field", "positive", "negative"],
+			"properties": {
+				"field": { "type": "string", "description": "Field code that determines direction" },
+				"positive": { "type": "array", "items": { "type": "string" }, "description": "Values that mean increase" },
+				"negative": { "type": "array", "items": { "type": "string" }, "description": "Values that mean decrease" }
+			},
+			"additionalProperties": false
+		},
+		"ledgerRegistryEntry": {
+			"type": "object",
+			"description": "Single registry target within an L-column's registries array",
+			"required": ["movementEntity", "movementMapping", "balanceEntity", "balanceMapping"],
+			"properties": {
+				"movementEntity": { "type": "string", "description": "Movement entity code (e.g. 'posting_record')" },
+				"movementMapping": {
+					"type": "object",
+					"description": "Line field → movement field mapping",
+					"additionalProperties": { "type": "string" }
+				},
+				"balanceEntity": { "type": "string", "description": "Balance entity code (e.g. 'balance_register')" },
+				"balanceMapping": {
+					"type": "object",
+					"required": ["dimensions", "debitResource", "creditResource"],
+					"properties": {
+						"dimensions": { "type": "array", "items": { "type": "string" }, "description": "Balance row dimension columns" },
+						"debitResource": { "type": "string", "description": "Balance column for debit turnover" },
+						"creditResource": { "type": "string", "description": "Balance column for credit turnover" }
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		},
+		"entityReference": {
+			"type": "object",
+			"description": "Foreign key reference definition (legacy format)",
+			"required": ["from", "to"],
+			"properties": {
+				"from": {
+					"type": "object",
+					"required": ["field"],
+					"properties": {
+						"field": { "type": "string" }
+					},
+					"additionalProperties": false
+				},
+				"to": {
+					"type": "object",
+					"required": ["entity", "field"],
+					"properties": {
+						"entity": { "type": "string" },
+						"field": { "type": "string" }
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

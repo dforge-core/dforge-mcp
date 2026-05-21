@@ -1,0 +1,100 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/manifest.schema.json",
+	"title": "dForge Module Manifest",
+	"description": "Module package manifest defining metadata, dependencies, and entity references",
+	"type": "object",
+	"required": ["packageFormat", "moduleId", "code", "version", "dbSchemaVersion", "displayName"],
+	"properties": {
+		"packageFormat": {
+			"type": "integer",
+			"minimum": 1,
+			"description": "Package format version (currently 1)"
+		},
+		"moduleId": {
+			"type": "string",
+			"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+			"description": "Globally unique module UUID"
+		},
+		"code": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_-]*$",
+			"description": "Human-readable module code (becomes schema name and module_cd in DB)"
+		},
+		"version": {
+			"type": "string",
+			"pattern": "^\\d+\\.\\d+\\.\\d+",
+			"description": "Module version (semver)"
+		},
+		"dbSchemaVersion": {
+			"type": "string",
+			"pattern": "^\\d+\\.\\d+\\.\\d+",
+			"description": "Database schema version (semver)"
+		},
+		"displayName": {
+			"type": "string",
+			"description": "Human-readable module name"
+		},
+		"description": {
+			"type": "string",
+			"description": "Module description"
+		},
+		"schemaName": {
+			"type": "string",
+			"description": "Database schema name override (defaults to module code, system modules use 'dForge')"
+		},
+		"system": {
+			"type": "boolean",
+			"description": "System module flag (cannot be uninstalled, admin-only). Omit for regular modules."
+		},
+		"author": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Author name"
+				},
+				"url": {
+					"type": "string",
+					"description": "Author URL"
+				}
+			},
+			"required": ["name"],
+			"additionalProperties": false
+		},
+		"license": {
+			"type": "string",
+			"description": "License identifier (e.g. 'proprietary', 'MIT')"
+		},
+		"dependencies": {
+			"type": "object",
+			"description": "Module dependencies: module code → semver range",
+			"additionalProperties": {
+				"type": "string",
+				"description": "Semver version range (e.g. '>=1.0.0')"
+			}
+		},
+		"entities": {
+			"type": "object",
+			"description": "Entity definitions and extensions: entity code → relative path to entity JSON file. Dotted keys (e.g. 'fin.invoice') indicate extensions of other modules' entities (the entity file must have an 'extends' property).",
+			"additionalProperties": {
+				"type": "string",
+				"pattern": "^(\\./)?entities/.+\\.json$"
+			}
+		},
+		"category": {
+			"type": "string",
+			"description": "Module category for display (e.g. 'Integration', 'Finance')"
+		},
+		"icon": {
+			"type": "string",
+			"description": "Bootstrap icon class (e.g. 'bi-link-45deg')"
+		},
+		"supportedLocales": {
+			"type": "array",
+			"items": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$" },
+			"description": "Non-English locales the package promises to translate. Each entry MUST match a translations/<locale>.json file, and every translatable resource (entity/field labels, folders, views, menus + items, actions + params, reports + datasets + params, settings) MUST have a label in that file. English is the default — don't list 'en' or 'en-US'."
+		}
+	},
+	"additionalProperties": false
+}

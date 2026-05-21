@@ -1,0 +1,15 @@
+# tsup output, rebuilt by prepublishOnly hook before npm publish.
+dist/
+
+# npm artifacts
+node_modules/
+*.tgz
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+
+# Local env overrides
+.env
+.env.local

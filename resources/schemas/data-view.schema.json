@@ -1,0 +1,299 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/data_views.schema.json",
+	"title": "dForge Data Views",
+	"description": "Data view definitions for a dForge module",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/dataView"
+	},
+	"$defs": {
+		"dataView": {
+			"type": "object",
+			"required": ["viewType", "dataSources"],
+			"properties": {
+				"viewType": {
+					"type": "string",
+					"enum": ["grid", "list", "kanban", "calendar", "gallery", "tree-grid", "diagram", "master-detail", "library"],
+					"description": "View display type"
+				},
+				"label": {
+					"type": "string",
+					"description": "Human-readable view name"
+				},
+				"icon": {
+					"type": "string",
+					"description": "Bootstrap icon class (e.g. 'bi-bounding-box')"
+				},
+				"description": {
+					"type": "string",
+					"description": "Optional description text shown on view cards"
+				},
+				"dataSources": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/dataSource"
+					},
+					"minItems": 1,
+					"description": "Data sources providing data for this view"
+				},
+				"filter": {
+					"description": "Default filter criteria"
+				},
+				"order": {
+					"description": "Default sort order"
+				},
+				"viewConfig": {
+					"type": "object",
+					"description": "View-type-specific configuration"
+				}
+			},
+			"additionalProperties": false,
+			"allOf": [
+				{ "$ref": "#/$defs/rules/kanban" },
+				{ "$ref": "#/$defs/rules/calendar" },
+				{ "$ref": "#/$defs/rules/tree-grid" },
+				{ "$ref": "#/$defs/rules/list" },
+				{ "$ref": "#/$defs/rules/diagram" },
+				{ "$ref": "#/$defs/rules/master-detail" }
+			]
+		},
+
+		"rules": {
+			"kanban": {
+				"if": {
+					"properties": { "viewType": { "const": "kanban" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/kanbanViewConfig" }
+					}
+				}
+			},
+			"calendar": {
+				"if": {
+					"properties": { "viewType": { "const": "calendar" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/calendarViewConfig" }
+					}
+				}
+			},
+			"tree-grid": {
+				"if": {
+					"properties": { "viewType": { "const": "tree-grid" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/treeGridViewConfig" }
+					}
+				}
+			},
+			"list": {
+				"if": {
+					"properties": { "viewType": { "const": "list" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/listViewConfig" }
+					}
+				}
+			},
+			"diagram": {
+				"if": {
+					"properties": { "viewType": { "const": "diagram" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/diagramViewConfig" }
+					}
+				}
+			},
+			"master-detail": {
+				"if": {
+					"properties": { "viewType": { "const": "master-detail" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"dataSources": { "minItems": 2 }
+					}
+				}
+			}
+		},
+
+		"kanbanViewConfig": {
+			"type": "object",
+			"required": ["groupByField"],
+			"properties": {
+				"groupByField": {
+					"type": "string",
+					"description": "Column code of a dropdown/flags/reference field to group cards by"
+				}
+			},
+			"additionalProperties": false
+		},
+		"calendarViewConfig": {
+			"type": "object",
+			"required": ["dateField"],
+			"properties": {
+				"dateField": {
+					"type": "string",
+					"description": "Column code of the date/timestamp field used to place events on the calendar"
+				},
+				"titleField": {
+					"type": "string",
+					"description": "Column code of the field displayed as event title. Defaults to the entity's toString template."
+				},
+				"colorField": {
+					"type": "string",
+					"description": "Optional column whose value drives the event pill color. For dropdown/flags columns, colors come from params.options rich form; otherwise a deterministic hash is used."
+				}
+			},
+			"additionalProperties": false
+		},
+		"treeGridViewConfig": {
+			"type": "object",
+			"required": ["parentField"],
+			"properties": {
+				"parentField": {
+					"type": "string",
+					"description": "Column code of the self-referencing FK (parent record)"
+				},
+				"labelField": {
+					"type": "string",
+					"description": "Field to display as node label (defaults to entity toString)"
+				},
+				"iconField": {
+					"type": "string",
+					"description": "Field containing a Bootstrap icon class per node"
+				}
+			},
+			"additionalProperties": false
+		},
+		"listViewConfig": {
+			"type": "object",
+			"properties": {
+				"titleField": {
+					"type": "string",
+					"description": "Column code of the primary display field"
+				},
+				"subtitleField": {
+					"type": "string",
+					"description": "Column code of the secondary display field"
+				},
+				"levels": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/listLevelConfig" },
+					"description": "Hierarchical child levels for expandable list rows"
+				}
+			},
+			"additionalProperties": false
+		},
+		"listLevelConfig": {
+			"type": "object",
+			"required": ["entityCode", "foreignKey"],
+			"properties": {
+				"entityCode": {
+					"type": "string",
+					"description": "Entity code for this child level"
+				},
+				"foreignKey": {
+					"type": "string",
+					"description": "FK column in the child entity linking back to the parent"
+				},
+				"columns": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Columns to display inline for each child row"
+				}
+			},
+			"additionalProperties": false
+		},
+		"diagramViewConfig": {
+			"type": "object",
+			"properties": {
+				"groupByField": {
+					"type": "string",
+					"description": "Column code to group diagram nodes by (e.g. 'module', 'project')"
+				},
+				"defaultHiddenGroups": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Group values to hide by default in the diagram"
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"viewColumn": {
+			"oneOf": [
+				{
+					"type": "string",
+					"description": "Column code (shorthand)"
+				},
+				{
+					"type": "object",
+					"required": ["column_cd"],
+					"properties": {
+						"column_cd": {
+							"type": "string",
+							"description": "Column code"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"description": "Column width in pixels"
+						},
+						"visible": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether the column is visible"
+						},
+						"pinned": {
+							"type": "string",
+							"enum": ["left", "right"],
+							"description": "Pin column to left or right edge"
+						}
+					},
+					"additionalProperties": false
+				}
+			]
+		},
+		"dataSource": {
+			"type": "object",
+			"required": ["entityCode"],
+			"properties": {
+				"entityCode": {
+					"type": "string",
+					"description": "Entity code to query"
+				},
+				"level": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Nesting level (0 = root, 1+ = detail). Defaults to 0"
+				},
+				"label": {
+					"type": "string",
+					"description": "Human-readable label for this data source (used in master-detail tabs)"
+				},
+				"columns": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/viewColumn" },
+					"description": "Column configuration — strings or objects with width/visibility"
+				},
+				"parentSetField": {
+					"type": "string",
+					"description": "Set field name on parent entity linking to this detail level"
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}
