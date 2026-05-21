@@ -1,0 +1,23 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/seed_data.schema.json",
+	"title": "dForge Seed Data",
+	"description": "Seed data records for a dForge entity",
+	"type": "object",
+	"required": ["entityCode", "records"],
+	"properties": {
+		"entityCode": {
+			"type": "string",
+			"description": "Target entity code to insert records into"
+		},
+		"records": {
+			"type": "array",
+			"description": "Array of records, each record is an object with column_code → value",
+			"items": {
+				"type": "object",
+				"additionalProperties": true
+			}
+		}
+	},
+	"additionalProperties": false
+}

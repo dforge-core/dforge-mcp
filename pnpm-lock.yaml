@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@dforge-core/dforge-cli':
-        specifier: 0.1.0-rc.6
-        version: 0.1.0-rc.6
+        specifier: 0.1.0-rc.7
+        version: 0.1.0-rc.7
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
@@ -36,8 +36,8 @@ packages:
   '@clack/prompts@0.11.0':
     resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
 
-  '@dforge-core/dforge-cli@0.1.0-rc.6':
-    resolution: {integrity: sha512-BTF7yzrISyzaTZmS7Wx8ixu0pdXL6Qf00kKONaks6vGldq9ss0M8w4PCCa1cREQ/Hov+tD7ee3WV3vgpUUicuQ==}
+  '@dforge-core/dforge-cli@0.1.0-rc.7':
+    resolution: {integrity: sha512-O12K8iXRck+g07Ag07iXYCpN2CEB3MaPr2OJwexPEi11YB/ZkO/Xraxf8K6RFGzD1BQ22YtEerm7f36jRtu4WQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -927,7 +927,7 @@ snapshots:
       picocolors: 1.1.1
       sisteransi: 1.0.5
 
-  '@dforge-core/dforge-cli@0.1.0-rc.6':
+  '@dforge-core/dforge-cli@0.1.0-rc.7':
     dependencies:
       '@clack/prompts': 0.11.0
 

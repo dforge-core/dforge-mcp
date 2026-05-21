@@ -1,0 +1,67 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/folders.schema.json",
+	"title": "dForge Folders",
+	"description": "Folder definitions for a dForge module",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/folder"
+	},
+	"$defs": {
+		"folder": {
+			"type": "object",
+			"required": ["label"],
+			"properties": {
+				"label": {
+					"type": "string",
+					"description": "Folder display name"
+				},
+				"description": {
+					"type": "string",
+					"description": "Optional description text (shown in breadcrumb/header area)"
+				},
+				"parentCode": {
+					"type": ["string", "null"],
+					"description": "Parent folder code (null for root folders)"
+				},
+				"folderPath": {
+					"type": "string",
+					"description": "URL-friendly folder path"
+				},
+				"color": {
+					"type": "string",
+					"description": "Folder accent color (hex)"
+				},
+				"inheritSecurity": {
+					"type": "boolean",
+					"description": "Whether to inherit security from parent folder"
+				},
+				"entities": {
+					"type": "object",
+					"description": "Entity code → folder-entity config",
+					"additionalProperties": {
+						"$ref": "#/$defs/folderEntity"
+					}
+				}
+			},
+			"additionalProperties": false
+		},
+		"folderEntity": {
+			"type": "object",
+			"properties": {
+				"viewName": {
+					"type": "string",
+					"description": "Entity view name to use in this folder"
+				},
+				"quickAdd": {
+					"type": "boolean",
+					"description": "Enable quick-add for this entity in this folder"
+				},
+				"rowFilter": {
+					"description": "Row-level filter criteria for this entity in this folder"
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

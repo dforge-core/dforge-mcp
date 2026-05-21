@@ -1,0 +1,83 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "dForge Module Scheduled Jobs",
+	"description": "Cron job declarations for a dForge module package (logic/jobs.json). The dForge.Scheduler service polls these and fires each job on its schedule.",
+	"type": "object",
+	"required": ["jobs"],
+	"properties": {
+		"jobs": {
+			"type": "array",
+			"maxItems": 50,
+			"description": "At most 50 jobs per module — guard against accidental fan-out from generated declarations.",
+			"items": {
+				"type": "object",
+				"required": ["code", "action", "schedule", "timeout"],
+				"properties": {
+					"code": {
+						"type": "string",
+						"maxLength": 100,
+						"pattern": "^[a-z][a-z0-9_]*$",
+						"description": "Unique identifier within the module."
+					},
+					"description": {
+						"type": "string",
+						"description": "Human-readable description of what the job does."
+					},
+					"action": {
+						"type": "string",
+						"description": "Action code in this module (e.g. 'generate_invoices'). The scheduler resolves it to action_implementation.impl_id at install time."
+					},
+					"schedule": {
+						"type": "string",
+						"description": "Five-field cron expression (minute granularity). Sub-minute schedules are rejected.",
+						"pattern": "^\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+$"
+					},
+					"params": {
+						"type": "object",
+						"description": "Static parameters passed to the action as __params. Folder-scoped overrides go through module settings, not here.",
+						"additionalProperties": true
+					},
+					"timeout": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 3600,
+						"description": "Hard timeout in seconds. Required — there is no implicit default. Must be > 300 only if class = 'long_running' (60-minute hard ceiling)."
+					},
+					"concurrency": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 5,
+						"default": 1,
+						"description": "Max parallel runs. 1 means single-instance; the scheduler skips a new fire if a previous one is still in flight (Phase 3 enforcement)."
+					},
+					"idempotencyKey": {
+						"type": "string",
+						"description": "Template like '{job_cd}:{run.month}'. Resolved at fire time. A successful run with the same key blocks re-dispatch (Phase 3 enforcement)."
+					},
+					"class": {
+						"type": "string",
+						"enum": ["standard", "long_running"],
+						"default": "standard",
+						"description": "Routing class. 'long_running' is opt-in and required for any timeout > 300 seconds."
+					},
+					"timeZone": {
+						"type": "string",
+						"description": "IANA tz name (e.g. 'Asia/Tokyo'). Overrides the tenant default. Omit to fall back to auth.tenant.time_zone."
+					},
+					"enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "Master switch. False fully disables (no scheduler, no manual trigger)."
+					},
+					"paused": {
+						"type": "boolean",
+						"default": false,
+						"description": "Soft pause. Scheduler skips firing, but admin 'trigger now' still works."
+					}
+				},
+				"additionalProperties": false
+			}
+		}
+	},
+	"additionalProperties": false
+}

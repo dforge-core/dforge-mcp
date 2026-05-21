@@ -1,0 +1,32 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/roles.schema.json",
+	"title": "dForge Roles",
+	"description": "Role definitions with entity rights for a dForge module",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/role"
+	},
+	"$defs": {
+		"role": {
+			"type": "object",
+			"required": ["description", "rights"],
+			"properties": {
+				"description": {
+					"type": "string",
+					"description": "Role display name"
+				},
+				"rights": {
+					"type": "object",
+					"description": "Entity rights: entity code → rights string",
+					"additionalProperties": {
+						"type": "string",
+						"pattern": "^[SIUDCE]*$",
+						"description": "Rights: S=Select, I=Insert, U=Update, D=Delete, C=Clone, E=Execute"
+					}
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

@@ -1,0 +1,99 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/traits.schema.json",
+	"title": "dForge Trait Definitions",
+	"description": "Defines entity traits that expand into fields, references, and constraints during module install. Shipped as traits.json at module root.",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/traitDefinition"
+	},
+	"$defs": {
+		"traitDefinition": {
+			"type": "object",
+			"description": "A single trait definition",
+			"properties": {
+				"description": {
+					"type": "string",
+					"description": "Human-readable description of the trait"
+				},
+				"includes": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Other trait names to include (inherit fields from). Expanded recursively with circular reference protection."
+				},
+				"fields": {
+					"type": "object",
+					"description": "Field definitions to add to entities using this trait. Keys support {entity}/{Entity} placeholders for parametric names.",
+					"additionalProperties": {
+						"$ref": "#/$defs/traitField"
+					}
+				},
+				"references": {
+					"type": "object",
+					"description": "FK reference definitions to add. Keys support {Entity} placeholder.",
+					"additionalProperties": {
+						"$ref": "#/$defs/traitReference"
+					}
+				},
+				"constraints": {
+					"type": "object",
+					"description": "Constraint definitions to add. Keys support {Entity} placeholder (e.g. 'UQ_{Entity}_period_key')."
+				}
+			},
+			"additionalProperties": false
+		},
+		"traitField": {
+			"type": "object",
+			"description": "Field definition within a trait. Same shape as entity field definitions.",
+			"properties": {
+				"dbDatatype": { "type": "string" },
+				"columnType": { "type": "string" },
+				"fieldTypeCd": { "type": "string" },
+				"flags": { "type": "string" },
+				"isPk": { "type": "boolean" },
+				"isIdentity": { "type": "boolean" },
+				"isNullable": { "type": "boolean" },
+				"formula": { "type": "string" },
+				"orderNum": { "type": "integer" },
+				"description": { "type": "string", "description": "Supports {entity}/{Entity} placeholders" },
+				"maxLen": { "type": "integer" },
+				"link": {
+					"type": "object",
+					"properties": {
+						"entity": { "type": "string" },
+						"thisKey": { "type": "string" },
+						"otherKey": { "type": "string" }
+					},
+					"required": ["entity", "thisKey", "otherKey"],
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		},
+		"traitReference": {
+			"type": "object",
+			"description": "FK reference definition within a trait",
+			"required": ["from", "to"],
+			"properties": {
+				"from": {
+					"type": "object",
+					"required": ["field"],
+					"properties": {
+						"field": { "type": "string" }
+					},
+					"additionalProperties": false
+				},
+				"to": {
+					"type": "object",
+					"required": ["entity", "field"],
+					"properties": {
+						"entity": { "type": "string" },
+						"field": { "type": "string" }
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

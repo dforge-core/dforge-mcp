@@ -16,33 +16,75 @@ export interface ResourceDef {
 	read: () => string;
 }
 
+// Schema resource registry. URI / file naming intentionally mirrors the
+// source filenames in dForge-core/docs/schemas/ (snake_case → kebab-case)
+// so anyone hopping between the two repos can map them at a glance.
+//
+// The same files are served publicly by jsdelivr (see
+// scripts/vendor-resources.sh comment), and the dforge-cli scaffolder
+// wires those URLs into .vscode/.zed settings — so changes here have a
+// ripple effect: rename a schema and you have to bump dforge-cli too.
+function schema(name: string, label: string, description: string): ResourceDef {
+	return {
+		uri: `dforge://schema/${name}`,
+		name: label,
+		description,
+		mimeType: "application/schema+json",
+		read: () => readVendored(`schemas/${name}.schema.json`),
+	};
+}
+
 export const resources: ResourceDef[] = [
-	{
-		uri: "dforge://schema/manifest",
-		name: "Module manifest JSON schema",
-		description:
-			"JSON Schema for manifest.json. The LLM should consult this before " +
-			"emitting manifest content to make sure required fields, patterns, " +
-			"and types are correct.",
-		mimeType: "application/schema+json",
-		read: () => readVendored("schemas/manifest.schema.json"),
-	},
-	{
-		uri: "dforge://schema/entity",
-		name: "Entity JSON schema",
-		description:
-			"JSON Schema for entity files under entities/*.json.",
-		mimeType: "application/schema+json",
-		read: () => readVendored("schemas/entity.schema.json"),
-	},
-	{
-		uri: "dforge://schema/data-view",
-		name: "Data view JSON schema",
-		description:
-			"JSON Schema for entries in ui/data_views.json.",
-		mimeType: "application/schema+json",
-		read: () => readVendored("schemas/data-view.schema.json"),
-	},
+	schema(
+		"manifest",
+		"Module manifest JSON schema",
+		"JSON Schema for manifest.json. Consult before emitting manifest content — covers required fields, semver patterns, and the entities map.",
+	),
+	schema(
+		"entity",
+		"Entity JSON schema",
+		"JSON Schema for entity files under entities/*.json (description, dbObject, toString, traits, fields).",
+	),
+	schema(
+		"data-views",
+		"Data view JSON schema",
+		"JSON Schema for ui/data_views.json — the map of viewName → { viewType, label, dataSources, ... }.",
+	),
+	schema(
+		"folders",
+		"Folders JSON schema",
+		"JSON Schema for ui/folders.json — root folder tree with per-entity view bindings.",
+	),
+	schema(
+		"menus",
+		"Menus JSON schema",
+		"JSON Schema for ui/menus.json — nested menu hierarchy with M.it/M.sub style items.",
+	),
+	schema(
+		"roles",
+		"Roles JSON schema",
+		"JSON Schema for security/roles.json — rights strings (SIUDC / E) per role per entity.",
+	),
+	schema(
+		"jobs",
+		"Scheduled jobs JSON schema",
+		"JSON Schema for logic/jobs.json — cron + action binding for the scheduler.",
+	),
+	schema(
+		"seed-data",
+		"Seed data JSON schema",
+		"JSON Schema for seed-data/*.json — initial rows inserted at install time.",
+	),
+	schema(
+		"traits",
+		"Entity traits JSON schema",
+		"JSON Schema describing the inheritable trait set (identity, audit, audit-full, soft-delete, sorting, postable, accumulation, ledger, period).",
+	),
+	schema(
+		"webhooks",
+		"Webhooks JSON schema",
+		"JSON Schema for ui/webhooks.json — outbound webhook definitions.",
+	),
 	{
 		uri: "dforge://docs/conventions",
 		name: "dForge module conventions",

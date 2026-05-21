@@ -1,0 +1,86 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/menus.schema.json",
+	"title": "dForge Menus",
+	"description": "Menu definitions for a dForge module",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/menu"
+	},
+	"$defs": {
+		"menu": {
+			"type": "object",
+			"required": ["label", "items"],
+			"properties": {
+				"label": {
+					"type": "string",
+					"description": "Menu display name"
+				},
+				"description": {
+					"type": "string",
+					"description": "Optional description text (tooltip, subtitle)"
+				},
+				"folders": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Folder codes where this menu is available"
+				},
+				"items": {
+					"type": "object",
+					"description": "Menu items keyed by item code",
+					"additionalProperties": {
+						"$ref": "#/$defs/menuItem"
+					}
+				}
+			},
+			"additionalProperties": false
+		},
+		"menuItem": {
+			"type": "object",
+			"required": ["orderNum", "label"],
+			"properties": {
+				"itemType": {
+					"type": ["string", "null"],
+					"enum": ["V", "D", "R", null],
+					"description": "Item type: V=Data View, D=Document, R=Report, null=folder/section"
+				},
+				"dataViewCode": {
+					"type": "string",
+					"description": "Data view code (when itemType is 'V')"
+				},
+				"documentCode": {
+					"type": "string",
+					"description": "Document code (when itemType is 'D')"
+				},
+				"reportCode": {
+					"type": "string",
+					"description": "Report code (when itemType is 'R')"
+				},
+				"orderNum": {
+					"type": "integer",
+					"description": "Display order"
+				},
+				"label": {
+					"type": "string",
+					"description": "Menu item display text"
+				},
+				"description": {
+					"type": "string",
+					"description": "Optional description text (tooltip, subtitle)"
+				},
+				"icon": {
+					"type": "string",
+					"description": "Bootstrap icon name"
+				},
+				"children": {
+					"type": "object",
+					"description": "Child menu items (for folder/section items)",
+					"additionalProperties": {
+						"$ref": "#/$defs/menuItem"
+					}
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

@@ -1,0 +1,73 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "dForge Module Webhooks",
+	"description": "Webhook subscription definitions for a dForge module package (webhooks.json)",
+	"type": "object",
+	"required": ["subscriptions"],
+	"properties": {
+		"subscriptions": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["code", "description", "entity", "event"],
+				"properties": {
+					"code": {
+						"type": "string",
+						"maxLength": 100,
+						"pattern": "^[a-z][a-z0-9_]*$",
+						"description": "Unique identifier within the module"
+					},
+					"description": {
+						"type": "string",
+						"description": "Human-readable description"
+					},
+					"entity": {
+						"type": "string",
+						"description": "Entity code that triggers this webhook"
+					},
+					"event": {
+						"type": "string",
+						"enum": ["insert", "update", "delete", "status_change", "any"],
+						"description": "Event type that fires this webhook"
+					},
+					"condition": {
+						"type": "string",
+						"description": "Formula evaluated against the record. Webhook fires only if true."
+					},
+					"endpointUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "Default endpoint URL. Integration modules ship with this pre-configured; admin can override."
+					},
+					"secretCd": {
+						"type": "string",
+						"description": "Secret code for API key (from dforge.secret table, admin-configured)"
+					},
+					"payload": {
+						"type": "object",
+						"properties": {
+							"include": {
+								"type": "array",
+								"items": { "type": "string" },
+								"description": "Field codes to include. If omitted, include all visible fields."
+							},
+							"includeOld": {
+								"type": "boolean",
+								"default": false,
+								"description": "Include previous field values on update/status_change events"
+							}
+						},
+						"additionalProperties": false
+					},
+					"enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "Can be set to false to disable without removing"
+					}
+				},
+				"additionalProperties": false
+			}
+		}
+	},
+	"additionalProperties": false
+}

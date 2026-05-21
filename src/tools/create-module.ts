@@ -12,6 +12,8 @@ import {
 	buildTranslations,
 	buildSeedData,
 	buildGitignore,
+	buildVscodeSettings,
+	buildZedSettings,
 } from "@dforge-core/dforge-cli/templates";
 import type {
 	EntitySpec,
@@ -108,6 +110,11 @@ export function createModuleFiles(
 	write("ui/actions.json", buildActions());
 	write("security/roles.json", buildRoles(opts));
 	writeText(".gitignore", buildGitignore());
+
+	// Editor-bindings (see templates.ts for rationale): inline JSON
+	// validation + autocomplete in VS Code & Zed with zero per-user setup.
+	write(".vscode/settings.json", buildVscodeSettings());
+	write(".zed/settings.json", buildZedSettings());
 
 	// Full preset adds the optional-but-typical extras.
 	if (opts.preset === "full") {
