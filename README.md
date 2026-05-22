@@ -4,6 +4,8 @@ MCP server for dForge module authoring. Exposes 18 composable tools and the cano
 
 Ships with a wizard Skill (`skills/dforge-mcp-author/SKILL.md`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps.
 
+**New here?** Start with **[docs/creating-modules.md](docs/creating-modules.md)** — three ways to scaffold a module (terminal CLI, VS Code sidebar, AI wizard) and when to pick each.
+
 > **Two GitHub repos to know:** this MCP server lives at `dforge-core/dforge-mcp`. The dForge platform itself (entities, validator, native CLI source) lives at `iash44/dForge-core` — referenced in `homepage` because the schemas + DSL conventions come from there.
 
 ## What it depends on at runtime
