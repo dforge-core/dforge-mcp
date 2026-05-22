@@ -1,25 +1,49 @@
 # @dforge-core/dforge-mcp
 
-MCP server for dForge module authoring. Exposes a small set of composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
+MCP server for dForge module authoring. Exposes 18 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
 Ships with a wizard Skill (`skills/dforge-mcp-author/SKILL.md`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps.
 
-## Install
+> **Two GitHub repos to know:** this MCP server lives at `dforge-core/dforge-mcp`. The dForge platform itself (entities, validator, native CLI source) lives at `iash44/dForge-core` — referenced in `homepage` because the schemas + DSL conventions come from there.
 
-```bash
-# As an MCP server invoked by an AI editor — usually no install needed,
-# the editor runs it via npx on demand. See "Wiring it up" below.
+## What it depends on at runtime
 
-# Local install (for development / debugging):
-npm install -g @dforge-core/dforge-mcp
-dforge-mcp                # speaks JSON-RPC over stdio; ctrl+C to quit
+```
+your AI editor (Claude Code / Cursor / Zed)
+    │
+    ▼ stdio JSON-RPC
+@dforge-core/dforge-mcp       ← this package; pure JS / TS
+    │
+    ▼ shells out for pack / install
+@dforge-core/dforge-cli        ← installed as a transitive dep; thin JS wrapper
+    │
+    ▼ optionalDependencies
+@dforge-core/dforge-cli-<platform>   ← native C# binary per platform (~35 MB)
 ```
 
-## Wiring it up
+The native binary actually talks to your tenant. The npm-CLI wrapper is just a launcher that picks the right platform binary and exec's it. **You don't need to install dforge-cli separately** — it comes along when you install dforge-mcp (or when `npx -y @dforge-core/dforge-mcp` runs cold).
 
-### Claude Code
+If you want to use a hand-built native binary instead of the npm-shipped one, point `DFORGE_CLI_BINARY` at the executable file's absolute path:
 
-Add to `~/.claude/config.json` (or the project-local `.claude/mcp.json`):
+```bash
+DFORGE_CLI_BINARY=/Users/me/projects/dForge-core/cli/bin/dForge.Cli
+```
+
+(macOS / Linux: no extension. Windows: `dForge.Cli.exe`.) If the path doesn't exist or isn't executable the server reports an error at the first pack/install call.
+
+## Install + wire into Claude Code
+
+### Recommended — via `claude mcp add` (writes ~/.claude.json for you)
+
+```bash
+claude mcp add dforge --scope user -- npx -y @dforge-core/dforge-mcp
+```
+
+This appends to `~/.claude.json` (the global config — single file in your home dir, no subdirectory). Restart Claude Code; on the first session that activates the server you'll see "Approve MCP server 'dforge'?" — accept it.
+
+### Manual — per-project
+
+Write `.mcp.json` at **the repo root** (not under `.claude/`):
 
 ```json
 {
@@ -28,40 +52,49 @@ Add to `~/.claude/config.json` (or the project-local `.claude/mcp.json`):
       "command": "npx",
       "args": ["-y", "@dforge-core/dforge-mcp"],
       "env": {
-        "DFORGE_CLI_BINARY": "/optional/path/to/dForge.Cli"
+        "DFORGE_CLI_BINARY": "/optional/abs/path/to/dForge.Cli"
       }
     }
   }
 }
 ```
 
-`DFORGE_CLI_BINARY` is only needed if you want `dforge_module_pack` / `dforge_module_install` to use a non-published native binary (e.g. a local C# build). Otherwise the server uses whatever `dforge-cli` is on PATH (install via `npm install -g @dforge-core/dforge-cli`, or let npx fetch it on demand).
+Restart Claude Code → approve on first prompt.
+
+### Verify it's alive
+
+```bash
+claude mcp list
+# Should show: dforge — npx -y @dforge-core/dforge-mcp — connected
+```
+
+Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 18 `dforge_*` tools should be listed.
 
 ### Cursor / Zed
 
-Same shape — both editors take a `command + args` MCP config. Refer to their docs for the exact file path.
+Same `command + args` config shape; check their docs for the file location. Verification is via their respective tool listings.
 
 ## What it exposes
 
 ### Tools (18)
 
-Grouped by typical phase in the wizard flow. All return-not-write tools emit a `{ summary, files: { '<relPath>': '<contents>' } }` map; the client decides whether to write the files (lets the AI preview diffs with the user before committing).
+Grouped by typical phase in the wizard flow. All "return" tools emit `{ summary, files: { '<relPath>': '<contents>' } }`; the client decides whether to write — lets the AI preview diffs with the user before committing.
 
 **Module-level**
 | Tool | Behavior |
 |---|---|
-| `dforge_module_create` | New module scaffold — file map for the client to write |
-| `dforge_module_inspect` | Read current module state from disk; returns structured summary of entities, views, roles, actions, etc. Call this BEFORE any patch |
+| `dforge_module_create` | New module scaffold |
+| `dforge_module_inspect` | Read current module state. Full structured data is in `files["_inspect.json"]`; `summary` is one-line stats |
 | `dforge_module_pack` | Shells to `dforge-cli module pack`. Returns tarball path + size |
-| `dforge_module_install` | Shells to `dforge-cli module install`. Runs the full server-side validator — the only real validator |
+| `dforge_module_install` | Shells to `dforge-cli module install`. Args: `pathOrTarball`, optional `tenantUrl` / `token` / `tenantCode` — fall back to `DFORGE_URL` / `DFORGE_TOKEN` env. `tenantCode` is an optional `--code` sanity check the server cross-references against the JWT |
 
 **Entities (Phase 1)**
 | Tool | Behavior |
 |---|---|
 | `dforge_entity_add` | Add an entity to an existing module |
-| `dforge_entity_field_add` | Patch a single field onto an existing entity |
+| `dforge_entity_field_add` | Patch a single field |
 | `dforge_entity_field_modify` | Replace a field's spec |
-| `dforge_entity_field_remove` | Drop a field (warns about dependent views / roles / formulas) |
+| `dforge_entity_field_remove` | Drop a field (warns about dependents) |
 
 **Behavior (Phase 2 — optional)**
 | Tool | Behavior |
@@ -73,81 +106,79 @@ Grouped by typical phase in the wizard flow. All return-not-write tools emit a `
 |---|---|
 | `dforge_view_add` | Add a data view |
 | `dforge_view_modify` | Replace a view's spec |
-| `dforge_report_add` | Add a report (layout + datasets + parameters) |
-| `dforge_setting_add` | Configurable module-level setting (folder-scoped at runtime) |
+| `dforge_report_add` | Add a report |
+| `dforge_setting_add` | Configurable module-level setting |
 
 **Security (Phase 5)**
 | Tool | Behavior |
 |---|---|
-| `dforge_role_add` | Add a role + per-object rights matrix |
-| `dforge_role_right_set` | Grant/revoke a single right on a single object (cheap backtrack) |
-| `dforge_folder_add` | Add a security folder under root or a parent path (optional — most modules ship with just the root) |
+| `dforge_role_add` | Add a role + rights matrix. **Fails if role already exists** — the scaffolder pre-creates `<code>.admin`, so use `role_right_set` to amend it instead |
+| `dforge_role_right_set` | Grant/revoke one right on one object (cheap backtrack) |
+| `dforge_folder_add` | Add a security folder (optional — most modules ship with just root) |
 
 **Cross-cutting**
 | Tool | Behavior |
 |---|---|
-| `dforge_dependency_add` | Add a dep on another dForge module (supports the `{ version, entities }` partial-coupling form) |
-| `dforge_dbml_import` | Stub. Returns "not yet implemented" until the underlying CLI command lands |
+| `dforge_dependency_add` | Add a dep on another dForge module |
+| `dforge_dbml_import` | Stub — not implemented yet |
 
 ### Resources (13)
 
-Read-only context. Pull these into the conversation at session start; the wizard Skill instructs the AI to consult schemas before emitting files of each kind.
-
 | URI | Content |
 |---|---|
-| `dforge://schema/manifest` | JSON Schema for manifest.json |
-| `dforge://schema/entity` | JSON Schema for entity files |
-| `dforge://schema/data-views` | JSON Schema for ui/data_views.json |
-| `dforge://schema/folders` | JSON Schema for ui/folders.json |
-| `dforge://schema/menus` | JSON Schema for ui/menus.json |
-| `dforge://schema/roles` | JSON Schema for security/roles.json |
-| `dforge://schema/jobs` | JSON Schema for logic/jobs.json |
-| `dforge://schema/seed-data` | JSON Schema for seed-data/*.json |
-| `dforge://schema/reports` | JSON Schema for ui/reports.json |
-| `dforge://schema/settings` | JSON Schema for settings.json |
-| `dforge://schema/traits` | JSON Schema for entity trait codes |
-| `dforge://schema/webhooks` | JSON Schema for ui/webhooks.json |
-| `dforge://docs/conventions` | MODULE_CONVENTIONS.md — naming, FK+Reference pattern, traits, security model |
+| `dforge://schema/manifest` | manifest.json JSON Schema |
+| `dforge://schema/entity` | entity files |
+| `dforge://schema/data-views` | ui/data_views.json |
+| `dforge://schema/folders` | ui/folders.json |
+| `dforge://schema/menus` | ui/menus.json |
+| `dforge://schema/roles` | security/roles.json |
+| `dforge://schema/jobs` | logic/jobs.json |
+| `dforge://schema/seed-data` | seed-data/*.json |
+| `dforge://schema/reports` | ui/reports.json |
+| `dforge://schema/settings` | settings.json |
+| `dforge://schema/traits` | entity trait codes |
+| `dforge://schema/webhooks` | ui/webhooks.json |
+| `dforge://docs/conventions` | MODULE_CONVENTIONS.md |
 
-Schemas + conventions are vendored at build time from `dForge-core/docs/`. Refresh with `scripts/vendor-resources.sh`. The published npm tarball ships them under `resources/`, and jsdelivr serves them publicly at:
+Schemas + conventions are vendored at build time from `iash44/dForge-core`'s `docs/`. The published npm tarball ships them under `resources/`, and jsdelivr serves them at:
 
 ```
 https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/resources/schemas/<name>.schema.json
 ```
 
-The dForge VS Code extension bundles them locally (no jsdelivr dependency at runtime).
+**Compatibility:** schemas vendored for this release came from `iash44/dForge-core` `main` as of the publish date stamped in `package.json`. If the platform adds new entity properties / field types after this release, generated modules using those features may validate locally but be rejected at install time. Bump the dforge-mcp version when the platform schemas change materially.
 
 ## Claude Skill — the wizard
 
-`skills/dforge-mcp-author/SKILL.md` teaches the AI how to drive the tools as a six-phase wizard:
+`skills/dforge-mcp-author/SKILL.md` teaches Claude how to drive the tools as a six-phase wizard. **It is NOT auto-installed by `npm install` — the Skill file ships in the npm tarball but Claude Code looks for Skills in `~/.claude/skills/`, not in node_modules.** Sync it manually:
+
+```bash
+# from the published npm tarball
+mkdir -p ~/.claude/skills/dforge-mcp-author
+curl -fsSL https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/skills/dforge-mcp-author/SKILL.md \
+  -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+
+# or from this repo
+mkdir -p ~/.claude/skills/dforge-mcp-author
+curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/skills/dforge-mcp-author/SKILL.md \
+  -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+```
+
+Re-run after every dforge-mcp upgrade — the Skill version isn't checked at runtime, so a stale Skill against new tools will misroute calls.
+
+The phases:
 
 | Phase | Required? | Tools used |
 |---|---|---|
-| 0. Intake | yes | (none — captures a brief in `_brief/00-intake.md`) |
-| 1. Domain (entities) | yes | `module_create`, `entity_add`, `entity_field_*` |
+| 0. Intake | yes | (brief written manually) |
+| 1. Domain | yes | `module_create`, `entity_add`, `entity_field_*` |
 | 2. Actions | optional | `action_add` |
-| 3. Views + Reports | views yes, reports optional | `view_add`/`_modify`, `report_add`, `setting_add` |
+| 3. Views + Reports | views yes, reports optional | `view_*`, `report_add`, `setting_add` |
 | 4. Polish (translations, seed) | optional | (file map authored directly) |
 | 5. Security | roles required, folders optional | `role_add`, `role_right_set`, `folder_add` |
 | 6. Verify | yes | `module_pack`, `module_install` |
 
-**Key principles encoded in the Skill:**
-- **Inspect before patch.** `module_inspect` is the first call in any session that touches an existing module.
-- **One thing at a time.** Loop per-entity / per-view / per-role, not batch dumps.
-- **Backtrack protocol.** When a later phase exposes a gap from earlier, the AI stops, names the issue, gets user sign-off, patches via the smallest tool that fits, propagates forward.
-- **Changelog.** Each backtrack appends to `_brief/changelog.md` so the user has a paper trail.
-- **Verify-or-it-didn't-happen.** Phase 6 install is non-skippable — it's the only true validator.
-
-**To enable the Skill in Claude Code:**
-
-```bash
-mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/skills/dforge-mcp-author/SKILL.md \
-  -o ~/.claude/skills/dforge-mcp-author/SKILL.md
-# or project-local:
-mkdir -p .claude/skills/dforge-mcp-author
-cp <repo>/skills/dforge-mcp-author/SKILL.md .claude/skills/dforge-mcp-author/
-```
+Key principles encoded in the Skill: inspect-before-patch, one-at-a-time, deterministic backtrack on earliest-phase-first rule, tool-failure protocol that distinguishes auth/connectivity from module defects, end-of-session cleanup user-driven.
 
 ## For maintainers
 
@@ -157,15 +188,15 @@ cp <repo>/skills/dforge-mcp-author/SKILL.md .claude/skills/dforge-mcp-author/
 pnpm install
 pnpm build          # tsup → dist/server.js (bundles SDK + zod + dforge-cli/templates)
 pnpm typecheck      # tsc --noEmit
-node dist/server.js # smoke-test via stdio JSON-RPC
+node dist/server.js # stdio JSON-RPC — pipe a request to smoke-test
 ```
 
-To iterate against an in-tree `dforge-cli`, temporarily point the dep at it:
+To iterate against an in-tree `dforge-cli`, temporarily pin the dep at the sibling path:
 
 ```bash
-sed -i '' 's|"@dforge-core/dforge-cli": "\^0.1.0"|"@dforge-core/dforge-cli": "file:../dforge-cli"|' package.json
+sed -i '' 's|"@dforge-core/dforge-cli": "\^0.1.[0-9.]*"|"@dforge-core/dforge-cli": "file:../dforge-cli"|' package.json
 rm -rf node_modules pnpm-lock.yaml && pnpm install
-# Flip back before publish, otherwise the published package.json is unresolvable for consumers.
+# Flip back before publish — file: deps don't resolve for npm consumers.
 ```
 
 ### Refresh vendored resources
@@ -177,21 +208,27 @@ scripts/vendor-resources.sh                              # auto-locate ../dForge
 DFORGE_CORE=/abs/path/to/dForge-core scripts/vendor-resources.sh
 ```
 
-This refreshes `resources/schemas/` and `resources/docs/`. Republish the npm package to update jsdelivr-served schemas. The VS Code extension vendors them at its own build time, so a separate VS Code repackage is needed for that consumer too.
+Republish to update jsdelivr-served schemas + the bundled resources.
 
-### Publishing to npm
+### Publishing
 
 ```bash
 scripts/publish.sh 0.1.0-rc.N --tag latest --otp <code>
 ```
 
-`prepublishOnly` runs `tsup` so the published tarball gets a fresh `dist/server.js`. No platform binaries to manage — one publish covers everything.
+`prepublishOnly` runs `tsup` so the tarball gets a fresh `dist/server.js`. No platform binaries to manage.
+
+**Pre-publish checklist:**
+- [ ] `@dforge-core/dforge-cli` dep is a real version (not `file:...`)
+- [ ] `pnpm typecheck` passes
+- [ ] Smoke test stdio: `tools/list` returns 18 tools
+- [ ] Skill updated for any new/changed tools (it's a SEPARATE artifact; users sync it manually after upgrades)
 
 ### Adding a new tool
 
 1. Drop it in `src/tools/<name>.ts`. Use shared helpers from `src/tools/_helpers.ts` (`loadManifest`, `readJsonOrDefault`, `jsonText`, `makeResult`, `withTodayStamp`). Return a `ToolResult`.
 2. Import + register in `src/server.ts` via the `envelope()` wrapper.
-3. Mention it in the wizard `SKILL.md` if it fits a phase.
+3. Mention it in `skills/dforge-mcp-author/SKILL.md` (which phase, which backtrack scenarios use it).
 4. Bump `package.json` version, publish.
 
 Conventions:

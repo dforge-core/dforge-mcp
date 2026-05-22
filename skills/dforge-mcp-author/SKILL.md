@@ -13,7 +13,7 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 
 | Tool | Typical phase | What it does |
 |---|---|---|
-| `dforge_module_inspect` | any | Read current module state. **Read-only** — its output does NOT require user confirmation to view; you summarize it and continue. |
+| `dforge_module_inspect` | any | Read current module state. **Read-only** — output does NOT require user confirmation. The one-line `summary` is for the user; the full structured state lives in `files["_inspect.json"]` (entities + their fields, views + their data sources, roles + rights matrix, actions, reports, settings, folders tree). Parse `_inspect.json` before planning patches — don't rely on summary text alone. |
 | `dforge_module_create` | 1 | Scaffold a new module (returns file map; user writes) |
 | `dforge_entity_add` | 1 | Add a whole entity to an existing module |
 | `dforge_entity_field_add` | 1 | Patch one field onto an existing entity |
@@ -121,7 +121,9 @@ When the user has a real business operation: read the DSL reference section of `
 
 ### 3a. Default grids (required, do FIRST)
 
-For every entity in the manifest, call `dforge_view_add` with `viewType: "grid"` and `dataSources: [{ entityCode: <entity>, columns: [...] }]`. Use `viewName: "default"` for the first grid per entity — this is **mandatory**; the platform looks for it.
+For every entity in the manifest, call `dforge_view_add` with `viewType: "grid"` and `dataSources: [{ entityCode: <entity>, columns: [...] }]`.
+
+**View naming.** View codes in `ui/data_views.json` are semantic — convention is the entity name (`feedback_item`), the plural (`invoices`), or descriptive (`invoices_kanban`, `feedback_by_status`). Do NOT use the literal code `default`. When `ui/folders.json` entities reference `viewName: "default"`, the platform resolves that to the entity's first view declared in `data_views.json` — it's a fallback alias, not a required view code. (The scaffolder already wrote a default grid keyed by entity code in Phase 1, so often you'll `view_modify` it rather than `view_add`.)
 
 **Do not propose any specialized view until every entity has its default grid.**
 
@@ -159,9 +161,10 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 
 ### 5a. Roles + rights matrix (required)
 
-1. Inventory roles. Default for simple modules: one `<code>.admin` role with full rights on everything. If intake mentioned multiple user groups, propose one role per group.
-2. Show the rights matrix as a table (rows = entities/actions/reports, columns = roles, cells = rights string). Get user sign-off.
-3. Call `dforge_role_add` per role. Use `dforge_role_right_set` for one-off edits.
+1. **Inspect first.** Run `dforge_module_inspect` and read the `roles` array. The scaffolder pre-creates `<code>.admin` with `SIUDC` on every entity declared at scaffold time. That role exists already — don't try to re-create it.
+2. Inventory roles. Default for simple modules: the existing `<code>.admin` covers admins; add one role per additional user group from intake (e.g. `<code>.user`, `<code>.viewer`).
+3. Show the rights matrix as a table (rows = entities/actions/reports, columns = roles, cells = rights string). Get user sign-off.
+4. **For new roles**: call `dforge_role_add`. **For amending existing roles** (the scaffolded admin, or grants on actions/reports added in Phases 2-3 that aren't yet in any role): call `dforge_role_right_set` per grant — it's the smallest tool and doesn't conflict with the scaffolded admin role. Calling `dforge_role_add` against an existing role code fails — use `role_right_set` to amend instead.
 
 **Rights semantics** (additive — multiple roles UNION, never revoke):
 - Entities: any subset of `SIUDC` (Select / Insert / Update / Delete / Clone)
