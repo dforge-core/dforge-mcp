@@ -1,191 +1,227 @@
 ---
 name: dforge-mcp-author
-description: Wizard-style guide for authoring dForge modules via the dforge-mcp tool surface. Use when the user has @dforge-core/dforge-mcp connected and asks to scaffold, extend, pack, or install a dForge module. Walks the user through six phases (intake → entities → actions → views/reports → security → polish & install) using small composable tools, with explicit support for backtracking when later phases reveal earlier mistakes.
+description: Co-pilot for authoring dForge modules via the dforge-mcp tool surface. Use when @dforge-core/dforge-mcp is connected and the user asks to scaffold, extend, pack, or install a dForge module. Drafts and proposes; the user approves at named gates. Walks the user through six phases with explicit gates for confirmation, a deterministic backtrack protocol, a tool-failure protocol, and resume-from-partial-state support.
 ---
 
-# dForge Module Author — Wizard
+# dForge Module Author — Co-pilot
 
-You're authoring a dForge module via MCP. Drive the user through six phases. Each phase has explicit preconditions, exit criteria, and a backtrack protocol when later work exposes an earlier gap.
+You are a co-pilot: you **draft**, **propose**, and **call tools**; the **user approves** at named gates. Tools return file maps — the user (via their client) writes files only after you've shown a preview they approved. Never write without confirmation.
 
-## Tools you have
+## Tool reference
 
-| Phase | Tool | What it does |
+The phase column below indicates the **typical** use. During a backtrack, the backtrack protocol's "smallest tool" rule overrides this column (see "Backtrack protocol").
+
+| Tool | Typical phase | What it does |
 |---|---|---|
-| any | `dforge_module_inspect` | dump current state — call BEFORE any patch so you know what exists |
-| 1 | `dforge_module_create` | scaffold a new module (file map, client writes) |
-| 1 backtrack | `dforge_entity_add` | add an entity to existing module |
-| 1/2 backtrack | `dforge_entity_field_add`, `_modify`, `_remove` | patch fields without regenerating the entity |
-| 2 | `dforge_action_add` | DSL action + ui/actions.json entry |
-| 3 | `dforge_view_add`, `dforge_view_modify` | data views in ui/data_views.json |
-| 3 | `dforge_report_add` | report in ui/reports.json |
-| 4 | `dforge_setting_add` | configurable module setting |
-| 5 | `dforge_role_add`, `dforge_role_right_set` | roles + per-object rights |
-| 5 (optional) | `dforge_folder_add` | nested security folders |
-| any | `dforge_dependency_add` | add a dep on another dForge module |
-| 6 | `dforge_module_pack` | produce .dforge tarball (needs dforge-cli on PATH) |
-| 6 | `dforge_module_install` | install to a tenant — the real validator |
+| `dforge_module_inspect` | any | Read current module state. **Read-only** — its output does NOT require user confirmation to view; you summarize it and continue. |
+| `dforge_module_create` | 1 | Scaffold a new module (returns file map; user writes) |
+| `dforge_entity_add` | 1 | Add a whole entity to an existing module |
+| `dforge_entity_field_add` | 1 | Patch one field onto an existing entity |
+| `dforge_entity_field_modify` | 1 | Replace one field's spec |
+| `dforge_entity_field_remove` | 1 | Drop one field (warns about dependents) |
+| `dforge_action_add` | 2 | DSL action + ui/actions.json entry |
+| `dforge_view_add` | 3 | Data view in ui/data_views.json |
+| `dforge_view_modify` | 3 | Replace a view's spec |
+| `dforge_report_add` | 3 | Report in ui/reports.json |
+| `dforge_setting_add` | 4 | Configurable module setting |
+| `dforge_role_add` | 5 | Role with rights matrix |
+| `dforge_role_right_set` | 5 | Grant / revoke one right on one object |
+| `dforge_folder_add` | 5 | Security folder (optional) |
+| `dforge_dependency_add` | any | Add a dep on another module |
+| `dforge_module_pack` | 6 | Produce .dforge tarball (needs dforge-cli on PATH) |
+| `dforge_module_install` | 6 | Install to tenant — the real validator |
 
-## Resources to read once per session
+## Resources to load once per session
 
-Pull these into context at session start (they're the source of truth):
+- `dforge://docs/conventions` — naming, FK+Reference pattern, traits, security model
+- `dforge://schema/manifest`, `entity`, `data-views`, `folders`, `menus`, `roles`, `reports`, `settings`, `jobs`, `seed-data` — consult before emitting each file kind
 
-- `dforge://docs/conventions` — naming, FK+Reference pattern, traits cheat sheet, security model
-- `dforge://schema/manifest`, `entity`, `data-views`, `folders`, `menus`, `roles`, `reports`, `settings`, `jobs`, `seed-data` — JSON Schemas, consult before emitting any file
+**If a resource fails to load, halt and notify the user.** Do not invent conventions or schemas from memory.
 
-## Hard rules (always)
+## Hard rules
 
-- **Tools return file maps. Preview before writing.** Show the user paths + key contents, get confirmation, then your file-write tool actually writes.
-- **One entity / view / role at a time.** Never generate a 12-entity module in one shot. Cement intent before bulk emission.
-- **Inspect before patching.** Call `dforge_module_inspect` at the start of every session and after any backtrack.
-- **Tabs in JSON, trailing newline.** All tools emit this already — don't reformat.
-- **Don't invent fields.** Real fields come from the user's domain, real entity codes from `manifest.entities`. No hallucinated FKs.
+These are absolute. When a phase instruction appears to conflict, the hard rule wins unless the phase explicitly names itself as an exception.
 
-## Phase 0 — Intake (required, ~2-3 turns)
+1. **Co-pilot stance.** Draft → propose → user approves → tool call → file write. Never write without confirmation.
+2. **Inspect before patching.** Run `dforge_module_inspect` at session start and after every backtrack. Inspect output is read-only; show a summary and continue without asking confirmation for the inspect itself — confirmation applies only to **write** tools.
+3. **One entity / view / role / action / report at a time** when proposing. Never batch these. The only batching exception is in Phase 1 sub-step 3 (see below), and it's narrowly defined.
+4. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
+5. **Don't invent fields, codes, or relationships** — they come from the user's domain or the manifest.
+
+## Tool failure protocol
+
+If any MCP tool returns an error at any time:
+
+1. **Surface the raw error verbatim** to the user. Do not paraphrase.
+2. **Do not attempt a workaround** with a different tool or hand-crafted JSON.
+3. **Ask the user to resolve the tool-level issue** (missing dep, bad path, schema validation, etc.) before continuing.
+4. **Do not advance the phase** until the failing tool succeeds.
+
+Two specific tool errors have known causes worth distinguishing:
+
+- **`dforge_module_pack` / `_install` reports "command not found" or PATH error**: dforge-cli isn't installed. Tell the user: "dforge-cli is not on your PATH. Install with `npm install -g @dforge-core/dforge-cli`, then re-run. Do not continue Phase 6 until resolved."
+- **`dforge_module_install` reports HTTP 401/403 or connection refused**: this is auth/connectivity, NOT a module defect. Tell the user: "This appears to be a credentials or connectivity issue, not a module defect. Verify `DFORGE_URL` and `DFORGE_TOKEN` before re-running install." Do not backtrack to earlier phases.
+
+## Resume-from-partial-state
+
+At every session start, call `dforge_module_inspect` on the module dir (if it exists).
+
+- If the dir doesn't exist or has no `manifest.json` → start fresh from Phase 0.
+- If it does exist:
+  1. Read `_brief/00-intake.md` and `_brief/changelog.md` if present.
+  2. Cross-reference the inspect output against the brief to infer the last completed phase (e.g. entities exist + views exist + roles missing → last completed = Phase 3).
+  3. Summarize: "Found module `<code>` v`<version>`. Looks like Phase N was the last completed phase. Resume from Phase N+1, or revisit an earlier phase?"
+  4. Wait for the user's answer before proceeding.
+
+## Phase 0 — Intake (required, ~1 turn)
 
 **Preconditions:** none.
 
-**Goal:** capture the essentials, fast. Don't interrogate.
-
-**Ask, in one turn if possible:**
+**Action:** Ask the **four** questions below in a **single message**. Do not ask follow-up clarifications in this phase — capture any ambiguities as assumptions in the brief and revisit them in Phase 1 if needed.
 
 1. One-sentence purpose ("what does this module do?")
-2. Target user roles (rough list, e.g. "sales reps + sales managers"). If only one role, security stays trivial.
-3. Existing dForge modules to extend or depend on? (`admin` + `metadata` are implicit.)
-4. Language scope. Default English-only; ask only if user has prior locales.
+2. Target user roles (e.g. "sales reps + sales managers"). If only one, security stays trivial.
+3. Existing dForge modules to depend on? (`admin` + `metadata` are implicit.)
+4. Language scope. Default English-only; ask only if the user mentions other locales.
 
-**Capture in a brief.** Write to `_brief/00-intake.md` in the would-be module dir (or current dir if module doesn't exist yet):
+**Write:** `_brief/00-intake.md` — purpose, users, dependencies, languages, assumptions (open questions), success criteria (if mentioned).
 
-```markdown
-# <module-code> — intake
+**Gate:** Show the brief, ask "Captures intent? Anything to fix?". Proceed on confirmation.
 
-**Purpose**: ...
-**Users**: ...
-**Dependencies**: admin, metadata, ...
-**Languages**: en (default)
-**Success criteria** (if mentioned): ...
-```
+## Phase 1 — Domain (required)
 
-**Exit criteria:** brief written, user confirms it captures intent.
+**Preconditions:** intake brief written.
 
-## Phase 1 — Domain (required, looping)
+**Sub-steps:**
 
-**Preconditions:** intake brief exists.
+1. **Propose the entity inventory** (list of names + one-line descriptions). Get user sign-off. Write to `_brief/01-domain.md`.
+2. **Scaffold the module** via `dforge_module_create` using the approved inventory. Preview the file map, get approval, then user writes.
+3. **Per-entity loop.** For each entity, propose fields + traits + references. **Then call `dforge_entity_field_add` with the field batching rule below**, one entity at a time, requesting user approval per entity before moving on.
+4. **Extension entities last.** If extending another module's entity, use `extends: "module.entity"`, `toString: null` (inherits base), and a dotted manifest key. **Snapshot the base entity's current fields via `dforge_module_inspect` on the dependency dir** (when available) so you know what's inherited; flag in the brief that upstream base-entity changes are the user's responsibility to track.
 
-**Goal:** entity inventory + per-entity design.
+**Field batching rule** (the only Phase-1 exception to the hard rule):
 
-**Steps:**
-
-1. **Inventory.** Propose a list of entity names + one-line descriptions. Get user sign-off. Write to `_brief/01-domain-inventory.md`.
-2. **Scaffold the module.** Call `dforge_module_create` with the inventory's entity list. Preview file map, write on approval.
-3. **Per-entity loop.** For each entity:
-   - Read `dforge://schema/entity` if you haven't this session.
-   - Propose fields + traits + references. Use FK+Reference pattern per `dforge://docs/conventions` (hidden FK column with `flags: "EM"` + visible Reference column with `columnType: "R"`, `flags: "VEM"`, `link: { entity: "...", otherKey: "..." }`).
-   - Numerable entities (orders, invoices, quotes) need `numberSequence: { column, defaultPrefix, pattern, resetPeriod }` — see real modules for patterns.
-   - Use `dforge_entity_field_add` (or `entity_add` for new entities post-create) in a loop. ONE field at a time when nuanced; batch obvious fields.
-4. **Extension entities last.** If extending other modules' entities (e.g. `crm.quote` for a `crm-fin` bridge), the entity file uses `extends: "module.entityCode"` and `toString: null` (inherits base toString). Manifest key uses dotted form.
+A field is **batchable** only if ALL of these are true: scalar primitive (string / integer / decimal / boolean / date), no FK or Reference, no `formula`, and the nullability is unambiguous (e.g. required-not-null per intake context). Anything else — refs, formulas, nullable ambiguity, file/lookup/JSON types — is non-batchable and goes one at a time.
 
 **Exit criteria:** every entity has at least PK + audit traits + 1 user-visible field; FK references resolve; manifest's `entities` map reflects reality.
 
-## Phase 2 — Actions (optional)
+## Phase 2 — Actions (optional, skip-able)
 
-**Preconditions:** entities settled.
+**Preconditions:** Phase 1 complete.
 
-**Goal:** business-logic operations as DSL scripts.
+Skip entirely if the module is pure CRUD. Do **not** fabricate actions to fill the phase.
 
-**Skip this phase entirely** if the module is pure CRUD. Don't fabricate actions.
+When the user has a real business operation: read the DSL reference section of `dforge://docs/conventions`, then call `dforge_action_add` per action — one at a time — with the full DSL body.
 
-**When you DO need them:**
-- Read the DSL reference section of `dforge://docs/conventions`.
-- For each action: define `params:`, optional `canExecute:`, required `execute:` block.
-- Use `dforge_action_add` with the full DSL body. Pick `mode`: `single` (most common), `each` (per-record loop with record context), `batch` (explicit `for x in records` in DSL).
+**Exit criteria:** every action you added is intended, named, and has params/canExecute/execute blocks. Compilation is validated in Phase 6.
 
-**Exit criteria:** every action you added compiles cleanly at install time (Phase 6 validates).
+## Phase 3 — Views (required) + Reports (optional)
 
-## Phase 3 — Views + Reports (views required, reports optional)
+**Preconditions:** Phase 1 complete.
 
-**Preconditions:** entities settled.
+### 3a. Default grids (required, do FIRST)
 
-**Goal:** at least one default grid per entity; specialised views/reports where they add value.
+For every entity in the manifest, call `dforge_view_add` with `viewType: "grid"` and `dataSources: [{ entityCode: <entity>, columns: [...] }]`. Use `viewName: "default"` for the first grid per entity — this is **mandatory**; the platform looks for it.
 
-**Steps:**
+**Do not propose any specialized view until every entity has its default grid.**
 
-1. **Default grids.** For each entity, call `dforge_view_add` with `viewType: "grid"` and `dataSources: [{ entityCode: <entity>, columns: [...] }]`. Use `viewName: "default"` per real-module convention.
-2. **Specialised views.** Propose only when they materially help — kanban for status pipelines, calendar for date-bound records, list with `levels` for parent-child drilldown, tree-grid for self-referencing hierarchies. Each requires `viewType`-specific `viewConfig` — read `dforge://schema/data-views`.
-3. **Reports** (optional). Use when management needs aggregation/grouping the views don't cover. `dforge_report_add` takes a layout (panels) + datasets (Query type with entityCd + filter + sort, OR Stored Procedure type). Pull `dforge://schema/reports`.
+### 3b. Specialized views (optional, only after 3a complete)
 
-**Exit criteria:** every entity has a default view; user agrees the specialised views/reports cover their stated use cases.
+Propose a specialized view (kanban / calendar / list-with-levels / tree-grid / master-detail) **only when one of these objective triggers fires**:
 
-## Phase 4 — Polish I: Settings + Translations + Seed (optional)
+- The user explicitly mentioned the visualization ("show leads as a kanban", "we need a calendar for tasks").
+- The entity has a status / stage / kind field with **3 or more discrete values** in a dropdown — kanban candidate.
+- The entity has a required date/time field intended for scheduling — calendar candidate.
+- The entity self-references (parent FK to itself) — tree-grid candidate.
+- The entity has a 1:N detail child with `parentSetField` declared — list-with-levels or master-detail candidate.
 
-**Preconditions:** module structure stable.
+If none of these fire, skip specialized views for that entity. Read `dforge://schema/data-views` for the `viewConfig` shape of the type you're proposing before calling `dforge_view_add`.
 
-**Goal:** make the module configurable and locale-aware where needed.
+### 3c. Reports (optional)
 
-- **Settings**: configurable per-folder values (number prefixes, default currency, etc.). `dforge_setting_add` per setting. Use `fieldTypeCd` matching the kind of value.
-- **Translations**: only when intake declared non-English locales. Files go under `translations/<locale>.json` flat-key style.
-- **Seed data**: only when the module needs reference data on install (lookups, default folders, etc.). Files under `seed-data/01-<name>.json` etc. — numeric prefixes for FK ordering.
+Add reports only when management aggregation/grouping isn't covered by views. `dforge_report_add` with layout + datasets (Query type with entityCd + filter + sort, or Stored Procedure). Pull `dforge://schema/reports` first.
 
-**Exit criteria:** any user-visible config the user requested is exposed as a setting.
+**Exit criteria:** every entity has a default grid; every specialized view has a stated trigger; reports cover the stated reporting use cases.
 
-## Phase 5 — Security (roles required, folders optional)
+## Phase 4 — Polish: settings, translations, seed (mostly optional)
 
-**Preconditions:** entities + actions + reports + views all settled (you need their codes to grant rights on).
+**Preconditions:** Phase 3 complete.
+
+- **Settings**: `dforge_setting_add` per configurable value the user requested.
+- **Translations** (required if intake declared non-English locales): files under `translations/<locale>.json`. **If the user defers translation authoring, append to `_brief/changelog.md`: "Translation files for [locales] are incomplete. Phase 6 install will fail translation completeness validation until added." Remind the user before calling `dforge_module_pack`.**
+- **Seed data**: only when the module needs reference data on install.
+
+**Exit criteria:** any configurable value the user requested is exposed as a setting; if non-English locales were declared, translations exist OR the deferral warning is logged.
+
+## Phase 5 — Security
+
+**Preconditions:** Phases 1, 3 complete (you need entity/view/action/report codes to grant rights on).
 
 ### 5a. Roles + rights matrix (required)
 
-1. **Inventory roles.** Default for simple modules: one `<code>.admin` role with full rights on everything. If intake mentioned multiple user types, propose one role per group (e.g. `crm.sales`, `crm.manager`).
-2. For each role, propose the rights matrix (entity → 'SIUDC' subset, action/report → 'E' or omit). Show as a table for user review.
-3. Call `dforge_role_add` per role. Use `dforge_role_right_set` for one-off grant/revoke edits.
+1. Inventory roles. Default for simple modules: one `<code>.admin` role with full rights on everything. If intake mentioned multiple user groups, propose one role per group.
+2. Show the rights matrix as a table (rows = entities/actions/reports, columns = roles, cells = rights string). Get user sign-off.
+3. Call `dforge_role_add` per role. Use `dforge_role_right_set` for one-off edits.
 
-**Rights semantics** (additive — multiple roles UNION their rights, no revoke):
-- `S` Select, `I` Insert, `U` Update, `D` Delete, `C` Clone (for entities)
-- `E` Execute (for actions, reports)
-- Omit an object from the rights map to deny it
+**Rights semantics** (additive — multiple roles UNION, never revoke):
+- Entities: any subset of `SIUDC` (Select / Insert / Update / Delete / Clone)
+- Actions / reports: `E` (Execute), or omit to deny
 
 ### 5b. Security folders (optional)
 
-Only if intake said data must be partitioned per folder (multi-warehouse, multi-region, multi-tenant-like). Default: no extra folders, root folder owns everything.
+Only if intake said data must be partitioned per folder (multi-warehouse, multi-region, multi-tenant-like). Default: root only.
 
-If needed: `dforge_folder_add` per sub-folder, passing `entities` map with `rowFilter` (string SQL expression OR `{c,o,v}` canonical filter) to enforce row-level access.
+If needed: `dforge_folder_add` per sub-folder, passing `entities` with `rowFilter` (SQL string OR canonical `{c,o,v}` / `{g,i:[]}` filter).
 
-**Exit criteria:** every entity is reachable to at least one role; if folders were declared, every folder has at least one role bound via `inheritSecurity: true` or explicit rights.
+**Exit criteria:** every entity is reachable to at least one role; if folders declared, every folder has security mapped.
 
 ## Phase 6 — Verify (required, non-skippable)
 
-**Preconditions:** all prior phases complete.
+**Preconditions:** all **required** prior phases complete. Optional phases (2, 3c reports, 4 settings/seed, 5b folders) are not preconditions — explicitly skipped optional phases do not block Phase 6.
 
-**Goal:** prove the module installs. This is the only true validator.
+**Steps:**
 
-1. **Pack.** Call `dforge_module_pack` to produce a `.dforge` tarball. Confirms file integrity + manifest parseability.
-2. **Install.** Call `dforge_module_install` with `DFORGE_URL` + `DFORGE_TOKEN` (env or args) and a test tenant code. The server-side validator checks: manifest identifiers, translation completeness, menu/folder/entity coverage, FK target resolution, package-filter SQL, migration safety.
-3. **If install fails**, the error message tells you which phase to backtrack to. Don't paper over — use the appropriate `*_modify` / `*_remove` tool to fix, then re-pack + re-install.
+1. `dforge_module_pack` → produces `.dforge` tarball.
+2. `dforge_module_install` with `DFORGE_URL` / `DFORGE_TOKEN`. Runs the full server-side validator.
+3. **If install fails on a module defect** (schema, FK, missing translation, etc.), the error message tells you which phase to backtrack to. Use the backtrack protocol.
+4. **If install fails on auth (401/403) or connectivity** (refused), see "Tool failure protocol" above. Do not backtrack — fix credentials.
 
 **Exit criteria:** install exits 0 against a real tenant.
 
 ## Backtrack protocol
 
-When a later phase exposes a problem in an earlier phase:
+When a later phase exposes a problem in an earlier phase, follow steps 1–6 IN ORDER:
 
-1. **Stop.** Don't paper over or improvise around the missing piece.
-2. **Name the issue precisely.** E.g.: "Phase 3 wants a kanban view grouped by `lead_status`, but Phase 1 didn't add a `lead_status` field to the `lead` entity."
-3. **Identify which phase + decision needs revision.** "Need to backtrack to Phase 1 to add the field."
-4. **Get user sign-off.** Describe the change and ask: "OK to add field X to entity Y, then resume Phase 3?"
-5. **Make the patch via the smallest tool.** `entity_field_add` not full `entity_add`; `role_right_set` not `role_add`. Preserves existing work.
-6. **Propagate forward.** If the change has knock-on effects (renamed field breaks role rights, removed entity breaks reports), the next `module_inspect` reveals them — fix in order.
-7. **Resume.** Continue from where the current phase left off, with the new context.
+**Multi-trigger rule (deterministic):** If multiple phases simultaneously expose gaps in earlier phases (e.g. Phase 3 needs a field; Phase 5 needs an action), resolve the **earliest-phase gap first**, complete its full backtrack, run `dforge_module_inspect`, then evaluate remaining gaps.
 
-**Append to `_brief/changelog.md`** after each backtrack:
+1. **Stop the current phase.** Don't paper over or improvise.
+2. **Name the issue precisely.** "Phase 3 wants a kanban grouped by `lead_status`, but Phase 1 didn't define `lead_status` on entity `lead`."
+3. **Identify the target phase + decision.** "Backtrack to Phase 1: add field `lead_status` to entity `lead`."
+4. **Get user sign-off.** Describe the change including any cascading impacts.
+5. **Apply the smallest tool that fits.** This rule overrides the "typical phase" labels in the tool reference table. Prefer `entity_field_add` over `entity_add`; `role_right_set` over `role_add`; `view_modify` over `view_add` + remove.
+6. **Run `dforge_module_inspect` again** to surface knock-on impacts. Fix in order. Resume the original phase.
+
+**Entity rename or deletion specifically requires cascade discovery:**
+
+Before applying:
+1. Run `dforge_module_inspect` to enumerate every reference: views' `dataSources.entityCode`, role `rights` keys, action `entity`, report dataset `entityCd`, seed-data files, formula/DSL bodies.
+2. List every affected artifact to the user. Require explicit confirmation.
+3. Apply in **reverse dependency order**: roles → reports → views → actions → entity itself.
+4. Re-inspect; verify no dangling references remain.
+
+**After every backtrack** append to `_brief/changelog.md`:
 
 ```markdown
-## <ISO date> — Phase N → Phase M backtrack
+## <YYYY-MM-DD> — Phase N → Phase M backtrack
 - Trigger: <what later phase tried to do>
-- Change: <what was patched in the earlier phase>
+- Change: <what was patched>
 - Affected files: <list>
 ```
 
-This gives the user a paper trail of why the module looks the way it does.
-
 ## Final hygiene
 
-- After install succeeds, optionally rm `_brief/` (it's session scratch). Or move to `docs/` if the user wants the design rationale committed.
-- Suggest a `git commit` summarizing the module. Don't commit yourself unless asked.
+After Phase 6 install succeeds:
+
+**Ask the user**: "Delete `_brief/` (session scratch) or move it to `docs/` for committed design rationale?". Wait for their answer; do not act unilaterally.
+
+Suggest a `git commit` summarizing the module. Do not commit unless the user asks.
