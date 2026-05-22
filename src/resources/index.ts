@@ -104,6 +104,14 @@ export const resources: ResourceDef[] = [
 		mimeType: "text/markdown",
 		read: () => readVendored("docs/conventions.md"),
 	},
+	{
+		uri: "dforge://docs/dsl",
+		name: "dForge action DSL reference",
+		description:
+			"Full reference for the dForge action DSL (logic/actions/*.dsl files): block structure (params/canExecute/onBeforeStart/execute), execution modes (single/each/batch), field-access syntax ([field], params[name], [ref].[field], records.*), all 30 built-in host functions (query/insert/error/exit/now/sendEmail/...), supported JS subset (ES5 via Esprima/Jint), common patterns, and pitfalls. **Load this before authoring any DSL action (Phase 2 of the wizard).**",
+		mimeType: "text/markdown",
+		read: () => readVendored("docs/dsl-reference.md"),
+	},
 ];
 
 function readVendored(rel: string): string {

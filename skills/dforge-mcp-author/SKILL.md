@@ -82,7 +82,14 @@ At every session start, call `dforge_module_inspect` on the module dir (if it ex
 
 **Action:** Walk through the questions below **one at a time, in sequence**. After each answer, apply the validate-and-reflect rule (hard rule #4): restate what you understood, confirm, then proceed to the next question. Each subsequent question is informed by prior answers — don't ask Q2 in a way that contradicts what Q1 established. Don't batch.
 
-**Exception:** if the user explicitly says "give me defaults" / "pick reasonable defaults" / similar, you may propose a default brief in one block, restate it, and ask "any to override?". Otherwise, sequential.
+**Interaction style — free-form prose only.** Every question in Phase 0 is asked as a plain-language sentence in your conversation message. Do **NOT** use `AskUserQuestion`, picker UIs, multiple-choice tabs, structured forms, or any tool that presents the user with predefined options to choose from. The whole point of Phase 0 is to elicit the user's own words about purpose, user types, and verbs — predefined buckets bias the answer into your taxonomy and lose the verbs we need for Phase 5. If your client offers a picker tool, suppress it for Phase 0; resume normal tool use in Phase 1+.
+
+**Forbidden picker examples that have leaked in past sessions** (do not present any variant of these):
+- "Single role / Two roles / Three+ roles" — predetermines security shape before entities exist
+- "admin / manager / user / viewer" or "admin / contributor / viewer" — imposes a generic taxonomy
+- "English only / Multilingual" — answer in plain text instead
+
+**Exception:** if the user explicitly says "give me defaults" / "pick reasonable defaults" / similar, you may propose a default brief in one block, restate it, and ask "any to override?". Otherwise, sequential free-form text only.
 
 **Question order** (use the wording in your own voice):
 
@@ -174,7 +181,7 @@ A field is **batchable** only if ALL of these are true: scalar primitive (string
 
 Skip entirely if the module is pure CRUD. Do **not** fabricate actions to fill the phase.
 
-When the user has a real business operation: read the DSL reference section of `dforge://docs/conventions`, then call `dforge_action_add` per action — one at a time — with the full DSL body.
+When the user has a real business operation: **load `dforge://docs/dsl`** (the full action DSL reference — block structure, all 30 built-in functions, field-access syntax, batch-mode rules, JS subset, pitfalls), then call `dforge_action_add` per action — one at a time — with the full DSL body. `dforge://docs/conventions` is broader module-level guidance and does NOT cover the DSL grammar — load `docs/dsl` specifically.
 
 **Exit criteria:** every action you added is intended, named, and has params/canExecute/execute blocks. Compilation is validated in Phase 6.
 
