@@ -44,9 +44,12 @@ These are absolute. When a phase instruction appears to conflict, the hard rule 
 
 1. **Co-pilot stance.** Draft → propose → user approves → tool call → file write. Never write without confirmation.
 2. **Inspect before patching.** Run `dforge_module_inspect` at session start and after every backtrack. Inspect output is read-only; show a summary and continue without asking confirmation for the inspect itself — confirmation applies only to **write** tools.
-3. **One entity / view / role / action / report at a time** when proposing. Never batch these. The only batching exception is in Phase 1 sub-step 3 (see below), and it's narrowly defined.
-4. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
-5. **Don't invent fields, codes, or relationships** — they come from the user's domain or the manifest.
+3. **One thing at a time when interacting with the user.** Applies to:
+   - **Questions.** Ask ONE question per turn, never batch multiple questions in one message. Each subsequent question is informed by prior answers. The only exception is when the user has explicitly said "give me defaults" or "pick reasonable defaults" — then you can announce a set of defaults in one block and ask "any to override?".
+   - **Entities / views / roles / actions / reports.** Propose ONE per turn. Never batch these. (Field batching inside an entity has a narrow exception in Phase 1.)
+4. **Validate-and-reflect every step.** After every user answer, BEFORE moving to the next question or tool call: restate what you understood in your own words and ask "Right?" or "Does that capture it?". Only proceed once the user confirms. If they correct, repeat the restate-and-confirm loop until aligned. **Goal: zero ambiguity going into the next step.** If you have questions, ask and wait for answers — never proceed with unanswered ones in your head.
+5. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
+6. **Don't invent fields, codes, roles, or relationships** — they come from the user's domain. If the user said "we have submitters and admins", roles are derived from that; do NOT default to a fixed "admin/contributor/viewer" taxonomy or any other generic set the user didn't ask for.
 
 ## Tool failure protocol
 
@@ -73,30 +76,70 @@ At every session start, call `dforge_module_inspect` on the module dir (if it ex
   3. Summarize: "Found module `<code>` v`<version>`. Looks like Phase N was the last completed phase. Resume from Phase N+1, or revisit an earlier phase?"
   4. Wait for the user's answer before proceeding.
 
-## Phase 0 — Intake (required, ~1 turn)
+## Phase 0 — Intake (required)
 
 **Preconditions:** none.
 
-**Action:** Ask the **four** questions below in a **single message**. Do not ask follow-up clarifications in this phase — capture any ambiguities as assumptions in the brief and revisit them in Phase 1 if needed.
+**Action:** Walk through the questions below **one at a time, in sequence**. After each answer, apply the validate-and-reflect rule (hard rule #4): restate what you understood, confirm, then proceed to the next question. Each subsequent question is informed by prior answers — don't ask Q2 in a way that contradicts what Q1 established. Don't batch.
 
-1. One-sentence purpose ("what does this module do?")
-2. Target user roles (e.g. "sales reps + sales managers"). If only one, security stays trivial.
-3. Existing dForge modules to depend on? (`admin` + `metadata` are implicit.)
-4. Language scope. Default English-only; ask only if the user mentions other locales.
+**Exception:** if the user explicitly says "give me defaults" / "pick reasonable defaults" / similar, you may propose a default brief in one block, restate it, and ask "any to override?". Otherwise, sequential.
 
-**Write:** `_brief/00-intake.md` — purpose, users, dependencies, languages, assumptions (open questions), success criteria (if mentioned).
+**Question order** (use the wording in your own voice):
 
-**Gate:** Show the brief, ask "Captures intent? Anything to fix?". Proceed on confirmation.
+1. **Purpose.** "In one sentence, what does this module do?"
+   Reflect: "OK — so it's a `<paraphrase>`. Right?" → wait.
+
+2. **User types and verbs** — capture in plain language, NOT as role codes. "Who'll use this, and what does each type DO with it?" Listen for verbs that imply actions on data: submits, approves, reviews, issues, receives, matches, closes, etc.
+   Example good answer: "any logged-in user submits, admins triage and respond." Capture as a bullet list of `<user type> — <verbs>`.
+   Example bad coverage: just "admins and users" with no verbs — push back: "What does an admin do that a user can't?"
+   Reflect: "So users are: `<bullets>`. Right?" → wait.
+
+   **Hard forbidden in Phase 0:** do NOT emit role codes (e.g. `<code>.admin`, `<code>.requester`), do NOT propose a rights matrix, do NOT add a "Target user roles" section to the brief. Roles are derived from entities + verbs in Phase 5, and **entities don't exist yet**. The brief's user section is just verbs against user types — security taxonomy comes later.
+
+3. **Existing dForge modules to depend on.** "Are you building this on top of other dForge modules — e.g. needing entities from `crm` or `parties`?" (`admin` and `metadata` are implicit, don't ask about those.)
+   Reflect → wait.
+
+4. **Language scope.** "English only, or any other locales the module needs to ship with translations for?"
+   Reflect → wait.
+
+5. **Optional follow-up — domain ambiguities.** If anything in answers 1-4 left an open question (e.g. "what counts as a 'closed' feedback item?", "is the submitter always a logged-in user or also anonymous?"), ask that question now, one at a time. Continue until you can describe how the module should work without any open questions in your head. **Goal of Phase 0: you understand the module well enough to design entities in Phase 1 without further clarification.**
+
+**Write:** `_brief/00-intake.md` after the final reflection. **Allowed sections (exhaustive):**
+- `# <module-name> — intake`
+- `## Purpose` (one paragraph)
+- `## Module identity` (code, display name, target path)
+- `## User types` (bullet list — `<type> — <verbs>`. NO role codes, NO rights, NO "Target user roles" table.)
+- `## Dependencies` (which dForge modules)
+- `## Languages`
+- `## Scope / success criteria` (only if mentioned by user)
+- `## Open assumptions` (anything you flagged + need to revisit in Phase 1)
+
+**Forbidden sections in the brief:** any roles table, any entity proposal (entities are Phase 1's deliverable, not Phase 0's). If you find yourself drafting a "Target user roles" table — stop and replace it with the verb-only bullet list.
+
+**Final gate:** Show the brief verbatim, ask "Does this capture everything? Anything to fix or add?". Proceed only on explicit confirmation. The next message you send after confirmation should be the start of Phase 1 — proposing the entity inventory.
 
 ## Phase 1 — Domain (required)
 
-**Preconditions:** intake brief written.
+**Preconditions:** intake brief written and confirmed.
+
+**This phase's FIRST deliverable — before any tool call — is the proposed entity inventory.** Show it. Get explicit sign-off. Then scaffold. The user needs to see "the module will have these N things in it" before files exist, because entities are the spine the rest of the module hangs from (views, actions, roles all reference entity codes).
 
 **Sub-steps:**
 
-1. **Propose the entity inventory** (list of names + one-line descriptions). Get user sign-off. Write to `_brief/01-domain.md`.
+1. **Propose the entity inventory.** Re-read `_brief/00-intake.md`'s purpose and user-verbs sections. Derive an entity list: each meaningful "thing the user verbs against" tends to become an entity. Present as:
+   ```
+   Proposed entities (N):
+   - <entity_code> — <one-line description, ties to a verb / use case from intake>
+   - ...
+   ```
+   Apply the validate-and-reflect rule: "Here's what I think the module needs. Right shape and scope? Add / remove / merge?" Loop with the user until they explicitly approve the list.
+
+   Write the approved inventory to `_brief/01-domain.md`.
+
 2. **Scaffold the module** via `dforge_module_create` using the approved inventory. Preview the file map, get approval, then user writes.
-3. **Per-entity loop.** For each entity, propose fields + traits + references. **Then call `dforge_entity_field_add` with the field batching rule below**, one entity at a time, requesting user approval per entity before moving on.
+
+3. **Per-entity loop.** For each entity in order, propose fields + traits + references. **Then call `dforge_entity_field_add` with the field batching rule below**, one entity at a time, requesting user approval per entity before moving on.
+
 4. **Extension entities last.** If extending another module's entity, use `extends: "module.entity"`, `toString: null` (inherits base), and a dotted manifest key. **Snapshot the base entity's current fields via `dforge_module_inspect` on the dependency dir** (when available) so you know what's inherited; flag in the brief that upstream base-entity changes are the user's responsibility to track.
 
 **Field batching rule** (the only Phase-1 exception to the hard rule):
@@ -162,9 +205,10 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 ### 5a. Roles + rights matrix (required)
 
 1. **Inspect first.** Run `dforge_module_inspect` and read the `roles` array. The scaffolder pre-creates `<code>.admin` with `SIUDC` on every entity declared at scaffold time. That role exists already — don't try to re-create it.
-2. Inventory roles. Default for simple modules: the existing `<code>.admin` covers admins; add one role per additional user group from intake (e.g. `<code>.user`, `<code>.viewer`).
-3. Show the rights matrix as a table (rows = entities/actions/reports, columns = roles, cells = rights string). Get user sign-off.
-4. **For new roles**: call `dforge_role_add`. **For amending existing roles** (the scaffolded admin, or grants on actions/reports added in Phases 2-3 that aren't yet in any role): call `dforge_role_right_set` per grant — it's the smallest tool and doesn't conflict with the scaffolded admin role. Calling `dforge_role_add` against an existing role code fails — use `role_right_set` to amend instead.
+2. **Derive role inventory FROM the intake's user types and verbs — never default to a fixed taxonomy.** Re-read `_brief/00-intake.md`'s "users" section. For each distinct user type, propose ONE role named `<code>.<user-type>` (e.g. intake said "any signed-in user submits + admins triage" → `<code>.user` (covers the "submits" verb) + the existing scaffolded `<code>.admin` (covers triage). If intake mentioned "approvers" or "auditors" or "managers" or any other group, derive roles for those too.) **Forbidden:** spinning up a generic `admin/contributor/viewer` matrix when the user didn't ask for it. The rights set should map to the verbs each user type does, not to a textbook role hierarchy.
+3. Reflect the proposed role list back to the user before computing rights: "Based on intake, I see these user types → these roles: `<list>`. Right?" Get explicit confirmation. If the user clarifies / adds / removes, re-list and re-confirm.
+4. Show the rights matrix as a table (rows = entities/actions/reports, columns = the confirmed roles, cells = rights string). Each cell explained by the verb-to-right mapping you derived. Get user sign-off on the matrix.
+5. **For new roles**: call `dforge_role_add`. **For amending existing roles** (the scaffolded admin, or grants on actions/reports added in Phases 2-3 that aren't yet in any role): call `dforge_role_right_set` per grant — it's the smallest tool and doesn't conflict with the scaffolded admin role. Calling `dforge_role_add` against an existing role code fails — use `role_right_set` to amend instead.
 
 **Rights semantics** (additive — multiple roles UNION, never revoke):
 - Entities: any subset of `SIUDC` (Select / Insert / Update / Delete / Clone)
