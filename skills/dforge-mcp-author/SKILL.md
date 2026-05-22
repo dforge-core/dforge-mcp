@@ -89,14 +89,34 @@ At every session start, call `dforge_module_inspect` on the module dir (if it ex
 1. **Purpose.** "In one sentence, what does this module do?"
    Reflect: "OK — so it's a `<paraphrase>`. Right?" → wait.
 
-2. **User types and verbs** — capture in plain language, NOT as role codes. "Who'll use this, and what does each type DO with it?" Listen for verbs that imply actions on data: submits, approves, reviews, issues, receives, matches, closes, etc.
-   Example good answer: "any logged-in user submits, admins triage and respond." Capture as a bullet list of `<user type> — <verbs>`.
-   Example bad coverage: just "admins and users" with no verbs — push back: "What does an admin do that a user can't?"
+2. **User types and verbs** — capture in plain language. "Who'll use this, and what does each type DO with it?" Listen for verbs that imply actions on data: submits, approves, reviews, issues, receives, matches, closes, etc.
+
+   **Capture format — full verb-form sentences, not role labels.** Write each as `<descriptor of the person> <verb phrase>`. Never use role-noun labels (Requester, Manager, Buyer, Admin, Approver, Viewer, Contributor, AP Clerk, etc.) as the bullet head — those are role NAMES which prematurely commit to a security taxonomy.
+
+   ✅ Good:
+   ```
+   - Anyone in the company submits purchase requests and tracks their own.
+   - Department managers approve or reject pending requests for their team.
+   - Buyers in the procurement team manage suppliers, collect quotes, and issue purchase orders.
+   - Warehouse staff confirm what physically arrived against the PO.
+   - Accounts payable staff match supplier bills against the PO and receipt, then approve for payment.
+   ```
+
+   ❌ Bad (role labels as headings):
+   ```
+   - **Requester** — submits purchase requests
+   - **Approver** — approves pending requests
+   - **Buyer** — manages suppliers
+   - **AP Clerk** — matches bills
+   ```
+   The bad form trades situational verbs for fixed nouns and biases Phase 5 toward exactly those roles. Phase 5 might consolidate (e.g. one role covers both warehouse and AP) or split — that's Phase 5's job.
+
+   Example missing verbs: "admins and users" — push back: "What does an admin do that a user can't?"
    Reflect: "So users are: `<bullets>`. Right?" → wait.
 
-   **Hard forbidden in Phase 0:** do NOT emit role codes (e.g. `<code>.admin`, `<code>.requester`), do NOT propose a rights matrix, do NOT add a "Target user roles" section to the brief. Roles are derived from entities + verbs in Phase 5, and **entities don't exist yet**. The brief's user section is just verbs against user types — security taxonomy comes later.
+   **Hard forbidden in Phase 0:** do NOT emit role codes (`<code>.admin`, `<code>.requester`, etc.), do NOT use role-noun labels as bullet heads, do NOT propose a rights matrix, do NOT add a "Target user roles" section to the brief. Roles are derived from entities + verbs in Phase 5, and **entities don't exist yet**.
 
-3. **Existing dForge modules to depend on.** "Are you building this on top of other dForge modules — e.g. needing entities from `crm` or `parties`?" (`admin` and `metadata` are implicit, don't ask about those.)
+3. **Existing dForge modules to depend on.** "Are you building this on top of other dForge modules — e.g. needing entities from `crm` or `parties`?" (`admin` and `metadata` are platform-implicit. Don't ask about them. Don't even MENTION them in the brief — every module depends on them, so listing them in a per-module brief is pure noise.) If the user names actual deps, capture those; if not, the brief's Dependencies section should read literally `None.` or be omitted.
    Reflect → wait.
 
 4. **Language scope.** "English only, or any other locales the module needs to ship with translations for?"

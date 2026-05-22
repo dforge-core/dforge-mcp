@@ -48,8 +48,11 @@ Setup once:
 
 ```bash
 claude mcp add dforge --scope user -- npx -y @dforge-core/dforge-mcp
+# Resolve actual latest from npm, then pin jsdelivr URL to it.
+# (jsdelivr's @latest endpoint caches 6-12h; pinning the version skips that.)
+VERSION=$(npm view @dforge-core/dforge-mcp version)
 mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/skills/dforge-mcp-author/SKILL.md \
+curl -fsSL "https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dforge-mcp-author/SKILL.md" \
   -o ~/.claude/skills/dforge-mcp-author/SKILL.md
 ```
 

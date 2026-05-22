@@ -155,15 +155,18 @@ https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/resources/schemas/<n
 `skills/dforge-mcp-author/SKILL.md` teaches Claude how to drive the tools as a six-phase wizard. **It is NOT auto-installed by `npm install` — the Skill file ships in the npm tarball but Claude Code looks for Skills in `~/.claude/skills/`, not in node_modules.** Sync it manually:
 
 ```bash
-# from the published npm tarball
+# Resolve the actual latest published version from the npm registry,
+# then pin the jsdelivr URL to it. We don't use jsdelivr's `@latest`
+# alias directly — that CDN endpoint caches aggressively (6-12h lag
+# after a new publish), which silently serves stale Skill content.
+VERSION=$(npm view @dforge-core/dforge-mcp version)
 mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/skills/dforge-mcp-author/SKILL.md \
+curl -fsSL "https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dforge-mcp-author/SKILL.md" \
   -o ~/.claude/skills/dforge-mcp-author/SKILL.md
 
-# or from this repo
-mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/skills/dforge-mcp-author/SKILL.md \
-  -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+# Or, straight from GitHub main (always fresh, but pre-release content):
+# curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/skills/dforge-mcp-author/SKILL.md \
+#   -o ~/.claude/skills/dforge-mcp-author/SKILL.md
 ```
 
 Re-run after every dforge-mcp upgrade — the Skill version isn't checked at runtime, so a stale Skill against new tools will misroute calls.
