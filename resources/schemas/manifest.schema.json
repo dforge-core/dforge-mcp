@@ -21,6 +21,12 @@
 			"pattern": "^[a-z][a-z0-9_-]*$",
 			"description": "Human-readable module code (becomes schema name and module_cd in DB)"
 		},
+		"kind": {
+			"type": "string",
+			"enum": ["module", "pack"],
+			"default": "module",
+			"description": "Package kind. 'module' (default) — a regular module with its own entities/views/actions. 'pack' — a dependency bundle: installs a curated set of other modules via `dependencies` in order, owns no entities itself."
+		},
 		"version": {
 			"type": "string",
 			"pattern": "^\\d+\\.\\d+\\.\\d+",
@@ -68,11 +74,36 @@
 		},
 		"dependencies": {
 			"type": "object",
-			"description": "Module dependencies: module code → semver range",
+			"description": "Module dependencies: module code → semver range OR { version, entities? } object for partial deps that only import specific entities from the dependency.",
 			"additionalProperties": {
-				"type": "string",
-				"description": "Semver version range (e.g. '>=1.0.0')"
+				"oneOf": [
+					{
+						"type": "string",
+						"description": "Semver version range (e.g. '>=1.0.0')"
+					},
+					{
+						"type": "object",
+						"required": ["version"],
+						"properties": {
+							"version": {
+								"type": "string",
+								"description": "Semver version range"
+							},
+							"entities": {
+								"type": "array",
+								"items": { "type": "string" },
+								"description": "Entity codes from the dependency that this module needs. If omitted, all entities are accessible."
+							}
+						},
+						"additionalProperties": false
+					}
+				]
 			}
+		},
+		"auditHistory": {
+			"type": "string",
+			"enum": ["none", "minimal", "full"],
+			"description": "Default audit history mode for entities in this module ('full' captures every field change; 'minimal' captures only inserts/deletes; 'none' disables). Individual entities can override."
 		},
 		"entities": {
 			"type": "object",

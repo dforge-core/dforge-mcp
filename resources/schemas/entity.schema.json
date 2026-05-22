@@ -33,8 +33,7 @@
 			"description": "SQL SELECT statement for view-backed entities (isView=true). Executed as CREATE OR REPLACE VIEW during module install."
 		},
 		"toString": {
-			"type": "string",
-			"description": "Display pattern using column placeholders, e.g. \"{first_name} {last_name}\""
+			"description": "Display pattern using column placeholders, e.g. \"{first_name} {last_name}\". Optional in extension entities (with `extends`). No `type` constraint here because `toString` collides with Object.prototype.toString in JSON validators — they read the inherited function and reject it, even when the property is absent from the JSON."
 		},
 		"traits": {
 			"type": "array",

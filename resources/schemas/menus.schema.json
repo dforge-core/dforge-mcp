@@ -37,7 +37,7 @@
 		},
 		"menuItem": {
 			"type": "object",
-			"required": ["orderNum", "label"],
+			"required": ["label"],
 			"properties": {
 				"itemType": {
 					"type": ["string", "null"],

@@ -2,15 +2,11 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"$id": "https://dforge.dev/schemas/folders.schema.json",
 	"title": "dForge Folders",
-	"description": "Folder definitions for a dForge module",
-	"type": "object",
-	"additionalProperties": {
-		"$ref": "#/$defs/folder"
-	},
+	"description": "Folder tree for a dForge module. The file IS the root folder (not a map keyed by code). Sub-folders live under `children`, keyed by folder code.",
+	"$ref": "#/$defs/folder",
 	"$defs": {
 		"folder": {
 			"type": "object",
-			"required": ["label"],
 			"properties": {
 				"label": {
 					"type": "string",
@@ -18,19 +14,19 @@
 				},
 				"description": {
 					"type": "string",
-					"description": "Optional description text (shown in breadcrumb/header area)"
+					"description": "Optional description text (shown in breadcrumb / header area)"
 				},
 				"parentCode": {
 					"type": ["string", "null"],
-					"description": "Parent folder code (null for root folders)"
+					"description": "Parent folder code. Usually omitted: nested folders go under `children` of their parent. Only used by sparse-tree imports."
 				},
 				"folderPath": {
 					"type": "string",
-					"description": "URL-friendly folder path"
+					"description": "URL-friendly folder path override"
 				},
 				"color": {
 					"type": "string",
-					"description": "Folder accent color (hex)"
+					"description": "Folder accent color (hex, e.g. '#2196F3')"
 				},
 				"icon": {
 					"type": "string",
@@ -38,13 +34,20 @@
 				},
 				"inheritSecurity": {
 					"type": "boolean",
-					"description": "Whether to inherit security from parent folder"
+					"description": "Whether to inherit security rights from the parent folder. Default: true."
 				},
 				"entities": {
 					"type": "object",
-					"description": "Entity code → folder-entity config",
+					"description": "Entity code → folder-entity binding (which view to show, quick-add, row-level filter).",
 					"additionalProperties": {
 						"$ref": "#/$defs/folderEntity"
+					}
+				},
+				"children": {
+					"type": "object",
+					"description": "Nested folders keyed by sub-folder code. Recursive — children can have their own children.",
+					"additionalProperties": {
+						"$ref": "#/$defs/folder"
 					}
 				}
 			},
@@ -55,14 +58,48 @@
 			"properties": {
 				"viewName": {
 					"type": "string",
-					"description": "Entity view name to use in this folder"
+					"description": "Entity view name (data view code) to use in this folder. Common values include 'default'."
 				},
 				"quickAdd": {
 					"type": "boolean",
-					"description": "Enable quick-add for this entity in this folder"
+					"description": "Enable the quick-add (+) button for this entity in this folder"
 				},
 				"rowFilter": {
-					"description": "Row-level filter criteria for this entity in this folder"
+					"description": "Row-level filter. Either a SQL expression string (e.g. \"is_customer = true\") or a canonical filter object (`{c,o,v}` for one condition, `{g,i:[]}` for a group).",
+					"oneOf": [
+						{ "type": "string" },
+						{ "$ref": "#/$defs/filter" }
+					]
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"filter": {
+			"description": "Canonical dForge filter expression — same shape as in data_views.json. Either `{c, o, v}` or `{g, i: [...]}`.",
+			"oneOf": [
+				{ "$ref": "#/$defs/filterCondition" },
+				{ "$ref": "#/$defs/filterGroup" }
+			]
+		},
+		"filterCondition": {
+			"type": "object",
+			"required": ["c", "o"],
+			"properties": {
+				"c": { "type": "string" },
+				"o": { "type": "string" },
+				"v": {}
+			},
+			"additionalProperties": false
+		},
+		"filterGroup": {
+			"type": "object",
+			"required": ["g", "i"],
+			"properties": {
+				"g": { "type": "string", "enum": ["and", "or"] },
+				"i": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/filter" }
 				}
 			},
 			"additionalProperties": false

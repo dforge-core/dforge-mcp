@@ -159,9 +159,26 @@
 					"description": "Field type code (see settings.schema.json for the common list)"
 				},
 				"label": { "type": "string" },
-				"required": { "type": "boolean", "default": false },
+				"required": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the user must provide a value (older modules also use `isRequired`)"
+				},
+				"isRequired": {
+					"type": "boolean",
+					"description": "Alternate spelling of `required` used by some modules. Prefer `required` for new code."
+				},
 				"default": {
 					"description": "Default value applied if the user doesn't provide one"
+				},
+				"link": {
+					"type": "object",
+					"description": "Entity link for lookup-type params (alternative to nesting under `params.link`). Shape: { entity: '<code>', otherKey?: '<column>' }.",
+					"properties": {
+						"entity": { "type": "string" },
+						"otherKey": { "type": "string" }
+					},
+					"additionalProperties": false
 				},
 				"params": {
 					"type": "object",
