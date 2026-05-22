@@ -1,0 +1,63 @@
+name: publish
+
+# Manual publish of @dforge-core/dforge-mcp to npm via Trusted Publisher
+# (OIDC) — no NPM_TOKEN secret needed. Run via:
+#   gh workflow run publish.yml \
+#     --repo dforge-core/dforge-mcp \
+#     -f npm_version=0.1.0-rc.7 \
+#     -f npm_tag=latest
+#
+# Never auto-triggers: a bad version slot becomes permanent the moment it
+# hits npm (72h unpublish window aside), so publishes are always intentional.
+
+on:
+  workflow_dispatch:
+    inputs:
+      npm_version:
+        description: 'npm version to publish, e.g. 0.1.0-rc.7'
+        required: true
+        type: string
+      npm_tag:
+        description: 'npm dist-tag (latest / next / etc.)'
+        required: false
+        type: string
+        default: 'latest'
+
+permissions:
+  contents: read
+  # id-token: write enables both npm Trusted Publisher (OIDC auth — no
+  # NPM_TOKEN secret needed) AND npm provenance attestations. Both reuse
+  # the same GitHub OIDC token.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          # Node 24 LTS — ships npm 11.x which has Trusted Publisher OIDC
+          # built in. Node 22's npm 10.9.7 silently falls back to token
+          # auth and 404s. Intentionally NO registry-url: setup-node would
+          # write a `.npmrc` with `_authToken=${NODE_AUTH_TOKEN}` placeholder
+          # that blocks OIDC fallback.
+          node-version: '24'
+
+      # Install devDeps (tsup, typescript) so the prepublishOnly hook can
+      # build dist/server.js. --ignore-scripts because we don't need to run
+      # postinstall scripts of transitive deps.
+      - name: Install dev deps
+        run: pnpm install --ignore-scripts --no-frozen-lockfile
+
+      - name: Publish to npm
+        run: |
+          scripts/publish.sh \
+            "${{ inputs.npm_version }}" \
+            --tag "${{ inputs.npm_tag }}" \
+            --yes
