@@ -492,7 +492,7 @@ before the install pipeline touches the database.
 - Key is the role code (convention: `module.role-name`)
 - **Property name is `"rights"` (NOT `"entityRights"`)** — this maps to `RoleDef.Rights`
 - Each entry in `rights` maps entity code → rights string
-- Rights characters: `S` (Select), `I` (Insert), `U` (Update), `D` (Delete), `C` (Clone)
+- Rights characters: `S` (Select), `I` (Insert), `U` (Update), `D` (Delete), `C` (Clone) for entities, and `E` (Execute) for actions, reports, and folder access (e.g. `"action:create_quote": "E"`). The roles JSON schema enforces `^[SIUDCE]*$`.
 - Every entity should appear in every role (even if only `"S"` for read-only)
 
 **Common Mistakes:**
@@ -593,12 +593,15 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 	"menus": {
 		"hr_menu": { "label": "Human Resources" }
 	},
-	"roles": {
-		"hr.admin": { "label": "HR Administrator" },
-		"hr.viewer": { "label": "HR Viewer" }
+	"actions": {
+		"approve_leave": { "label": "Approve Leave", "desc": "Approve a leave request" }
 	}
 }
 ```
+
+**Translatable sections (consumed by the installer):** `entities` (+ nested `fields`), `folders`, `views`, `menus` (+ nested `items`), `actions` (+ `params`), `reports` (+ `datasets.caption`, `params`).
+
+**Silently ignored at runtime:** `roles` and `print_templates` — the resource rows have no `res_id`, so translations are reserved for future use. `settings` is validated for completeness (when listed in `supportedLocales`) but the registrar does not display the translated labels, so don't expect localized output. Display names for these come from the source manifest (`description` for roles, `label` for print templates and settings).
 
 ---
 
@@ -922,7 +925,7 @@ When creating a module, ensure:
 - [ ] `roles.json` uses `"rights"` property (not `"entityRights"`)
 - [ ] Seed data files are numbered for FK dependency order (01-, 02-, etc.)
 - [ ] Seed data includes explicit PK UUIDs for cross-entity references
-- [ ] `translations/en-US.json` covers entities, fields, views, menus, folders, roles
+- [ ] `translations/<locale>.json` covers entities (+ fields), folders, views, menus (+ items), actions (+ params), and reports (+ dataset captions, + params) for every locale declared in `manifest.supportedLocales`. Do not include `en`/`en-US`. Sections `roles` and `print_templates` are not displayed even if listed.
 - [ ] Constraints have clear user-facing `message` values
 - [ ] Check constraint `expression` uses standard SQL subset (test in PostgreSQL first)
 - [ ] Number sequences declared as `numberSequence` on entity definitions (auto-fills on INSERT, never manual counting)

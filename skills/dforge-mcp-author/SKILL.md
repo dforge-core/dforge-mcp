@@ -1,6 +1,6 @@
 ---
 name: dforge-mcp-author
-description: Co-pilot for authoring dForge modules via the dforge-mcp tool surface. Use when @dforge-core/dforge-mcp is connected and the user asks to scaffold, extend, pack, or install a dForge module. Drafts and proposes; the user approves at named gates. Walks the user through six phases with explicit gates for confirmation, a deterministic backtrack protocol, a tool-failure protocol, and resume-from-partial-state support.
+description: Co-pilot for authoring dForge modules via the dforge-mcp tool surface. Use when @dforge-core/dforge-mcp is connected and the user asks to scaffold, extend, pack, or install a dForge module. Drafts and proposes; the user approves at named gates. Walks the user through Phase 0 through Phase 6 with explicit gates for confirmation, a deterministic backtrack protocol, a tool-failure protocol, and resume-from-partial-state support.
 ---
 
 # dForge Module Author — Co-pilot
@@ -20,6 +20,9 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 | `dforge_entity_field_modify` | 1 | Replace one field's spec |
 | `dforge_entity_field_remove` | 1 | Drop one field (warns about dependents) |
 | `dforge_action_add` | 2 | DSL action + ui/actions.json entry |
+| `dforge_trigger_add` | 2 | DB-event trigger in logic/triggers.json |
+| `dforge_job_add` | 2 | Scheduled job in logic/jobs.json |
+| `dforge_webhook_add` | 2 | Outbound webhook in logic/webhooks.json |
 | `dforge_view_add` | 3 | Data view in ui/data_views.json |
 | `dforge_view_modify` | 3 | Replace a view's spec |
 | `dforge_report_add` | 3 | Report in ui/reports.json |
@@ -34,7 +37,7 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 ## Resources to load once per session
 
 - `dforge://docs/conventions` — naming, FK+Reference pattern, traits, security model
-- `dforge://schema/manifest`, `entity`, `data-views`, `folders`, `menus`, `roles`, `reports`, `settings`, `jobs`, `seed-data` — consult before emitting each file kind
+- `dforge://schema/manifest`, `entity`, `data-views`, `folders`, `menus`, `roles`, `reports`, `settings`, `jobs`, `triggers`, `webhooks`, `seed-data` — consult before emitting each file kind
 
 **If a resource fails to load, halt and notify the user.** Do not invent conventions or schemas from memory.
 
@@ -42,11 +45,11 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 
 These are absolute. When a phase instruction appears to conflict, the hard rule wins unless the phase explicitly names itself as an exception.
 
-1. **Co-pilot stance.** Draft → propose → user approves → tool call → file write. Never write without confirmation.
-2. **Inspect before patching.** Run `dforge_module_inspect` at session start and after every backtrack. Inspect output is read-only; show a summary and continue without asking confirmation for the inspect itself — confirmation applies only to **write** tools.
+1. **Co-pilot stance.** Draft → propose → user approves → write-tool call → file write. Never write without confirmation. Read-only tools do not need a confirmation gate.
+2. **Inspect before patching.** Run `dforge_module_inspect` at session start and after every backtrack. Inspect output is read-only; show a summary and continue without asking confirmation for the inspect itself.
 3. **One thing at a time when interacting with the user.** Applies to:
    - **Questions.** Ask ONE question per turn, never batch multiple questions in one message. Each subsequent question is informed by prior answers. The only exception is when the user has explicitly said "give me defaults" or "pick reasonable defaults" — then you can announce a set of defaults in one block and ask "any to override?".
-   - **Entities / views / roles / actions / reports.** Propose ONE per turn. Never batch these. (Field batching inside an entity has a narrow exception in Phase 1.)
+   - **Entities / views / roles / actions / reports.** Propose ONE per turn. Never batch these. The only exception is the Phase 1 field-batching rule, and it applies only to multiple fields inside one already-approved entity. It never justifies batching multiple entities, views, roles, actions, or reports.
 4. **Validate-and-reflect every step.** After every user answer, BEFORE moving to the next question or tool call: restate what you understood in your own words and ask "Right?" or "Does that capture it?". Only proceed once the user confirms. If they correct, repeat the restate-and-confirm loop until aligned. **Goal: zero ambiguity going into the next step.** If you have questions, ask and wait for answers — never proceed with unanswered ones in your head.
 5. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
 6. **Don't invent fields, codes, roles, or relationships** — they come from the user's domain. If the user said "we have submitters and admins", roles are derived from that; do NOT default to a fixed "admin/contributor/viewer" taxonomy or any other generic set the user didn't ask for.
@@ -135,7 +138,7 @@ At every session start, call `dforge_module_inspect` on the module dir (if it ex
 - `# <module-name> — intake`
 - `## Purpose` (one paragraph)
 - `## Module identity` (code, display name, target path)
-- `## User types` (bullet list — `<type> — <verbs>`. NO role codes, NO rights, NO "Target user roles" table.)
+- `## User types` (bullet list of verb-led sentences describing what each kind of user does. NO role codes, NO rights, NO "Target user roles" table.)
 - `## Dependencies` (which dForge modules)
 - `## Languages`
 - `## Scope / success criteria` (only if mentioned by user)
@@ -272,7 +275,7 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 ### 5a. Roles + rights matrix (required)
 
 1. **Inspect first.** Run `dforge_module_inspect` and read the `roles` array. The scaffolder pre-creates `<code>.admin` with `SIUDC` on every entity declared at scaffold time. That role exists already — don't try to re-create it.
-2. **Derive role inventory FROM the intake's user types and verbs — never default to a fixed taxonomy.** Re-read `_brief/00-intake.md`'s "users" section. For each distinct user type, propose ONE role named `<code>.<user-type>` (e.g. intake said "any signed-in user submits + admins triage" → `<code>.user` (covers the "submits" verb) + the existing scaffolded `<code>.admin` (covers triage). If intake mentioned "approvers" or "auditors" or "managers" or any other group, derive roles for those too.) **Forbidden:** spinning up a generic `admin/contributor/viewer` matrix when the user didn't ask for it. The rights set should map to the verbs each user type does, not to a textbook role hierarchy.
+2. **Derive role inventory FROM the intake's user types and verbs — never default to a fixed taxonomy.** Re-read `_brief/00-intake.md`'s `User types` section. For each distinct user type, propose ONE role named `<code>.<user-type>` (e.g. intake said "any signed-in user submits + admins triage" → `<code>.user` (covers the "submits" verb) + the existing scaffolded `<code>.admin` (covers triage). If intake mentioned "approvers" or "auditors" or "managers" or any other group, derive roles for those too.) **Forbidden:** spinning up a generic `admin/contributor/viewer` matrix when the user didn't ask for it. The rights set should map to the verbs each user type does, not to a textbook role hierarchy.
 3. Reflect the proposed role list back to the user before computing rights: "Based on intake, I see these user types → these roles: `<list>`. Right?" Get explicit confirmation. If the user clarifies / adds / removes, re-list and re-confirm.
 4. Show the rights matrix as a table (rows = entities/actions/reports, columns = the confirmed roles, cells = rights string). Each cell explained by the verb-to-right mapping you derived. Get user sign-off on the matrix.
 5. **For new roles**: call `dforge_role_add`. **For amending existing roles** (the scaffolded admin, or grants on actions/reports added in Phases 2-3 that aren't yet in any role): call `dforge_role_right_set` per grant — it's the smallest tool and doesn't conflict with the scaffolded admin role. Calling `dforge_role_add` against an existing role code fails — use `role_right_set` to amend instead.

@@ -46,7 +46,10 @@
 		},
 		"fields": {
 			"type": "object",
-			"description": "Column definitions keyed by column code",
+			"description": "Column definitions keyed by column code. Column codes must start with a letter or underscore and contain only letters, digits, and underscores — a leading `-` is reserved for the sort descending prefix in `view_json.order`.",
+			"propertyNames": {
+				"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+			},
 			"additionalProperties": {
 				"$ref": "#/$defs/field"
 			}
