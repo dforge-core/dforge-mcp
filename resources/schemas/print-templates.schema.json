@@ -1,0 +1,82 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "dForge Module Print Templates",
+	"description": "Print template declarations for a dForge module package (ui/print_templates.json). Each key is the template_cd; the value declares either a printable template (default) or a reusable snippet pulled into other templates via {% include 'module_cd.snippet_cd' %}.",
+	"type": "object",
+	"additionalProperties": {
+		"type": "object",
+		"properties": {
+			"type": {
+				"type": "string",
+				"enum": ["template", "snippet"],
+				"default": "template",
+				"description": "'template' (default) — a full printable form bound to an entity. 'snippet' — a reusable Liquid partial, module-scoped, no entity binding, included from other templates."
+			},
+			"entityCd": {
+				"type": "string",
+				"description": "Entity code this template renders. Required when type='template'; ignored when type='snippet'. Cross-module form 'module.entity' is supported (e.g. fin-ch ships a template for fin.invoice)."
+			},
+			"description": {
+				"type": "string",
+				"description": "Human-readable label shown in the print menu."
+			},
+			"template": {
+				"type": "string",
+				"description": "Inline Liquid HTML. Either 'template' or 'file' must be set; 'file' takes precedence when both are present."
+			},
+			"file": {
+				"type": "string",
+				"description": "Relative path under the module's print_templates/ directory (e.g. 'invoice.html'). Loaded at install time."
+			},
+			"css": {
+				"type": "string",
+				"description": "Inline CSS, or a filename ending in .css (resolved relative to print_templates/). Snippets typically inherit CSS from the host template and omit this."
+			},
+			"pageSettings": {
+				"type": "object",
+				"description": "Default page geometry applied when the user prints from the UI. Stored as jsonb on the row; the editor lets users tweak per-template.",
+				"properties": {
+					"size": {
+						"type": "string",
+						"enum": ["A4", "letter", "legal"],
+						"default": "A4"
+					},
+					"orientation": {
+						"type": "string",
+						"enum": ["portrait", "landscape"],
+						"default": "portrait"
+					},
+					"margins": {
+						"type": "object",
+						"properties": {
+							"top":    { "type": "string", "description": "CSS length, e.g. '15mm'." },
+							"right":  { "type": "string" },
+							"bottom": { "type": "string" },
+							"left":   { "type": "string" }
+						},
+						"additionalProperties": false
+					}
+				},
+				"additionalProperties": false
+			}
+		},
+		"additionalProperties": false,
+		"allOf": [
+			{
+				"if": { "properties": { "type": { "const": "snippet" } }, "required": ["type"] },
+				"then": {
+					"description": "Snippets must not declare entityCd and their template_cd must not contain '.' (collides with {% include 'module_cd.snippet_cd' %})."
+				},
+				"else": {
+					"required": ["entityCd"]
+				}
+			},
+			{
+				"anyOf": [
+					{ "required": ["file"] },
+					{ "required": ["template"] }
+				]
+			}
+		]
+	}
+}

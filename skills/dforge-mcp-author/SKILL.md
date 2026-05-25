@@ -175,15 +175,55 @@ A field is **batchable** only if ALL of these are true: scalar primitive (string
 
 **Exit criteria:** every entity has at least PK + audit traits + 1 user-visible field; FK references resolve; manifest's `entities` map reflects reality.
 
-## Phase 2 — Actions (optional, skip-able)
+## Phase 2 — Behavior (optional sub-steps)
 
 **Preconditions:** Phase 1 complete.
 
-Skip entirely if the module is pure CRUD. Do **not** fabricate actions to fill the phase.
+Phase 2 covers four kinds of behavior — all optional, all individually skip-able. Each fires action logic, but the **trigger** differs:
 
-When the user has a real business operation: **load `dforge://docs/dsl`** (the full action DSL reference — block structure, all 30 built-in functions, field-access syntax, batch-mode rules, JS subset, pitfalls), then call `dforge_action_add` per action — one at a time — with the full DSL body. `dforge://docs/conventions` is broader module-level guidance and does NOT cover the DSL grammar — load `docs/dsl` specifically.
+| Sub-step | Fires when | File | Tool | Use when |
+|---|---|---|---|---|
+| 2a Actions | user clicks a button | `ui/actions.json` + `logic/actions/*.dsl` | `dforge_action_add` | bulk operations, business workflows, anything that needs user input via params |
+| 2b Triggers | DB event happens (insert/update/delete/status_change) | `logic/triggers.json` | `dforge_trigger_add` | reactive automation: "when X happens, do Y" without user action |
+| 2c Scheduled jobs | cron timer | `logic/jobs.json` | `dforge_job_add` | periodic work: nightly cleanup, daily summary, hourly poll |
+| 2d Webhooks | DB event happens → POSTs to external URL | `logic/webhooks.json` | `dforge_webhook_add` | integrations: Slack notifications, Zapier, external dashboards, audit log shipping |
 
-**Exit criteria:** every action you added is intended, named, and has params/canExecute/execute blocks. Compilation is validated in Phase 6.
+Skip a sub-step entirely if the user has no need for it. Do NOT fabricate behavior to fill a sub-step. Phase 2 can be completely skipped for pure CRUD modules.
+
+### 2a. Actions — user-triggered
+
+**Load `dforge://docs/dsl`** (the full action DSL reference — block structure, all 30 built-in functions, field-access syntax, batch-mode rules, JS subset, common patterns, anti-patterns) before authoring any DSL. `dforge://docs/conventions` is broader module-level guidance and does NOT cover the DSL grammar.
+
+Call `dforge_action_add` per action — one at a time — with the full DSL body. Confirm with the user before each call.
+
+### 2b. Triggers — DB-event-driven
+
+**Load `dforge://schema/triggers`** for the shape; also re-read the trigger formula rules in `dforge://docs/dsl` (trigger conditions use the same syntax as `canExecute:`: single-line `[field] op value` formulas).
+
+For each trigger, propose: entity + event + (optional) condition formula + target action + async flag. Use `dforge_trigger_add`. Triggers reference EXISTING actions — make sure the action exists first (Phase 2a or scaffolded admin actions).
+
+**Async vs sync:** `async: true` runs the action in the background after the triggering transaction commits — recommended for slow actions (emails, external API calls). `async: false` runs in the same transaction; action failure rolls back the original DB change.
+
+### 2c. Scheduled jobs — cron-driven
+
+**Load `dforge://schema/jobs`**.
+
+Constraints baked into the tool:
+- Action MUST NOT use record-context (`[field]`) syntax — jobs run as system user with NO current record. Wrap any record-context action in a thin job-friendly action that uses `query()` to fetch the records it needs.
+- `timeout` is required, ≤ 3600s.
+- If `timeout > 300`, you MUST set `jobClass: 'long_running'`.
+
+Use `dforge_job_add` per job.
+
+### 2d. Webhooks — outbound HTTP
+
+**Load `dforge://schema/webhooks`**.
+
+For each webhook: entity + event + endpoint URL + (optional) condition + (optional) payload shape (include/exclude/includeOld). Use `dforge_webhook_add`.
+
+For authenticated endpoints: put bearer tokens / API keys behind `getSecret()` (configure secret in module's secrets), reference in headers as `"Authorization": "$secret:<secret_cd>"` — the platform resolves at fire time.
+
+**Exit criteria for Phase 2:** every action / trigger / job / webhook you added is intended (user-requested, not fabricated to fill space) and references existing entities + actions. Compilation is validated at install in Phase 6.
 
 ## Phase 3 — Views (required) + Reports (optional)
 

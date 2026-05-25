@@ -1,0 +1,59 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/triggers.schema.json",
+	"title": "dForge Module Triggers",
+	"description": "Trigger definitions for a dForge module (logic/triggers.json). A trigger watches an entity for an event (insert/update/delete/status_change/any), evaluates an optional formula condition using `[field]` syntax, and fires an action if true. Different from scheduled jobs (cron-driven) and webhooks (outbound HTTP) — triggers are intra-tenant DB-event-driven action invocations.",
+	"type": "object",
+	"required": ["triggers"],
+	"properties": {
+		"triggers": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/trigger" }
+		}
+	},
+	"additionalProperties": false,
+	"$defs": {
+		"trigger": {
+			"type": "object",
+			"required": ["code", "entity", "event", "action"],
+			"properties": {
+				"code": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_]*$",
+					"description": "Trigger code, unique within the module."
+				},
+				"description": {
+					"type": "string",
+					"description": "Human-readable description of what the trigger does and when."
+				},
+				"entity": {
+					"type": "string",
+					"description": "Entity whose events this trigger watches. May be cross-module via dot notation (e.g. 'fin.invoice')."
+				},
+				"event": {
+					"type": "string",
+					"enum": ["insert", "update", "delete", "status_change", "any"],
+					"description": "DB event that fires this trigger. 'status_change' only fires when the entity's status field actually changes value. 'any' fires for all insert/update/delete."
+				},
+				"condition": {
+					"type": "string",
+					"description": "Optional formula expression — same shape as canExecute in action DSL. Uses `[field]` syntax to reference the affected record. Single-line, evaluates to boolean. If omitted, trigger fires for every matching event."
+				},
+				"action": {
+					"type": "string",
+					"description": "Action code to invoke. The action must NOT use record-context (`[field]`) syntax in a way that requires the original triggering record — the trigger passes the record id via params. Cross-module form 'module.action' is supported."
+				},
+				"params": {
+					"type": "object",
+					"description": "Optional static parameters passed to the action at invocation time. Merged with the runtime-injected `record_id` / `record_old` (if event uses old-record diff)."
+				},
+				"async": {
+					"type": "boolean",
+					"default": false,
+					"description": "When true, the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls). When false, the action runs in the same transaction; failures roll back the original DB change."
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

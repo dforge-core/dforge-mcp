@@ -24,8 +24,12 @@ export interface ModulePaths {
 	menus: string;
 	actions: string;
 	reports: string;
+	queries: string;
 	roles: string;
 	jobs: string;
+	triggers: string;
+	webhooks: string;
+	printTemplates: string;
 	settings: string;
 }
 
@@ -45,8 +49,12 @@ export function modulePaths(moduleDir: string): ModulePaths {
 		menus: path.join(root, "ui", "menus.json"),
 		actions: path.join(root, "ui", "actions.json"),
 		reports: path.join(root, "ui", "reports.json"),
+		queries: path.join(root, "ui", "queries.json"),
+		printTemplates: path.join(root, "ui", "print_templates.json"),
 		roles: path.join(root, "security", "roles.json"),
 		jobs: path.join(root, "logic", "jobs.json"),
+		triggers: path.join(root, "logic", "triggers.json"),
+		webhooks: path.join(root, "logic", "webhooks.json"),
 		settings: path.join(root, "settings.json"),
 	};
 }

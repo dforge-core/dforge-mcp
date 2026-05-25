@@ -539,7 +539,7 @@ seed-data/
 
 ### 7. Scheduled Jobs (`logic/jobs.json`)
 
-Cron-driven action fires. Each entry pairs an existing action (declared in `ui/actions.json`) with a 5-field cron expression; the `dForge.Scheduler` worker fires it on schedule. Full reference: [module-package-format.md → jobs.json](./module-package-format.md#jobsjson).
+Cron-driven action fires. Each entry pairs an existing action (declared in `ui/actions.json`) with a 5-field cron expression; the `dForge.Scheduler` worker fires it on schedule. Full reference: [Scheduled Jobs](../business-logic/jobs.md). Manifest schema: [`jobs.schema.json`](../schemas/jobs.schema.json).
 
 ```json
 {
@@ -926,7 +926,7 @@ When creating a module, ensure:
 - [ ] Constraints have clear user-facing `message` values
 - [ ] Check constraint `expression` uses standard SQL subset (test in PostgreSQL first)
 - [ ] Number sequences declared as `numberSequence` on entity definitions (auto-fills on INSERT, never manual counting)
-- [ ] Print templates defined in `ui/print_templates.json` with HTML files in `print_templates/`
+- [ ] Print templates defined in `ui/print_templates.json` with HTML files in `print_templates/` (see [Print Templates](../ui/print-templates.md))
 - [ ] Scheduled jobs (if any) declared in `logic/jobs.json` with 5-field cron, explicit `timeout`, and `class: "long_running"` for any `timeout > 300`
 
 ---

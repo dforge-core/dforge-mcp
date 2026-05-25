@@ -50,6 +50,8 @@ copy_schema traits.schema.json      traits.schema.json
 copy_schema webhooks.schema.json    webhooks.schema.json
 copy_schema settings.schema.json    settings.schema.json
 copy_schema reports.schema.json     reports.schema.json
+copy_schema triggers.schema.json    triggers.schema.json
+copy_schema print_templates.schema.json print-templates.schema.json
 
 # Conventions doc — the only Markdown resource. Other docs (e.g. action DSL
 # reference) could be vendored later if the MCP skill grows to need them.

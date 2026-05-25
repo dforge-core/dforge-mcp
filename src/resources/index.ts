@@ -83,7 +83,17 @@ export const resources: ResourceDef[] = [
 	schema(
 		"webhooks",
 		"Webhooks JSON schema",
-		"JSON Schema for ui/webhooks.json — outbound webhook definitions.",
+		"JSON Schema for logic/webhooks.json — outbound webhook subscriptions: entity + event filter → POST to endpointUrl with selected fields.",
+	),
+	schema(
+		"triggers",
+		"Triggers JSON schema",
+		"JSON Schema for logic/triggers.json — intra-tenant DB-event → action invocation: entity + event + optional condition formula → fires an action (sync or async).",
+	),
+	schema(
+		"print-templates",
+		"Print templates JSON schema",
+		"JSON Schema for ui/print_templates.json — Liquid HTML print templates and reusable snippets, bound to entities for the print menu.",
 	),
 	schema(
 		"settings",

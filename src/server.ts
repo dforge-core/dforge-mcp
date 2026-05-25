@@ -35,6 +35,14 @@ import {
 } from "./tools/adds";
 import { roleRightSetSchema, roleRightSet } from "./tools/role-right";
 import { moduleInspectSchema, moduleInspect } from "./tools/module-inspect";
+import {
+	triggerAddSchema,
+	triggerAdd,
+	jobAddSchema,
+	jobAdd,
+	webhookAddSchema,
+	webhookAdd,
+} from "./tools/behavior";
 import type { ToolResult } from "./tools/_helpers";
 import { resources } from "./resources";
 
@@ -172,9 +180,30 @@ server.tool(
 
 server.tool(
 	"dforge_action_add",
-	"PHASE 3: Add a DSL action targeting an entity. Writes logic/actions/<code>.dsl plus an entry in ui/actions.json. Phase 3 is optional — only call when business logic genuinely requires custom actions.",
+	"PHASE 2: Add a DSL action targeting an entity. Writes logic/actions/<code>.dsl plus an entry in ui/actions.json. **Load dforge://docs/dsl before authoring.**",
 	actionAddSchema,
 	envelope(actionAdd),
+);
+
+server.tool(
+	"dforge_trigger_add",
+	"PHASE 2: Add a trigger that fires an action on a DB event (insert/update/delete/status_change/any) optionally gated by a condition formula. Appends to logic/triggers.json. **Use trigger when the platform should react to data changes WITHOUT user interaction**; use jobs for cron-driven; use webhooks for outbound HTTP.",
+	triggerAddSchema,
+	envelope(triggerAdd),
+);
+
+server.tool(
+	"dforge_job_add",
+	"PHASE 2: Schedule an existing action to fire on a 5-field cron. Appends to logic/jobs.json. Action must NOT use record-context (`[field]`) syntax — scheduled jobs run as system user with no current record.",
+	jobAddSchema,
+	envelope(jobAdd),
+);
+
+server.tool(
+	"dforge_webhook_add",
+	"PHASE 2: Subscribe an outbound HTTP endpoint to a DB event. Appends to logic/webhooks.json. Use for integrations with external systems (Slack, Zapier, custom dashboards).",
+	webhookAddSchema,
+	envelope(webhookAdd),
 );
 
 // ── Views + reports (PHASE 4) ───────────────────────────────────────
