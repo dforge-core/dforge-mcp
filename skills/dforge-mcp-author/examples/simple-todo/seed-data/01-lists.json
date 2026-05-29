@@ -1,0 +1,17 @@
+{
+	"entityCode": "todo_list",
+	"records": [
+		{
+			"todo_list_id": 1001,
+			"name": "Personal",
+			"color": "#4dabf7",
+			"description": "Personal tasks and errands"
+		},
+		{
+			"todo_list_id": 1002,
+			"name": "Work",
+			"color": "#51cf66",
+			"description": "Work-related tasks"
+		}
+	]
+}

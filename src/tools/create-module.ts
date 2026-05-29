@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -20,10 +21,19 @@ import type {
 	Preset,
 	ScaffoldOpts,
 } from "@dforge-core/dforge-cli/templates";
+import { makeResult, type ToolResult } from "./_helpers";
+import { readArtifactsState } from "./artifacts";
 
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
 export const createModuleSchema = {
+	moduleDir: z
+		.string()
+		.optional()
+		.describe(
+			"Directory where the module files will be written. " +
+			"When provided, dforge_design_write must have been called first — scaffolding is blocked until docs/DESIGN.md is confirmed.",
+		),
 	code: z
 		.string()
 		.regex(/^[a-z][a-z0-9_-]*$/)
@@ -116,6 +126,11 @@ export function createModuleFiles(
 	write(".vscode/settings.json", buildVscodeSettings());
 	write(".zed/settings.json", buildZedSettings());
 
+	// CLAUDE.md — project-level context for Claude Code. Written so that
+	// future sessions on this module directory automatically know to use the
+	// dforge-mcp-author skill and the dforge_* MCP tool surface.
+	writeText("CLAUDE.md", buildClaudeMd(args.code, args.displayName, args.description));
+
 	// Full preset adds the optional-but-typical extras.
 	if (opts.preset === "full") {
 		write("settings.json", buildSettings());
@@ -128,4 +143,83 @@ export function createModuleFiles(
 	}
 
 	return files;
+}
+
+/**
+ * Gate-aware wrapper around createModuleFiles.
+ *
+ * When moduleDir is provided the caller must have run dforge_design_write
+ * first — we refuse to scaffold until docs/DESIGN.md is confirmed in
+ * .dforge-artifacts.json. This ensures the entity list and relationship map
+ * are reviewed before any files are created.
+ */
+export function createModule(
+	args: z.infer<z.ZodObject<typeof createModuleSchema>>,
+): ToolResult {
+	if (args.moduleDir) {
+		const state = readArtifactsState(path.resolve(args.moduleDir));
+		if (!state.designAt) {
+			throw new Error(
+				"Design artifact not found. " +
+				"Call dforge_requirements_write then dforge_design_write before dforge_module_create. " +
+				"This ensures the module's entity list and relationship map are reviewed and approved before files are created.",
+			);
+		}
+	}
+
+	const files = createModuleFiles(args);
+	return makeResult(
+		`Generated ${Object.keys(files).length} files for module '${args.code}' ` +
+		`(preset: ${args.preset}, ${args.entities.length} entit${args.entities.length === 1 ? "y" : "ies"}).`,
+		files,
+	);
+}
+
+/**
+ * Build the CLAUDE.md content for the new module's project root.
+ *
+ * This file is read by Claude Code at session start, so future sessions on
+ * this module directory automatically pick up the MCP co-pilot context
+ * without the user having to explain the setup each time.
+ */
+function buildClaudeMd(code: string, displayName: string, description?: string): string {
+	const descLine = description ? `\n${description}\n` : "";
+	return `# CLAUDE.md
+${descLine}
+This is a **dForge module** (\`${code}\` — ${displayName}).
+\`@dforge-core/dforge-mcp\` is connected as an MCP server.
+
+## Always use the dforge-mcp-author skill
+
+When the user asks to build, edit, scaffold, or review any module content —
+entities, actions, data views, menus, security roles, reports, translations,
+seed data, manifest — invoke the \`dforge-mcp-author\` skill before writing
+any files. The skill (in \`.claude/skills/dforge-mcp-author/\`) carries 22+
+reference files and a \`simple-todo\` example. Do not author module files
+from first principles; use the \`dforge_*\` MCP tool surface.
+
+## All file changes go through MCP tools
+
+Never write module JSON directly. All file creation and editing happens through
+\`dforge_*\` tool calls (\`entity_add\`, \`entity_field_add\`, \`view_add\`,
+\`role_add\`, etc.). The SKILL.md wizard guides the 6-phase authoring flow.
+
+## Pack and install
+
+- Pack:    \`dforge_module_pack\`    → produces a \`.dforge\` tarball
+- Install: \`dforge_module_install\` → installs to a live tenant (real validator)
+
+Requires \`DFORGE_URL\` and \`DFORGE_TOKEN\` environment variables for install.
+
+## Module layout
+
+- \`manifest.json\` — module id, code, version, dependencies
+- \`entities/*.json\` — one file per entity
+- \`logic/actions/*.dsl\` — action DSL scripts
+- \`ui/data_views.json\`, \`ui/menus.json\`, \`ui/folders.json\`, \`ui/actions.json\`
+- \`security/roles.json\`
+- \`seed-data/*.json\` — numbered for load order (01-, 02-, …)
+- \`translations/<locale>.json\` — e.g. \`en-US.json\`
+- \`settings.json\`
+`;
 }

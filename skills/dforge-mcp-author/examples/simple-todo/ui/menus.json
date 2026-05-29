@@ -1,0 +1,28 @@
+{
+	"todo_menu": {
+		"label": "Todos",
+		"items": {
+			"lists": {
+				"orderNum": 1,
+				"label": "Lists & Items",
+				"icon": "check-square",
+				"children": {
+					"all_lists": {
+						"itemType": "V",
+						"label": "Lists",
+						"icon": "list-ul",
+						"dataViewCode": "todo_list_grid",
+						"orderNum": 1
+					},
+					"all_items": {
+						"itemType": "V",
+						"label": "All Items",
+						"icon": "check2-square",
+						"dataViewCode": "todo_item_grid",
+						"orderNum": 2
+					}
+				}
+			}
+		}
+	}
+}

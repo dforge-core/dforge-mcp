@@ -11,6 +11,7 @@ import {
 	readJsonOrDefault,
 	type ToolResult,
 } from "./_helpers";
+import { readArtifactsState } from "./artifacts";
 
 export const moduleInspectSchema = {
 	moduleDir: z.string(),
@@ -45,6 +46,10 @@ interface InspectSummary {
 	jobs: string[];
 	seedFiles: string[];
 	translations: string[];
+	artifacts: {
+		requirementsAt?: string;
+		designAt?: string;
+	};
 }
 
 export function moduleInspect(
@@ -111,6 +116,8 @@ export function moduleInspect(
 		? fs.readdirSync(paths.translationsDir).filter((f) => f.endsWith(".json")).sort()
 		: [];
 
+	const artifacts = readArtifactsState(paths.root);
+
 	const summary: InspectSummary = {
 		module: {
 			code: manifest.code,
@@ -132,14 +139,19 @@ export function moduleInspect(
 		jobs,
 		seedFiles,
 		translations,
+		artifacts,
 	};
+
+	const artifactWarning = !artifacts.designAt
+		? "⚠ No design artifact — call dforge_design_write before dforge_module_create. "
+		: "";
 
 	// We return the summary as the `files` map's single "inspect.json"
 	// entry — the client doesn't write it; tool responses just use the
 	// same file-map shape uniformly. (See server.ts where the tool result
 	// is serialized.)
 	return {
-		summary: `Module '${manifest.code}' v${manifest.version}: ${entitySummaries.length} entities, ${viewSummaries.length} views, ${roleSummaries.length} roles, ${actionSummaries.length} actions, ${reports.length} reports.`,
+		summary: `${artifactWarning}Module '${manifest.code}' v${manifest.version}: ${entitySummaries.length} entities, ${viewSummaries.length} views, ${roleSummaries.length} roles, ${actionSummaries.length} actions, ${reports.length} reports.`,
 		files: { "_inspect.json": JSON.stringify(summary, null, "\t") + "\n" },
 	};
 }

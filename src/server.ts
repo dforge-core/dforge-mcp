@@ -1,7 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { createModuleSchema, createModuleFiles } from "./tools/create-module";
+import { createModuleSchema, createModule } from "./tools/create-module";
+import {
+	requirementsWriteSchema,
+	requirementsWrite,
+	designWriteSchema,
+	designWrite,
+} from "./tools/artifacts";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
 import {
 	packModuleSchema,
@@ -76,33 +82,30 @@ function envelope<T>(fn: (a: T) => ToolResult) {
 
 server.tool(
 	"dforge_module_create",
-	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing.",
+	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing. Requires moduleDir to have been prepared with dforge_requirements_write + dforge_design_write first.",
 	createModuleSchema,
-	async (args) => {
-		const files = createModuleFiles(args);
-		return {
-			content: [
-				{
-					type: "text",
-					text: JSON.stringify(
-						{
-							summary: `Generated ${Object.keys(files).length} files for module '${args.code}' (preset: ${args.preset}, ${args.entities.length} entit${args.entities.length === 1 ? "y" : "ies"}).`,
-							files,
-						},
-						null,
-						2,
-					),
-				},
-			],
-		};
-	},
+	envelope(createModule),
 );
 
 server.tool(
 	"dforge_module_inspect",
-	"Read the current state of an existing module from disk and return a structured summary. Call this BEFORE any patch tool so you know what entities/views/roles already exist and don't try to re-create them.",
+	"Read the current state of an existing module from disk and return a structured summary. Call this BEFORE any patch tool so you know what entities/views/roles already exist and don't try to re-create them. Also reports artifact state (requirementsAt, designAt) from .dforge-artifacts.json.",
 	moduleInspectSchema,
 	envelope(moduleInspect),
+);
+
+server.tool(
+	"dforge_requirements_write",
+	"PHASE 0: Write docs/REQUIREMENTS.md and record requirementsAt in .dforge-artifacts.json. Call after Phase 0 intake is user-confirmed. Required before dforge_design_write.",
+	requirementsWriteSchema,
+	envelope(requirementsWrite),
+);
+
+server.tool(
+	"dforge_design_write",
+	"PHASE 0d: Write docs/DESIGN.md (entity list, relationship map, status machines, seed plan, gap findings) and record designAt in .dforge-artifacts.json. Required before dforge_module_create — scaffolding is blocked until this is called.",
+	designWriteSchema,
+	envelope(designWrite),
 );
 
 server.tool(

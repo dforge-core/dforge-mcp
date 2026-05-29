@@ -1,0 +1,10 @@
+{
+	"simple_todo.user": {
+		"description": "Can manage their own todo lists and items",
+		"rights": {
+			"todo_list": "SIUDC",
+			"todo_item": "SIUDC",
+			"action.mark_done": "E"
+		}
+	}
+}

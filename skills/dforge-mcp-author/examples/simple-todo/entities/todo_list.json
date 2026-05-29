@@ -1,0 +1,43 @@
+{
+	"description": "Lists that group todo items",
+	"dbObject": "todo_list",
+	"toString": "{name}",
+	"traits": ["identity", "audit"],
+	"fields": {
+		"name": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "text",
+			"flags": "VEM",
+			"maxLen": 100,
+			"orderNum": 10,
+			"description": "List Name"
+		},
+		"color": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "color",
+			"flags": "VEM",
+			"maxLen": 20,
+			"orderNum": 20,
+			"description": "Color"
+		},
+		"description": {
+			"dbDatatype": "text",
+			"fieldTypeCd": "textarea",
+			"flags": "VE",
+			"orderNum": 30,
+			"description": "Notes"
+		},
+		"items": {
+			"columnType": "S",
+			"fieldTypeCd": "grid",
+			"flags": "VEM",
+			"orderNum": 100,
+			"description": "Items",
+			"link": {
+				"entity": "todo_item",
+				"thisKey": "todo_list_id",
+				"otherKey": "list_id"
+			}
+		}
+	}
+}

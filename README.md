@@ -2,7 +2,7 @@
 
 MCP server for dForge module authoring. Exposes 18 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
-Ships with a wizard Skill (`skills/dforge-mcp-author/SKILL.md`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps.
+Ships with a wizard Skill (`skills/dforge-mcp-author/`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps. The skill bundle includes 22 detailed reference files (field types, flags, traits, formulas, DSL, security, etc.) and an annotated `simple-todo` example module.
 
 **New here?** Start with **[docs/creating-modules.md](docs/creating-modules.md)** — three ways to scaffold a module (terminal CLI, VS Code sidebar, AI wizard) and when to pick each.
 
@@ -152,7 +152,15 @@ https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/resources/schemas/<n
 
 ## Claude Skill — the wizard
 
-`skills/dforge-mcp-author/SKILL.md` teaches Claude how to drive the tools as a six-phase wizard. **It is NOT auto-installed by `npm install` — the Skill file ships in the npm tarball but Claude Code looks for Skills in `~/.claude/skills/`, not in node_modules.** Sync it manually:
+The skill bundle lives at `skills/dforge-mcp-author/` and contains:
+
+| Path | Contents |
+|---|---|
+| `SKILL.md` | Six-phase co-pilot wizard |
+| `references/*.md` | 22 detailed reference files (field types, flags, traits, formulas, DSL, security, views, menus, translations, …) |
+| `examples/simple-todo/` | Annotated reference module showing all core patterns |
+
+**It is NOT auto-installed by `npm install`** — the skill ships in the npm tarball but Claude Code looks for skills in `~/.claude/skills/`, not in `node_modules`. Sync the whole bundle manually:
 
 ```bash
 # Resolve the actual latest published version from the npm registry,
@@ -160,16 +168,38 @@ https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/resources/schemas/<n
 # alias directly — that CDN endpoint caches aggressively (6-12h lag
 # after a new publish), which silently serves stale Skill content.
 VERSION=$(npm view @dforge-core/dforge-mcp version)
+BASE="https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dforge-mcp-author"
+
+# Wizard
 mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL "https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dforge-mcp-author/SKILL.md" \
-  -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+curl -fsSL "$BASE/SKILL.md" -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+
+# Reference files (22 guides — load on demand per the table in SKILL.md)
+mkdir -p ~/.claude/skills/dforge-mcp-author/references
+for f in action-dsl column-types conventions data-migration data-views \
+          field-types filters flags formulas jobs manifest menus \
+          number-sequences print-templates queries reports schema-import \
+          security settings traits translations validation-checklist; do
+  curl -fsSL "$BASE/references/${f}.md" \
+    -o ~/.claude/skills/dforge-mcp-author/references/${f}.md
+done
+
+# simple-todo example
+mkdir -p ~/.claude/skills/dforge-mcp-author/examples/simple-todo/{entities,logic/actions,ui,security,seed-data}
+for f in README.md manifest.json; do
+  curl -fsSL "$BASE/examples/simple-todo/$f" \
+    -o ~/.claude/skills/dforge-mcp-author/examples/simple-todo/$f
+done
+# … entity, ui, security, seed-data files follow the same pattern
 
 # Or, straight from GitHub main (always fresh, but pre-release content):
 # curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/skills/dforge-mcp-author/SKILL.md \
 #   -o ~/.claude/skills/dforge-mcp-author/SKILL.md
 ```
 
-Re-run after every dforge-mcp upgrade — the Skill version isn't checked at runtime, so a stale Skill against new tools will misroute calls.
+> **Note on CLAUDE.md:** Every module scaffolded via `dforge_module_create` automatically gets a `CLAUDE.md` in its root. This file tells Claude Code that the directory is a dForge module, instructs it to use the `dforge-mcp-author` skill, and describes the module layout and pack/install commands. No manual installation needed — it's part of the scaffold output.
+
+Re-run after every dforge-mcp upgrade — the skill version isn't checked at runtime, so a stale skill against new tools will misroute calls.
 
 The phases:
 
@@ -206,14 +236,19 @@ rm -rf node_modules pnpm-lock.yaml && pnpm install
 
 ### Refresh vendored resources
 
-When `dForge-core/docs/schemas/` or `MODULE_CONVENTIONS.md` change:
+When `dForge-core/docs/schemas/`, `MODULE_CONVENTIONS.md`, or the skill reference files change:
 
 ```bash
 scripts/vendor-resources.sh                              # auto-locate ../dForge-core
 DFORGE_CORE=/abs/path/to/dForge-core scripts/vendor-resources.sh
 ```
 
-Republish to update jsdelivr-served schemas + the bundled resources.
+This syncs three things:
+1. **JSON schemas** (`resources/schemas/`) — served as MCP resources via `dforge://schema/*`
+2. **Conventions doc** (`resources/docs/conventions.md`) — served as `dforge://docs/conventions`
+3. **Skill reference files** (`skills/dforge-mcp-author/references/`) — 22 Markdown guides, read on demand from disk by Claude
+
+Republish to update jsdelivr-served schemas + the bundled resources + the skill reference files.
 
 ### Publishing
 

@@ -1,0 +1,83 @@
+{
+	"description": "Individual todo items",
+	"dbObject": "todo_item",
+	"toString": "{title}",
+	"traits": ["identity", "audit"],
+	"fields": {
+		"title": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "text",
+			"flags": "VEM",
+			"maxLen": 200,
+			"orderNum": 10,
+			"description": "Title"
+		},
+		"description": {
+			"dbDatatype": "text",
+			"fieldTypeCd": "textarea",
+			"flags": "VE",
+			"orderNum": 20,
+			"description": "Description"
+		},
+		"priority": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "dropdown",
+			"flags": "VEM",
+			"maxLen": 20,
+			"orderNum": 30,
+			"description": "Priority",
+			"params": {
+				"options": [
+					{ "value": "low", "label": "Low", "color": "#6c757d" },
+					{ "value": "medium", "label": "Medium", "color": "#ffc107" },
+					{ "value": "high", "label": "High", "color": "#dc3545" }
+				]
+			}
+		},
+		"done": {
+			"dbDatatype": "bool",
+			"fieldTypeCd": "checkbox",
+			"flags": "VEM",
+			"formula": "false",
+			"orderNum": 40,
+			"description": "Done"
+		},
+		"due_date": {
+			"dbDatatype": "date",
+			"fieldTypeCd": "date",
+			"flags": "VE",
+			"orderNum": 50,
+			"description": "Due Date"
+		},
+		"list_id": {
+			"dbDatatype": "cuid",
+			"flags": "EM",
+			"orderNum": 60,
+			"description": "List ID"
+		},
+		"list": {
+			"columnType": "R",
+			"fieldTypeCd": "lookup",
+			"flags": "VEM",
+			"orderNum": 65,
+			"description": "List",
+			"link": {
+				"entity": "todo_list",
+				"thisKey": "list_id",
+				"otherKey": "todo_list_id"
+			}
+		},
+		"owner_id": {
+			"fieldTypeCd": "user",
+			"flags": "VE",
+			"orderNum": 70,
+			"description": "Assigned To"
+		}
+	},
+	"references": {
+		"FK_TodoItem_List": {
+			"from": { "field": "list_id" },
+			"to": { "entity": "todo_list", "field": "todo_list_id" }
+		}
+	}
+}
