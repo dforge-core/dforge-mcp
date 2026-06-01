@@ -7,6 +7,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { z } from "zod";
 
 export type FileMap = Record<string, string>;
 
@@ -147,4 +148,44 @@ export function makeResult(summary: string, files: FileMap, warning?: string): T
 /** Bump manifest.updated to today's YYYY-MM-DD. Call this on any patch. */
 export function withTodayStamp(manifest: Manifest): Manifest {
 	return { ...manifest, updated: new Date().toISOString().slice(0, 10) };
+}
+
+/** All field type codes recognised by the dForge platform. */
+export const FIELD_TYPE_CODES = [
+	"text", "email", "phone", "url", "textarea", "number", "currency", "percent",
+	"checkbox", "date", "datetime", "time", "dropdown", "flags", "tags", "json",
+	"hidden", "color", "image", "file", "richtext", "lookup", "user", "grid",
+	"entitylink", "code",
+] as const;
+
+export const fieldTypeCdSchema = z.enum(FIELD_TYPE_CODES);
+
+/** Valid rights letters for entity/action/report rights strings. */
+export const RIGHTS_PATTERN = /^[SIUDCE]*$/;
+
+/** Returns the set of entity codes declared in manifest.entities. */
+export function getEntityCodes(manifest: Manifest): Set<string> {
+	return new Set(Object.keys(manifest.entities ?? {}));
+}
+
+/** Returns the set of view codes declared in ui/data_views.json (empty set if file absent). */
+export function loadDataViewCodes(paths: ModulePaths): Set<string> {
+	if (!fs.existsSync(paths.dataViews)) return new Set();
+	try {
+		const views = JSON.parse(fs.readFileSync(paths.dataViews, "utf8")) as Record<string, unknown>;
+		return new Set(Object.keys(views));
+	} catch {
+		return new Set();
+	}
+}
+
+/**
+ * Returns true if s is a valid 5-field cron expression.
+ * Supports: * | * /n | n | n-m | n-m/s and comma-separated lists of any of the above.
+ */
+export function isValidCron(s: string): boolean {
+	const parts = s.trim().split(/\s+/);
+	if (parts.length !== 5) return false;
+	const field = /^(\*\/\d+|\d+(-\d+)?(\/\d+)?|\*)(,(\*\/\d+|\d+(-\d+)?(\/\d+)?))*$/;
+	return parts.every((p) => field.test(p));
 }

@@ -15,6 +15,7 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	fieldTypeCdSchema,
 	type ToolResult,
 } from "./_helpers";
 
@@ -62,7 +63,7 @@ export const settingAddSchema = {
 		.describe("Setting code (keys settings.json)."),
 	setting: z
 		.object({
-			fieldTypeCd: z.string(),
+			fieldTypeCd: fieldTypeCdSchema,
 			baseDatatypeCd: z.string().optional(),
 			label: z.string().optional(),
 			description: z.string().optional(),
