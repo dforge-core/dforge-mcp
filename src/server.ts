@@ -107,10 +107,10 @@ server.tool(
 
 server.tool(
 	"dforge_module_pack",
-	"Pack a module directory into a .dforge tarball. Requires the dforge-cli native binary on PATH (or set DFORGE_CLI_BINARY).",
+	"Pack a module directory into a .dforge tarball. Cross-platform: works on Windows, macOS, and Linux without any system zip binary.",
 	packModuleSchema,
 	async (args) => {
-		const result = packModule(args);
+		const result = await packModule(args);
 		return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
 	},
 );
