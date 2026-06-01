@@ -12,6 +12,7 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	isValidCron,
 	type ToolResult,
 } from "./_helpers";
 
@@ -130,6 +131,11 @@ export const jobAddSchema = {
 };
 
 export function jobAdd(args: z.infer<z.ZodObject<typeof jobAddSchema>>): ToolResult {
+	if (!isValidCron(args.schedule)) {
+		throw new Error(
+			`Invalid cron expression '${args.schedule}'. Expected 5 fields: minute hour day-of-month month day-of-week (e.g. '0 2 * * 1').`,
+		);
+	}
 	if (args.timeout > 300 && args.jobClass !== "long_running") {
 		throw new Error(
 			"Jobs with timeout > 300s must set jobClass: 'long_running' — see logic/jobs.json convention.",

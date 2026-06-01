@@ -49,6 +49,7 @@ import {
 	webhookAddSchema,
 	webhookAdd,
 } from "./tools/behavior";
+import { moduleValidateSchema, moduleValidate } from "./tools/validate";
 import type { ToolResult } from "./tools/_helpers";
 import { resources } from "./resources";
 
@@ -260,6 +261,28 @@ server.tool(
 	"PHASE 5 (optional): Add a sub-folder to ui/folders.json. Folders are SECURITY boundaries (row-level filters + per-folder role mappings). Most modules don't need any beyond the root — only use when intake said data must be separated per folder.",
 	folderAddSchema,
 	envelope(folderAdd),
+);
+
+// ── Validation ─────────────────────────────────────────────────────
+
+server.tool(
+	"dforge_module_validate",
+	"Run the full pre-install validation checklist against a module on disk. Returns a structured report of errors and warnings without modifying any files. Call this before dforge_module_pack or dforge_module_install to catch structural issues early.",
+	moduleValidateSchema,
+	async (args) => {
+		try {
+			const result = moduleValidate(args);
+			return {
+				content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+				isError: result.errors > 0,
+			};
+		} catch (e) {
+			return {
+				content: [{ type: "text" as const, text: `Error: ${(e as Error).message}` }],
+				isError: true,
+			};
+		}
+	},
 );
 
 // ── Cross-cutting ───────────────────────────────────────────────────

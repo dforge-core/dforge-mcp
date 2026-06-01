@@ -12,6 +12,7 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	getEntityCodes,
 	type ToolResult,
 } from "./_helpers";
 
@@ -50,6 +51,13 @@ export function actionAdd(
 	args: z.infer<z.ZodObject<typeof actionAddSchema>>,
 ): ToolResult {
 	const { paths, manifest } = loadManifest(args.moduleDir);
+
+	// For unqualified entity codes, verify the entity exists locally.
+	if (!args.entityCode.includes(".") && !getEntityCodes(manifest).has(args.entityCode)) {
+		throw new Error(
+			`Entity '${args.entityCode}' not found in manifest. Add the entity first or use dotted form for cross-module entities (e.g. 'admin.user').`,
+		);
+	}
 
 	const actionsJson = readJsonOrDefault<Record<string, unknown>>(paths.actions, {});
 	if (Object.prototype.hasOwnProperty.call(actionsJson, args.code)) {

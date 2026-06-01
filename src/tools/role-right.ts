@@ -5,10 +5,13 @@ import { z } from "zod";
 import {
 	loadManifest,
 	readJson,
+	readJsonOrDefault,
 	jsonText,
 	rel,
 	makeResult,
 	withTodayStamp,
+	getEntityCodes,
+	RIGHTS_PATTERN,
 	type ToolResult,
 } from "./_helpers";
 
@@ -24,6 +27,7 @@ export const roleRightSetSchema = {
 		),
 	rights: z
 		.string()
+		.regex(RIGHTS_PATTERN, "Rights must contain only S, I, U, D, C, E (or '' to revoke all).")
 		.describe(
 			"Rights string. Entities: any combination of S/I/U/D/C (use '' to revoke all). Actions/reports: 'E' or ''.",
 		),
@@ -31,6 +35,20 @@ export const roleRightSetSchema = {
 
 export function roleRightSet(args: z.infer<z.ZodObject<typeof roleRightSetSchema>>): ToolResult {
 	const { paths, manifest } = loadManifest(args.moduleDir);
+
+	// For unqualified (non-dotted) object codes, verify the entity exists locally.
+	// Dotted codes (e.g. 'fin.invoice') reference dependency entities — skip those.
+	if (!args.object.includes(".")) {
+		const entityCodes = getEntityCodes(manifest);
+		const actionsJson = readJsonOrDefault<Record<string, unknown>>(paths.actions, {});
+		const actionCodes = new Set(Object.keys(actionsJson));
+		if (!entityCodes.has(args.object) && !actionCodes.has(args.object)) {
+			throw new Error(
+				`Object '${args.object}' not found — it is not an entity or action in this module. Use dotted form for cross-module references (e.g. 'admin.user').`,
+			);
+		}
+	}
+
 	const roles = readJson<Record<string, Record<string, unknown>>>(paths.roles);
 	const role = roles[args.roleCode];
 	if (!role) {

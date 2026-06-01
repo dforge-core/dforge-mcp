@@ -11,6 +11,7 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	getEntityCodes,
 	type ToolResult,
 } from "./_helpers";
 
@@ -64,6 +65,14 @@ export function viewAdd(
 	args: z.infer<z.ZodObject<typeof viewAddSchema>>,
 ): ToolResult {
 	const { paths, manifest } = loadManifest(args.moduleDir);
+	const entityCodes = getEntityCodes(manifest);
+	for (const src of args.view.dataSources) {
+		if (src.entityCode && !src.entityCode.includes(".") && !entityCodes.has(src.entityCode)) {
+			throw new Error(
+				`dataSource entityCode '${src.entityCode}' not found in manifest entities. Check spelling or add the entity first.`,
+			);
+		}
+	}
 	const views = readJsonOrDefault<Record<string, unknown>>(paths.dataViews, {});
 	if (Object.prototype.hasOwnProperty.call(views, args.code)) {
 		throw new Error(
@@ -94,6 +103,14 @@ export function viewModify(
 	args: z.infer<z.ZodObject<typeof viewModifySchema>>,
 ): ToolResult {
 	const { paths, manifest } = loadManifest(args.moduleDir);
+	const entityCodes = getEntityCodes(manifest);
+	for (const src of args.view.dataSources) {
+		if (src.entityCode && !src.entityCode.includes(".") && !entityCodes.has(src.entityCode)) {
+			throw new Error(
+				`dataSource entityCode '${src.entityCode}' not found in manifest entities. Check spelling or add the entity first.`,
+			);
+		}
+	}
 	const views = readJsonOrDefault<Record<string, unknown>>(paths.dataViews, {});
 	if (!Object.prototype.hasOwnProperty.call(views, args.code)) {
 		throw new Error(
