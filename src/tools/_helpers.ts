@@ -7,6 +7,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { z } from "zod";
 
 export type FileMap = Record<string, string>;
 
@@ -148,6 +149,16 @@ export function makeResult(summary: string, files: FileMap, warning?: string): T
 export function withTodayStamp(manifest: Manifest): Manifest {
 	return { ...manifest, updated: new Date().toISOString().slice(0, 10) };
 }
+
+/** All field type codes recognised by the dForge platform. */
+export const FIELD_TYPE_CODES = [
+	"text", "email", "phone", "url", "textarea", "number", "currency", "percent",
+	"checkbox", "date", "datetime", "time", "dropdown", "flags", "tags", "json",
+	"hidden", "color", "image", "file", "richtext", "lookup", "user", "grid",
+	"entitylink", "code",
+] as const;
+
+export const fieldTypeCdSchema = z.enum(FIELD_TYPE_CODES);
 
 /** Valid rights letters for entity/action/report rights strings. */
 export const RIGHTS_PATTERN = /^[SIUDCE]*$/;

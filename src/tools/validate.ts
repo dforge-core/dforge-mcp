@@ -10,6 +10,7 @@ import {
 	loadManifest,
 	readJsonOrDefault,
 	RIGHTS_PATTERN,
+	FIELD_TYPE_CODES,
 	type Manifest,
 	type ModulePaths,
 } from "./_helpers";
@@ -135,6 +136,8 @@ function checkEntities(manifest: Manifest, paths: ModulePaths): {
 			// Regular (non-formula, non-set, non-reference) columns need fieldTypeCd
 			if (!columnType && !fDef.fieldTypeCd) {
 				issues.push(warn(`entity:${code}:field:${fCode}`, "Missing 'fieldTypeCd'."));
+			} else if (fDef.fieldTypeCd && !(FIELD_TYPE_CODES as readonly string[]).includes(fDef.fieldTypeCd as string)) {
+				issues.push(err(`entity:${code}:field:${fCode}`, `Invalid fieldTypeCd '${fDef.fieldTypeCd as string}'. Must be one of: ${FIELD_TYPE_CODES.join(", ")}.`));
 			}
 
 			if (fDef.orderNum === undefined || fDef.orderNum === null) {
@@ -438,6 +441,8 @@ function checkSettings(paths: ModulePaths): Issue[] {
 		const setting = sDef as Record<string, unknown>;
 		if (!setting.fieldTypeCd) {
 			issues.push(err(`setting:${sCode}`, "Missing 'fieldTypeCd'."));
+		} else if (!(FIELD_TYPE_CODES as readonly string[]).includes(setting.fieldTypeCd as string)) {
+			issues.push(err(`setting:${sCode}`, `Invalid fieldTypeCd '${setting.fieldTypeCd as string}'. Must be one of: ${FIELD_TYPE_CODES.join(", ")}.`));
 		}
 		if (setting.defaultValue === undefined) {
 			issues.push(warn(`setting:${sCode}`, "Missing 'defaultValue' — settings should declare a default."));

@@ -16,13 +16,14 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	fieldTypeCdSchema,
 	type ToolResult,
 } from "./_helpers";
 
 const fieldSchema = z
 	.object({
 		dbDatatype: z.string().optional(),
-		fieldTypeCd: z.string().optional(),
+		fieldTypeCd: fieldTypeCdSchema.optional(),
 		baseDatatypeCd: z.string().optional(),
 		columnType: z.string().optional(),
 		flags: z.string().optional(),
