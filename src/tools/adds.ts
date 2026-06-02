@@ -197,7 +197,7 @@ export const dependencyAddSchema = {
 		.string()
 		.regex(/^[a-z][a-z0-9_-]*$/)
 		.describe("Module to depend on."),
-	version: z.string().default(">=0.1.0").describe("Semver range."),
+	version: z.string().default(">=0.0.1").describe("Semver range."),
 	entities: z
 		.array(z.string())
 		.optional()
