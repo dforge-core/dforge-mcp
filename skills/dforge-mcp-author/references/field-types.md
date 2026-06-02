@@ -69,10 +69,14 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 
 ## Common mistakes
 
+> **Wrong key name:** `fieldType` is a C# navigation property on the server model — it is not a valid JSON key in entity definitions. Always use `fieldTypeCd` (the string code). Using `fieldType: { ... }` or `fieldType: "date"` causes the platform to silently ignore the field type, producing null constraint errors on save.
+
 These are the field type names LLMs tend to invent. **They are all wrong.**
 
 | Wrong | Right |
 |---|---|
+| key `fieldType: { fieldTypeCd: "date", ... }` | key `fieldTypeCd: "date"` (plain string) |
+| key `fieldType: "date"` | key `fieldTypeCd: "date"` |
 | `integer` | `number` |
 | `float` | `number` |
 | `decimal` | `number` with `scale` param |

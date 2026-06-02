@@ -25,26 +25,6 @@ function resolveDforgeCli(): string {
 	return "dforge-cli";
 }
 
-function run(args: string[], cwd?: string): { stdout: string; stderr: string; code: number } {
-	const bin = resolveDforgeCli();
-	const r = spawnSync(bin, args, {
-		encoding: "utf8",
-		cwd,
-		shell: false,
-	});
-	if (r.error) {
-		throw new Error(
-			`Failed to exec ${bin}: ${r.error.message}. ` +
-				`Install with: npm install -g @dforge-core/dforge-cli (or set DFORGE_CLI_BINARY=/path/to/binary).`,
-		);
-	}
-	return {
-		stdout: r.stdout ?? "",
-		stderr: r.stderr ?? "",
-		code: r.status ?? 1,
-	};
-}
-
 // ─── pack ────────────────────────────────────────────────────────────
 
 export const packModuleSchema = {

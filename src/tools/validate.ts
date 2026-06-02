@@ -92,6 +92,15 @@ function checkManifest(manifest: Manifest, paths: ModulePaths): Issue[] {
 
 // ── Entity checks ────────────────────────────────────────────────────
 
+const TRAIT_COLUMNS: Record<string, string[]> = {
+	"audit":       ["created_date", "last_updated"],
+	"audit-full":  ["created_date", "last_updated", "created_by", "created_by_user",
+	               "last_updated_by", "last_updated_by_user"],
+	"soft-delete": ["active"],
+	"sorting":     ["order_num"],
+	"period":      ["period_key", "description", "closed", "start_date", "end_date"],
+};
+
 function checkEntities(manifest: Manifest, paths: ModulePaths): {
 	issues: Issue[];
 	fieldsByEntity: Map<string, Set<string>>;
@@ -120,11 +129,41 @@ function checkEntities(manifest: Manifest, paths: ModulePaths): {
 		const fieldCodes = new Set<string>();
 		const orderNums = new Set<number>();
 
+		const entityTraits = (entity.traits as string[] | undefined) ?? [];
+		const traitColumnOf = new Map<string, string>();
+		for (const t of entityTraits) {
+			for (const col of TRAIT_COLUMNS[t] ?? []) traitColumnOf.set(col, t);
+			if (t === "identity" && typeof entity.dbObject === "string")
+				traitColumnOf.set(`${entity.dbObject}_id`, "identity");
+		}
+
 		for (const [fCode, fDef] of Object.entries(fields)) {
 			if (fieldCodes.has(fCode)) {
 				issues.push(err(`entity:${code}`, `Duplicate column code '${fCode}'.`));
 			}
 			fieldCodes.add(fCode);
+
+			if (traitColumnOf.has(fCode)) {
+				issues.push(err(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' is already provided by the '${traitColumnOf.get(fCode)!}' trait. Remove this definition — the trait injects it automatically. Redefining it causes install-time errors and engine crashes.`,
+				));
+			}
+
+			const flags = fDef.flags as string | undefined;
+			if (flags && flags.includes("I") && /[VEM]/.test(flags)) {
+				issues.push(err(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' has invalid flag combination '${flags}': 'I' (Internal) must not be combined with 'V', 'E', or 'M'. Internal fields are platform-managed and not user-facing. For a user-editable required field use 'VEM'.`,
+				));
+			}
+
+			if (entityTraits.length > 0 && fDef.isNullable === false) {
+				issues.push(warn(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' has 'isNullable: false' on an entity that uses traits. This can trigger a circular getter crash in the dForge engine. Remove 'isNullable: false' and use the 'M' flag for mandatory enforcement instead.`,
+				));
+			}
 
 			const columnType = fDef.columnType as string | undefined;
 
@@ -133,9 +172,20 @@ function checkEntities(manifest: Manifest, paths: ModulePaths): {
 				issues.push(err(`entity:${code}:field:${fCode}`, "Formula column missing 'baseDatatypeCd'."));
 			}
 
+			// Detect wrong-key pattern: LLMs sometimes embed the full C# FieldType object
+			if (fDef.fieldType !== undefined) {
+				const hint = typeof fDef.fieldType === "object" && fDef.fieldType !== null
+					? " It looks like the full FieldType object was embedded — use the code string directly."
+					: "";
+				issues.push(err(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' has a 'fieldType' key, which the platform ignores.${hint} The correct key is 'fieldTypeCd' with a plain string value, e.g. fieldTypeCd: "date".`,
+				));
+			}
+
 			// Regular (non-formula, non-set, non-reference) columns need fieldTypeCd
 			if (!columnType && !fDef.fieldTypeCd) {
-				issues.push(warn(`entity:${code}:field:${fCode}`, "Missing 'fieldTypeCd'."));
+				issues.push(err(`entity:${code}:field:${fCode}`, "Missing 'fieldTypeCd'. Every data column needs a fieldTypeCd string (e.g. \"date\", \"text\"). Without it the platform treats the field as untyped and saves will fail."));
 			} else if (fDef.fieldTypeCd && !(FIELD_TYPE_CODES as readonly string[]).includes(fDef.fieldTypeCd as string)) {
 				issues.push(err(`entity:${code}:field:${fCode}`, `Invalid fieldTypeCd '${fDef.fieldTypeCd as string}'. Must be one of: ${FIELD_TYPE_CODES.join(", ")}.`));
 			}
