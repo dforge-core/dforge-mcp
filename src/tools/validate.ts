@@ -101,6 +101,12 @@ const TRAIT_COLUMNS: Record<string, string[]> = {
 	"period":      ["period_key", "description", "closed", "start_date", "end_date"],
 };
 
+// Virtual column types carry no physical DB column of their own (metadata only).
+// A Reference/Set/Formula field must never be the place an FK integer/uuid lives —
+// the physical column is always a separate Data field.
+const VIRTUAL_COLUMN_TYPES = new Set(["R", "S", "F"]);
+const COLUMN_TYPE_NAME: Record<string, string> = { R: "Reference", S: "Set", F: "Formula" };
+
 function checkEntities(manifest: Manifest, paths: ModulePaths): {
 	issues: Issue[];
 	fieldsByEntity: Map<string, Set<string>>;
@@ -167,6 +173,28 @@ function checkEntities(manifest: Manifest, paths: ModulePaths): {
 
 			const columnType = fDef.columnType as string | undefined;
 
+			// Virtual columns (R/S/F) are metadata only — the platform creates no
+			// physical DB column for them. Declaring dbDatatype here means the author
+			// merged the physical FK and the logical relation into one field; the
+			// physical column then never gets created (issue #6).
+			if (columnType && VIRTUAL_COLUMN_TYPES.has(columnType) && fDef.dbDatatype) {
+				issues.push(err(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' is a ${COLUMN_TYPE_NAME[columnType]} column (columnType '${columnType}') but declares 'dbDatatype'. ${COLUMN_TYPE_NAME[columnType]} columns are virtual — the platform creates NO physical DB column for them. Put the physical column in a SEPARATE field (no columnType, with dbDatatype) and remove 'dbDatatype' here.`,
+				));
+			}
+
+			// A Reference named like a physical FK (`*_id`) is the merged-field
+			// anti-pattern from issue #6: the `_id` column is expected to be physical,
+			// but columnType "R" makes it virtual, so queries on it fail with 42703.
+			if (columnType === "R" && /_id$/.test(fCode)) {
+				const refName = fCode.replace(/_id$/, "");
+				issues.push(err(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' is a Reference (columnType 'R') but its name ends in '_id' — by convention that is the PHYSICAL FK column. References are virtual, so no '${fCode}' column is created and runtime queries fail (PostgreSQL 42703 "column does not exist"). Use the two-column pattern: keep '${fCode}' as a physical FK (dbDatatype, no columnType) and add a separate reference '${refName}' with columnType 'R' and link.thisKey '${fCode}'.`,
+				));
+			}
+
 			// Formula columns require baseDatatypeCd
 			if (columnType === "F" && !fDef.baseDatatypeCd) {
 				issues.push(err(`entity:${code}:field:${fCode}`, "Formula column missing 'baseDatatypeCd'."));
@@ -201,14 +229,28 @@ function checkEntities(manifest: Manifest, paths: ModulePaths): {
 			}
 		}
 
-		// FK+Reference pair check: every columnType:"R" must have a paired FK column
+		// FK+Reference pair check: every columnType:"R" must link via thisKey to a
+		// PHYSICAL FK column on this entity — not to itself and not to another virtual
+		// (R/S/F) column. Pointing an R column's thisKey at itself was how issue #6's
+		// merged field slipped through (the field code existed, so the old check passed).
 		for (const [fCode, fDef] of Object.entries(fields)) {
-			if ((fDef.columnType as string) === "R") {
-				const link = fDef.link as Record<string, string> | undefined;
-				if (!link?.thisKey) {
-					issues.push(err(`entity:${code}:field:${fCode}`, "Reference column missing 'link.thisKey'."));
-				} else if (!fieldCodes.has(link.thisKey)) {
-					issues.push(err(`entity:${code}:field:${fCode}`, `Reference 'link.thisKey' ('${link.thisKey}') has no matching FK column on this entity.`));
+			if ((fDef.columnType as string) !== "R") continue;
+			const link = fDef.link as Record<string, string> | undefined;
+			if (!link?.thisKey) {
+				issues.push(err(`entity:${code}:field:${fCode}`, "Reference column missing 'link.thisKey'."));
+				continue;
+			}
+			for (const key of String(link.thisKey).split(",").map((s) => s.trim()).filter(Boolean)) {
+				if (!fieldCodes.has(key)) {
+					issues.push(err(`entity:${code}:field:${fCode}`, `Reference 'link.thisKey' ('${key}') has no matching FK column on this entity.`));
+					continue;
+				}
+				const targetCt = fields[key]?.columnType as string | undefined;
+				if (key === fCode || (targetCt && VIRTUAL_COLUMN_TYPES.has(targetCt))) {
+					issues.push(err(
+						`entity:${code}:field:${fCode}`,
+						`Reference 'link.thisKey' ('${key}') must point to a PHYSICAL FK column, but '${key}' is ${key === fCode ? "the reference column itself" : `a virtual ${COLUMN_TYPE_NAME[targetCt!]} column`}. Add a physical FK column (dbDatatype, no columnType) and point link.thisKey at it.`,
+					));
 				}
 			}
 		}
