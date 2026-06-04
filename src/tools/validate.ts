@@ -211,11 +211,35 @@ function checkEntities(manifest: Manifest, paths: ModulePaths): {
 				));
 			}
 
-			// Regular (non-formula, non-set, non-reference) columns need fieldTypeCd
-			if (!columnType && !fDef.fieldTypeCd) {
-				issues.push(err(`entity:${code}:field:${fCode}`, "Missing 'fieldTypeCd'. Every data column needs a fieldTypeCd string (e.g. \"date\", \"text\"). Without it the platform treats the field as untyped and saves will fail."));
+			// Regular (non-formula, non-set, non-reference) columns need fieldTypeCd.
+			// Exception: pure physical FK columns have dbDatatype but no fieldTypeCd because
+			// they carry no UI widget of their own — the paired Reference column handles display.
+			if (!columnType && !fDef.fieldTypeCd && !fDef.dbDatatype) {
+				issues.push(err(`entity:${code}:field:${fCode}`,
+					"Missing 'fieldTypeCd' or 'dbDatatype'. Every non-virtual column needs either: " +
+					"a fieldTypeCd (e.g. \"text\", \"date\") for columns with a UI widget, or " +
+					"a dbDatatype (e.g. \"cuid\") for hidden physical FK columns that have no UI widget. " +
+					"Without either, the platform treats the field as untyped and saves will fail.",
+				));
 			} else if (fDef.fieldTypeCd && !(FIELD_TYPE_CODES as readonly string[]).includes(fDef.fieldTypeCd as string)) {
 				issues.push(err(`entity:${code}:field:${fCode}`, `Invalid fieldTypeCd '${fDef.fieldTypeCd as string}'. Must be one of: ${FIELD_TYPE_CODES.join(", ")}.`));
+			}
+
+			// Merged-field anti-pattern: fieldTypeCd "lookup" + link, but neither a physical FK
+			// (missing dbDatatype) nor a virtual Reference (missing columnType:"R"). The engine
+			// cannot generate a DB column or resolve the join, so install fails.
+			if (!columnType && fDef.fieldTypeCd === "lookup" && fDef.link && !fDef.dbDatatype) {
+				const fkName = fCode.endsWith("_id") ? fCode : `${fCode}_id`;
+				const refName = fCode.endsWith("_id") ? fCode.slice(0, -3) : fCode;
+				const linkEntity = ((fDef.link as Record<string, string>).entity) ?? "?";
+				issues.push(err(
+					`entity:${code}:field:${fCode}`,
+					`Field '${fCode}' has fieldTypeCd 'lookup' + 'link' but is neither a physical FK (missing dbDatatype) ` +
+					`nor a virtual Reference (missing columnType: "R"). ` +
+					`Use the two-column pattern: '${fkName}' → { dbDatatype: "cuid", flags: "EM" } ` +
+					`+ '${refName}' → { columnType: "R", fieldTypeCd: "lookup", flags: "VEM", ` +
+					`link: { entity: "${linkEntity}", thisKey: "${fkName}", otherKey: "${linkEntity}_id" } }.`,
+				));
 			}
 
 			if (fDef.orderNum === undefined || fDef.orderNum === null) {

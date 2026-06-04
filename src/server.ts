@@ -3,10 +3,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { createModuleSchema, createModule } from "./tools/create-module";
 import {
+	moduleInitSchema,
+	moduleInit,
 	requirementsWriteSchema,
 	requirementsWrite,
 	designWriteSchema,
 	designWrite,
+	designValidateSchema,
+	designValidate,
 } from "./tools/artifacts";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
 import {
@@ -83,7 +87,7 @@ function envelope<T>(fn: (a: T) => ToolResult) {
 
 server.tool(
 	"dforge_module_create",
-	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing. Requires moduleDir to have been prepared with dforge_requirements_write + dforge_design_write first.",
+	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing. When moduleDir is passed, Phase 0 must be complete: dforge_module_init + dforge_requirements_write + dforge_design_write, and dforge_design_validate (Phase 0d) must have PASSED — scaffolding is blocked until then.",
 	createModuleSchema,
 	envelope(createModule),
 );
@@ -96,17 +100,31 @@ server.tool(
 );
 
 server.tool(
+	"dforge_module_init",
+	"PHASE 0a: Establish module identity and write CLAUDE.md — the per-module context file that enforces MCP-first discipline and carries a live status tracker (which phase is done). This is the FIRST step for any new module and is required before dforge_requirements_write. After it returns, show CLAUDE.md to the user, then start Phase 0b intake.",
+	moduleInitSchema,
+	envelope(moduleInit),
+);
+
+server.tool(
 	"dforge_requirements_write",
-	"PHASE 0: Write docs/REQUIREMENTS.md and record requirementsAt in .dforge-artifacts.json. Call after Phase 0 intake is user-confirmed. Required before dforge_design_write.",
+	"PHASE 0b: Write docs/REQUIREMENTS.md and record requirementsAt in .dforge-artifacts.json. Requires dforge_module_init (Phase 0a) first. After it returns, STOP and present the document to the user for review — do NOT call dforge_design_write until the user has explicitly approved.",
 	requirementsWriteSchema,
 	envelope(requirementsWrite),
 );
 
 server.tool(
 	"dforge_design_write",
-	"PHASE 0d: Write docs/DESIGN.md (entity list, relationship map, status machines, seed plan, gap findings) and record designAt in .dforge-artifacts.json. Required before dforge_module_create — scaffolding is blocked until this is called.",
+	"PHASE 0c: Write docs/DESIGN.md (entity list, relationship map, status machines, seed plan, gap findings) and record designAt. Requires dforge_requirements_write first. After it returns, STOP and present the document to the user for review; then run Phase 0d (dforge_design_validate). Scaffolding stays blocked until 0d passes.",
 	designWriteSchema,
 	envelope(designWrite),
+);
+
+server.tool(
+	"dforge_design_validate",
+	"PHASE 0d: Review and validate REQUIREMENTS.md + DESIGN.md against CLAUDE.md, reporting every gap, flaw, or inconsistency. Runs structural checks automatically and merges your recorded semantic findings; writes docs/VALIDATION.md. Records verifiedAt ONLY when there are no open findings — which is what unblocks dforge_module_create. If blocked, fix the relevant doc and re-run.",
+	designValidateSchema,
+	envelope(designValidate),
 );
 
 server.tool(

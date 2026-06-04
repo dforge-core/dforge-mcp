@@ -64,10 +64,14 @@ You: "I want a module to collect end-user feedback on app pages."
 
 The wizard runs:
 
-### Phase 0 — Intake (required, ~1 turn)
+### Phase 0 — Identity, requirements, design, validation (required)
 
-Four questions in one message: purpose / users / dependencies / language scope.
-You can accept defaults to move fast. Writes `_brief/00-intake.md`.
+A hard-gated chain — each step is enforced by the MCP tools, not just convention:
+
+- **0a Identity** — `dforge_module_init` writes `CLAUDE.md` (identity + MCP-first rules + a live status tracker).
+- **0b Requirements** — intake questions (purpose / users / dependencies / language scope), then `dforge_requirements_write` writes `docs/REQUIREMENTS.md`. **You review it before moving on.**
+- **0c Design** — entity list, relationships, status machines, then `dforge_design_write` writes `docs/DESIGN.md`. **You review it before moving on.**
+- **0d Validation** — `dforge_design_validate` cross-checks the documents, reports every gap/flaw/inconsistency to `docs/VALIDATION.md`, and must pass with no open findings before scaffolding is allowed.
 
 ### Phase 1 — Domain (required, looping)
 

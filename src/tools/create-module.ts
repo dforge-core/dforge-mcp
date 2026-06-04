@@ -21,8 +21,9 @@ import type {
 	Preset,
 	ScaffoldOpts,
 } from "@dforge-core/dforge-cli/templates";
-import { makeResult, type ToolResult } from "./_helpers";
+import { makeResult, jsonText, type ToolResult } from "./_helpers";
 import { readArtifactsState } from "./artifacts";
+import { buildClaudeMd, type ModuleIdentity, type ModuleStatus } from "./claude-md";
 
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
@@ -32,7 +33,7 @@ export const createModuleSchema = {
 		.optional()
 		.describe(
 			"Directory where the module files will be written. " +
-			"When provided, dforge_design_write must have been called first — scaffolding is blocked until docs/DESIGN.md is confirmed.",
+			"When provided, Phase 0 must be complete: dforge_module_init + dforge_requirements_write + dforge_design_write, and dforge_design_validate (Phase 0d) must have passed — scaffolding is blocked until verifiedAt is set.",
 		),
 	code: z
 		.string()
@@ -128,8 +129,24 @@ export function createModuleFiles(
 
 	// CLAUDE.md — project-level context for Claude Code. Written so that
 	// future sessions on this module directory automatically know to use the
-	// dforge-mcp-author skill and the dforge_* MCP tool surface.
-	writeText("CLAUDE.md", buildClaudeMd(args.code, args.displayName, args.description));
+	// dforge-mcp-author skill and the dforge_* MCP tool surface. The gate-aware
+	// wrapper (createModule) overrides this with a state-derived version when a
+	// moduleDir is given; this fallback covers the no-moduleDir one-shot path.
+	const t = new Date().toISOString().slice(0, 10);
+	const identity: ModuleIdentity = {
+		code: args.code,
+		displayName: args.displayName,
+		description: args.description,
+		dependencies: args.dependencies,
+	};
+	const oneShotStatus: ModuleStatus = {
+		identityAt: t,
+		requirementsAt: t,
+		designAt: t,
+		verifiedAt: t,
+		scaffoldedAt: t,
+	};
+	writeText("CLAUDE.md", buildClaudeMd(identity, oneShotStatus));
 
 	// Full preset adds the optional-but-typical extras.
 	if (opts.preset === "full") {
@@ -148,26 +165,45 @@ export function createModuleFiles(
 /**
  * Gate-aware wrapper around createModuleFiles.
  *
- * When moduleDir is provided the caller must have run dforge_design_write
- * first — we refuse to scaffold until docs/DESIGN.md is confirmed in
- * .dforge-artifacts.json. This ensures the entity list and relationship map
- * are reviewed before any files are created.
+ * When moduleDir is provided we refuse to scaffold until Phase 0d validation
+ * has passed (verifiedAt set in .dforge-artifacts.json). This ensures the
+ * requirements and design are written, reviewed, validated, and approved
+ * before any files are created. The wrapper also re-renders CLAUDE.md from the
+ * stored identity with the build marked complete, and records scaffoldedAt.
  */
 export function createModule(
 	args: z.infer<z.ZodObject<typeof createModuleSchema>>,
 ): ToolResult {
+	const files = createModuleFiles(args);
+
 	if (args.moduleDir) {
 		const state = readArtifactsState(path.resolve(args.moduleDir));
-		if (!state.designAt) {
+		if (!state.verifiedAt) {
 			throw new Error(
-				"Design artifact not found. " +
-				"Call dforge_requirements_write then dforge_design_write before dforge_module_create. " +
-				"This ensures the module's entity list and relationship map are reviewed and approved before files are created.",
+				"Phase 0d validation has not passed. " +
+				"Run dforge_module_init → dforge_requirements_write → dforge_design_write → dforge_design_validate " +
+				"(and resolve every finding) before dforge_module_create. " +
+				"This ensures requirements and design are reviewed, validated, and approved before any files are created.",
 			);
 		}
+
+		// Re-render CLAUDE.md from the stored identity with the build complete,
+		// and persist scaffoldedAt so the status tracker and resume logic stay
+		// accurate. Falls through to the args-derived CLAUDE.md when no identity
+		// was captured (legacy/one-shot state).
+		const t = new Date().toISOString().slice(0, 10);
+		const status: ModuleStatus = { ...stripIdentity(state), scaffoldedAt: t };
+		const identity: ModuleIdentity = {
+			code: state.code ?? args.code,
+			displayName: state.displayName ?? args.displayName,
+			description: state.description ?? args.description,
+			dependencies: state.dependencies ?? args.dependencies,
+			locales: state.locales,
+		};
+		files["CLAUDE.md"] = buildClaudeMd(identity, status);
+		files[".dforge-artifacts.json"] = jsonText({ ...state, scaffoldedAt: t });
 	}
 
-	const files = createModuleFiles(args);
 	return makeResult(
 		`Generated ${Object.keys(files).length} files for module '${args.code}' ` +
 		`(preset: ${args.preset}, ${args.entities.length} entit${args.entities.length === 1 ? "y" : "ies"}).`,
@@ -175,51 +211,14 @@ export function createModule(
 	);
 }
 
-/**
- * Build the CLAUDE.md content for the new module's project root.
- *
- * This file is read by Claude Code at session start, so future sessions on
- * this module directory automatically pick up the MCP co-pilot context
- * without the user having to explain the setup each time.
- */
-function buildClaudeMd(code: string, displayName: string, description?: string): string {
-	const descLine = description ? `\n${description}\n` : "";
-	return `# CLAUDE.md
-${descLine}
-This is a **dForge module** (\`${code}\` — ${displayName}).
-\`@dforge-core/dforge-mcp\` is connected as an MCP server.
-
-## Always use the dforge-mcp-author skill
-
-When the user asks to build, edit, scaffold, or review any module content —
-entities, actions, data views, menus, security roles, reports, translations,
-seed data, manifest — invoke the \`dforge-mcp-author\` skill before writing
-any files. The skill (in \`.claude/skills/dforge-mcp-author/\`) carries 22+
-reference files and a \`simple-todo\` example. Do not author module files
-from first principles; use the \`dforge_*\` MCP tool surface.
-
-## All file changes go through MCP tools
-
-Never write module JSON directly. All file creation and editing happens through
-\`dforge_*\` tool calls (\`entity_add\`, \`entity_field_add\`, \`view_add\`,
-\`role_add\`, etc.). The SKILL.md wizard guides the 6-phase authoring flow.
-
-## Pack and install
-
-- Pack:    \`dforge_module_pack\`    → produces a \`.dforge\` tarball
-- Install: \`dforge_module_install\` → installs to a live tenant (real validator)
-
-Requires \`DFORGE_URL\` and \`DFORGE_TOKEN\` environment variables for install.
-
-## Module layout
-
-- \`manifest.json\` — module id, code, version, dependencies
-- \`entities/*.json\` — one file per entity
-- \`logic/actions/*.dsl\` — action DSL scripts
-- \`ui/data_views.json\`, \`ui/menus.json\`, \`ui/folders.json\`, \`ui/actions.json\`
-- \`security/roles.json\`
-- \`seed-data/*.json\` — numbered for load order (01-, 02-, …)
-- \`translations/<locale>.json\` — e.g. \`en-US.json\`
-- \`settings.json\`
-`;
+/** Keep only the phase-timestamp fields of the artifact state for status rendering. */
+function stripIdentity(state: ReturnType<typeof readArtifactsState>): ModuleStatus {
+	return {
+		identityAt: state.identityAt,
+		requirementsAt: state.requirementsAt,
+		designAt: state.designAt,
+		verifiedAt: state.verifiedAt,
+		scaffoldedAt: state.scaffoldedAt,
+	};
 }
+

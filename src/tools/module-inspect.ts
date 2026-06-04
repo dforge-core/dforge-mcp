@@ -47,8 +47,11 @@ interface InspectSummary {
 	seedFiles: string[];
 	translations: string[];
 	artifacts: {
+		identityAt?: string;
 		requirementsAt?: string;
 		designAt?: string;
+		verifiedAt?: string;
+		scaffoldedAt?: string;
 	};
 }
 
@@ -139,12 +142,24 @@ export function moduleInspect(
 		jobs,
 		seedFiles,
 		translations,
-		artifacts,
+		artifacts: {
+			identityAt: artifacts.identityAt,
+			requirementsAt: artifacts.requirementsAt,
+			designAt: artifacts.designAt,
+			verifiedAt: artifacts.verifiedAt,
+			scaffoldedAt: artifacts.scaffoldedAt,
+		},
 	};
 
-	const artifactWarning = !artifacts.designAt
-		? "⚠ No design artifact — call dforge_design_write before dforge_module_create. "
-		: "";
+	const artifactWarning = !artifacts.identityAt
+		? "⚠ No module identity — call dforge_module_init (Phase 0a) to write CLAUDE.md first. "
+		: !artifacts.requirementsAt
+			? "⚠ No requirements — call dforge_requirements_write (Phase 0b). "
+			: !artifacts.designAt
+				? "⚠ No design — call dforge_design_write (Phase 0c). "
+				: !artifacts.verifiedAt
+					? "⚠ Design not validated — call dforge_design_validate (Phase 0d) before dforge_module_create. "
+					: "";
 
 	// We return the summary as the `files` map's single "inspect.json"
 	// entry — the client doesn't write it; tool responses just use the
