@@ -1,17 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { createModuleSchema, createModule } from "./tools/create-module";
-import {
-	moduleInitSchema,
-	moduleInit,
-	requirementsWriteSchema,
-	requirementsWrite,
-	designWriteSchema,
-	designWrite,
-	designValidateSchema,
-	designValidate,
-} from "./tools/artifacts";
+import { createModuleSchema, createModuleFiles } from "./tools/create-module";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
 import {
 	packModuleSchema,
@@ -53,7 +43,6 @@ import {
 	webhookAddSchema,
 	webhookAdd,
 } from "./tools/behavior";
-import { moduleValidateSchema, moduleValidate } from "./tools/validate";
 import type { ToolResult } from "./tools/_helpers";
 import { resources } from "./resources";
 
@@ -87,52 +76,41 @@ function envelope<T>(fn: (a: T) => ToolResult) {
 
 server.tool(
 	"dforge_module_create",
-	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing. When moduleDir is passed, Phase 0 must be complete: dforge_module_init + dforge_requirements_write + dforge_design_write, and dforge_design_validate (Phase 0d) must have PASSED — scaffolding is blocked until then.",
+	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing.",
 	createModuleSchema,
-	envelope(createModule),
+	async (args) => {
+		const files = createModuleFiles(args);
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify(
+						{
+							summary: `Generated ${Object.keys(files).length} files for module '${args.code}' (preset: ${args.preset}, ${args.entities.length} entit${args.entities.length === 1 ? "y" : "ies"}).`,
+							files,
+						},
+						null,
+						2,
+					),
+				},
+			],
+		};
+	},
 );
 
 server.tool(
 	"dforge_module_inspect",
-	"Read the current state of an existing module from disk and return a structured summary. Call this BEFORE any patch tool so you know what entities/views/roles already exist and don't try to re-create them. Also reports artifact state (requirementsAt, designAt) from .dforge-artifacts.json.",
+	"Read the current state of an existing module from disk and return a structured summary. Call this BEFORE any patch tool so you know what entities/views/roles already exist and don't try to re-create them.",
 	moduleInspectSchema,
 	envelope(moduleInspect),
 );
 
 server.tool(
-	"dforge_module_init",
-	"PHASE 0a: Establish module identity and write CLAUDE.md — the per-module context file that enforces MCP-first discipline and carries a live status tracker (which phase is done). This is the FIRST step for any new module and is required before dforge_requirements_write. After it returns, show CLAUDE.md to the user, then start Phase 0b intake.",
-	moduleInitSchema,
-	envelope(moduleInit),
-);
-
-server.tool(
-	"dforge_requirements_write",
-	"PHASE 0b: Write docs/REQUIREMENTS.md and record requirementsAt in .dforge-artifacts.json. Requires dforge_module_init (Phase 0a) first. After it returns, STOP and present the document to the user for review — do NOT call dforge_design_write until the user has explicitly approved.",
-	requirementsWriteSchema,
-	envelope(requirementsWrite),
-);
-
-server.tool(
-	"dforge_design_write",
-	"PHASE 0c: Write docs/DESIGN.md (entity list, relationship map, status machines, seed plan, gap findings) and record designAt. Requires dforge_requirements_write first. After it returns, STOP and present the document to the user for review; then run Phase 0d (dforge_design_validate). Scaffolding stays blocked until 0d passes.",
-	designWriteSchema,
-	envelope(designWrite),
-);
-
-server.tool(
-	"dforge_design_validate",
-	"PHASE 0d: Review and validate REQUIREMENTS.md + DESIGN.md against CLAUDE.md, reporting every gap, flaw, or inconsistency. Runs structural checks automatically and merges your recorded semantic findings; writes docs/VALIDATION.md. Records verifiedAt ONLY when there are no open findings — which is what unblocks dforge_module_create. If blocked, fix the relevant doc and re-run.",
-	designValidateSchema,
-	envelope(designValidate),
-);
-
-server.tool(
 	"dforge_module_pack",
-	"Pack a module directory into a .dforge tarball. Cross-platform: works on Windows, macOS, and Linux without any system zip binary.",
+	"Pack a module directory into a .dforge tarball. Requires the dforge-cli native binary on PATH (or set DFORGE_CLI_BINARY).",
 	packModuleSchema,
 	async (args) => {
-		const result = await packModule(args);
+		const result = packModule(args);
 		return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
 	},
 );
@@ -279,28 +257,6 @@ server.tool(
 	"PHASE 5 (optional): Add a sub-folder to ui/folders.json. Folders are SECURITY boundaries (row-level filters + per-folder role mappings). Most modules don't need any beyond the root — only use when intake said data must be separated per folder.",
 	folderAddSchema,
 	envelope(folderAdd),
-);
-
-// ── Validation ─────────────────────────────────────────────────────
-
-server.tool(
-	"dforge_module_validate",
-	"Run the full pre-install validation checklist against a module on disk. Returns a structured report of errors and warnings without modifying any files. Call this before dforge_module_pack or dforge_module_install to catch structural issues early.",
-	moduleValidateSchema,
-	async (args) => {
-		try {
-			const result = moduleValidate(args);
-			return {
-				content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-				isError: result.errors > 0,
-			};
-		} catch (e) {
-			return {
-				content: [{ type: "text" as const, text: `Error: ${(e as Error).message}` }],
-				isError: true,
-			};
-		}
-	},
 );
 
 // ── Cross-cutting ───────────────────────────────────────────────────

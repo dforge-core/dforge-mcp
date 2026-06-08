@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -21,20 +20,10 @@ import type {
 	Preset,
 	ScaffoldOpts,
 } from "@dforge-core/dforge-cli/templates";
-import { makeResult, jsonText, type ToolResult } from "./_helpers";
-import { readArtifactsState } from "./artifacts";
-import { buildClaudeMd, type ModuleIdentity, type ModuleStatus } from "./claude-md";
 
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
 export const createModuleSchema = {
-	moduleDir: z
-		.string()
-		.optional()
-		.describe(
-			"Directory where the module files will be written. " +
-			"When provided, Phase 0 must be complete: dforge_module_init + dforge_requirements_write + dforge_design_write, and dforge_design_validate (Phase 0d) must have passed — scaffolding is blocked until verifiedAt is set.",
-		),
 	code: z
 		.string()
 		.regex(/^[a-z][a-z0-9_-]*$/)
@@ -127,27 +116,6 @@ export function createModuleFiles(
 	write(".vscode/settings.json", buildVscodeSettings());
 	write(".zed/settings.json", buildZedSettings());
 
-	// CLAUDE.md — project-level context for Claude Code. Written so that
-	// future sessions on this module directory automatically know to use the
-	// dforge-mcp-author skill and the dforge_* MCP tool surface. The gate-aware
-	// wrapper (createModule) overrides this with a state-derived version when a
-	// moduleDir is given; this fallback covers the no-moduleDir one-shot path.
-	const t = new Date().toISOString().slice(0, 10);
-	const identity: ModuleIdentity = {
-		code: args.code,
-		displayName: args.displayName,
-		description: args.description,
-		dependencies: args.dependencies,
-	};
-	const oneShotStatus: ModuleStatus = {
-		identityAt: t,
-		requirementsAt: t,
-		designAt: t,
-		verifiedAt: t,
-		scaffoldedAt: t,
-	};
-	writeText("CLAUDE.md", buildClaudeMd(identity, oneShotStatus));
-
 	// Full preset adds the optional-but-typical extras.
 	if (opts.preset === "full") {
 		write("settings.json", buildSettings());
@@ -161,64 +129,3 @@ export function createModuleFiles(
 
 	return files;
 }
-
-/**
- * Gate-aware wrapper around createModuleFiles.
- *
- * When moduleDir is provided we refuse to scaffold until Phase 0d validation
- * has passed (verifiedAt set in .dforge-artifacts.json). This ensures the
- * requirements and design are written, reviewed, validated, and approved
- * before any files are created. The wrapper also re-renders CLAUDE.md from the
- * stored identity with the build marked complete, and records scaffoldedAt.
- */
-export function createModule(
-	args: z.infer<z.ZodObject<typeof createModuleSchema>>,
-): ToolResult {
-	const files = createModuleFiles(args);
-
-	if (args.moduleDir) {
-		const state = readArtifactsState(path.resolve(args.moduleDir));
-		if (!state.verifiedAt) {
-			throw new Error(
-				"Phase 0d validation has not passed. " +
-				"Run dforge_module_init → dforge_requirements_write → dforge_design_write → dforge_design_validate " +
-				"(and resolve every finding) before dforge_module_create. " +
-				"This ensures requirements and design are reviewed, validated, and approved before any files are created.",
-			);
-		}
-
-		// Re-render CLAUDE.md from the stored identity with the build complete,
-		// and persist scaffoldedAt so the status tracker and resume logic stay
-		// accurate. Falls through to the args-derived CLAUDE.md when no identity
-		// was captured (legacy/one-shot state).
-		const t = new Date().toISOString().slice(0, 10);
-		const status: ModuleStatus = { ...stripIdentity(state), scaffoldedAt: t };
-		const identity: ModuleIdentity = {
-			code: state.code ?? args.code,
-			displayName: state.displayName ?? args.displayName,
-			description: state.description ?? args.description,
-			dependencies: state.dependencies ?? args.dependencies,
-			locales: state.locales,
-		};
-		files["CLAUDE.md"] = buildClaudeMd(identity, status);
-		files[".dforge-artifacts.json"] = jsonText({ ...state, scaffoldedAt: t });
-	}
-
-	return makeResult(
-		`Generated ${Object.keys(files).length} files for module '${args.code}' ` +
-		`(preset: ${args.preset}, ${args.entities.length} entit${args.entities.length === 1 ? "y" : "ies"}).`,
-		files,
-	);
-}
-
-/** Keep only the phase-timestamp fields of the artifact state for status rendering. */
-function stripIdentity(state: ReturnType<typeof readArtifactsState>): ModuleStatus {
-	return {
-		identityAt: state.identityAt,
-		requirementsAt: state.requirementsAt,
-		designAt: state.designAt,
-		verifiedAt: state.verifiedAt,
-		scaffoldedAt: state.scaffoldedAt,
-	};
-}
-

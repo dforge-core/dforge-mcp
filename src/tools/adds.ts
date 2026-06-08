@@ -15,7 +15,6 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
-	fieldTypeCdSchema,
 	type ToolResult,
 } from "./_helpers";
 
@@ -63,7 +62,7 @@ export const settingAddSchema = {
 		.describe("Setting code (keys settings.json)."),
 	setting: z
 		.object({
-			fieldTypeCd: fieldTypeCdSchema,
+			fieldTypeCd: z.string(),
 			baseDatatypeCd: z.string().optional(),
 			label: z.string().optional(),
 			description: z.string().optional(),
@@ -197,7 +196,7 @@ export const dependencyAddSchema = {
 		.string()
 		.regex(/^[a-z][a-z0-9_-]*$/)
 		.describe("Module to depend on."),
-	version: z.string().default(">=0.0.1").describe("Semver range."),
+	version: z.string().default(">=0.1.0").describe("Semver range."),
 	entities: z
 		.array(z.string())
 		.optional()

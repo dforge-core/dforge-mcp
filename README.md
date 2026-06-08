@@ -78,22 +78,16 @@ Same `command + args` config shape; check their docs for the file location. Veri
 
 ## What it exposes
 
-### Tools (20)
+### Tools (18)
 
 Grouped by typical phase in the wizard flow. All "return" tools emit `{ summary, files: { '<relPath>': '<contents>' } }`; the client decides whether to write — lets the AI preview diffs with the user before committing.
 
-**Pre-scaffold (Phase 0)** — a hard-gated chain: each tool refuses until the prior one has run, so the requirements → design → validation flow can't be skipped.
-| Tool | Behavior |
-|---|---|
-| `dforge_module_init` | **0a** — write `CLAUDE.md` (identity + MCP-first rules + live status tracker) and record identity. First step for a new module; required before requirements |
-| `dforge_requirements_write` | **0b** — write `docs/REQUIREMENTS.md`, then pause for user review. Requires `dforge_module_init` first |
-| `dforge_design_write` | **0c** — write `docs/DESIGN.md`, then pause for user review. Requires `dforge_requirements_write` first |
-| `dforge_design_validate` | **0d** — validate REQUIREMENTS + DESIGN, report every gap/flaw/inconsistency to `docs/VALIDATION.md`; records `verifiedAt` only when clean. **Gates `dforge_module_create`** |
+Phase 0 (identity → requirements → design → validation) is driven by the `dforge-mcp-author` skill, which has the AI author the `docs/` artifacts directly — there are no Phase 0 tools.
 
 **Module-level**
 | Tool | Behavior |
 |---|---|
-| `dforge_module_create` | New module scaffold. Blocked until Phase 0d (`dforge_design_validate`) passes |
+| `dforge_module_create` | New module scaffold |
 | `dforge_module_inspect` | Read current module state. Full structured data is in `files["_inspect.json"]`; `summary` is one-line stats |
 | `dforge_module_pack` | Shells to `dforge-cli module pack`. Returns tarball path + size |
 | `dforge_module_install` | Shells to `dforge-cli module install`. Args: `pathOrTarball`, optional `tenantUrl` / `token` / `tenantCode` — fall back to `DFORGE_URL` / `DFORGE_TOKEN` env. `tenantCode` is an optional `--code` sanity check the server cross-references against the JWT |
@@ -205,7 +199,7 @@ done
 #   -o ~/.claude/skills/dforge-mcp-author/SKILL.md
 ```
 
-> **Note on CLAUDE.md:** Every module gets a `CLAUDE.md` in its root, written by `dforge_module_init` at Phase 0a (and refreshed by each later phase). It tells Claude Code that the directory is a dForge module, instructs it to use the `dforge-mcp-author` skill, describes the module layout, and carries a live **Module status** tracker (which phase is done) so future sessions resume accurately. No manual installation needed — it's part of the tool output.
+> **Note on CLAUDE.md:** Every module gets a `CLAUDE.md` in its root, authored during Phase 0a by the `dforge-mcp-author` skill (the AI drafts it; you write it) and kept current as later phases complete. It tells Claude Code that the directory is a dForge module, instructs it to use the `dforge-mcp-author` skill, describes the module layout, and carries a live **Module status** tracker (which phase is done) so future sessions resume accurately.
 
 Re-run after every dforge-mcp upgrade — the skill version isn't checked at runtime, so a stale skill against new tools will misroute calls.
 
@@ -213,7 +207,7 @@ The phases:
 
 | Phase | Required? | Tools used |
 |---|---|---|
-| 0. Intake | yes | (brief written manually) |
+| 0. Identity / requirements / design / validation | yes | (docs authored directly) |
 | 1. Domain | yes | `module_create`, `entity_add`, `entity_field_*` |
 | 2. Actions | optional | `action_add` |
 | 3. Views + Reports | views yes, reports optional | `view_*`, `report_add`, `setting_add` |

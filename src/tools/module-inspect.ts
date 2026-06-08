@@ -11,7 +11,6 @@ import {
 	readJsonOrDefault,
 	type ToolResult,
 } from "./_helpers";
-import { readArtifactsState } from "./artifacts";
 
 export const moduleInspectSchema = {
 	moduleDir: z.string(),
@@ -46,13 +45,6 @@ interface InspectSummary {
 	jobs: string[];
 	seedFiles: string[];
 	translations: string[];
-	artifacts: {
-		identityAt?: string;
-		requirementsAt?: string;
-		designAt?: string;
-		verifiedAt?: string;
-		scaffoldedAt?: string;
-	};
 }
 
 export function moduleInspect(
@@ -119,8 +111,6 @@ export function moduleInspect(
 		? fs.readdirSync(paths.translationsDir).filter((f) => f.endsWith(".json")).sort()
 		: [];
 
-	const artifacts = readArtifactsState(paths.root);
-
 	const summary: InspectSummary = {
 		module: {
 			code: manifest.code,
@@ -142,31 +132,14 @@ export function moduleInspect(
 		jobs,
 		seedFiles,
 		translations,
-		artifacts: {
-			identityAt: artifacts.identityAt,
-			requirementsAt: artifacts.requirementsAt,
-			designAt: artifacts.designAt,
-			verifiedAt: artifacts.verifiedAt,
-			scaffoldedAt: artifacts.scaffoldedAt,
-		},
 	};
-
-	const artifactWarning = !artifacts.identityAt
-		? "⚠ No module identity — call dforge_module_init (Phase 0a) to write CLAUDE.md first. "
-		: !artifacts.requirementsAt
-			? "⚠ No requirements — call dforge_requirements_write (Phase 0b). "
-			: !artifacts.designAt
-				? "⚠ No design — call dforge_design_write (Phase 0c). "
-				: !artifacts.verifiedAt
-					? "⚠ Design not validated — call dforge_design_validate (Phase 0d) before dforge_module_create. "
-					: "";
 
 	// We return the summary as the `files` map's single "inspect.json"
 	// entry — the client doesn't write it; tool responses just use the
 	// same file-map shape uniformly. (See server.ts where the tool result
 	// is serialized.)
 	return {
-		summary: `${artifactWarning}Module '${manifest.code}' v${manifest.version}: ${entitySummaries.length} entities, ${viewSummaries.length} views, ${roleSummaries.length} roles, ${actionSummaries.length} actions, ${reports.length} reports.`,
+		summary: `Module '${manifest.code}' v${manifest.version}: ${entitySummaries.length} entities, ${viewSummaries.length} views, ${roleSummaries.length} roles, ${actionSummaries.length} actions, ${reports.length} reports.`,
 		files: { "_inspect.json": JSON.stringify(summary, null, "\t") + "\n" },
 	};
 }

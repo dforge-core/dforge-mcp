@@ -13,12 +13,8 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 
 | Tool | Typical phase | What it does |
 |---|---|---|
-| `dforge_module_inspect` | any | Read current module state. **Read-only** — output does NOT require user confirmation. The one-line `summary` is for the user; the full structured state lives in `files["_inspect.json"]` (entities + their fields, views + their data sources, roles + rights matrix, actions, reports, settings, folders tree, **artifact state**). Parse `_inspect.json` before planning patches — don't rely on summary text alone. |
-| `dforge_module_init` | 0a | Write `CLAUDE.md` (identity + MCP-first rules + live status tracker) and record `identityAt` + identity in `.dforge-artifacts.json`. **First step for any new module; required before `dforge_requirements_write`.** |
-| `dforge_requirements_write` | 0b | Write `docs/REQUIREMENTS.md` and record `requirementsAt`. Requires `dforge_module_init` first. After it returns, **present REQUIREMENTS.md to the user and wait for approval** before `dforge_design_write`. |
-| `dforge_design_write` | 0c | Write `docs/DESIGN.md` and record `designAt`. Requires `dforge_requirements_write` first. After it returns, **present DESIGN.md for approval**, then run Phase 0d. |
-| `dforge_design_validate` | 0d | Review & validate REQUIREMENTS + DESIGN against CLAUDE.md; report every gap/flaw/inconsistency to `docs/VALIDATION.md`. Runs structural checks + merges your `findings`. Records `verifiedAt` **only when there are no open findings** — which is what **unblocks `dforge_module_create`**. |
-| `dforge_module_create` | 1 | Scaffold a new module (returns file map; user writes). **Blocked until Phase 0d (`dforge_design_validate`) passes.** Pass `moduleDir` for the gate to engage. |
+| `dforge_module_inspect` | any | Read current module state. **Read-only** — output does NOT require user confirmation. The one-line `summary` is for the user; the full structured state lives in `files["_inspect.json"]` (entities + their fields, views + their data sources, roles + rights matrix, actions, reports, settings, folders tree). Parse `_inspect.json` before planning patches — don't rely on summary text alone. |
+| `dforge_module_create` | 1 | Scaffold a new module (returns file map; user writes) |
 | `dforge_entity_add` | 1 | Add a whole entity to an existing module |
 | `dforge_entity_field_add` | 1 | Patch one field onto an existing entity |
 | `dforge_entity_field_modify` | 1 | Replace one field's spec |
@@ -37,6 +33,8 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 | `dforge_dependency_add` | any | Add a dep on another module |
 | `dforge_module_pack` | 6 | Produce .dforge tarball (needs dforge-cli on PATH) |
 | `dforge_module_install` | 6 | Install to tenant — the real validator |
+
+Phase 0 (0a–0d) has **no tools** — you author its artifacts (`CLAUDE.md`, `docs/REQUIREMENTS.md`, `docs/DESIGN.md`, `docs/VALIDATION.md`) directly: draft the content, get the user's approval, the user (via their client) writes the file.
 
 ## Resources to load once per session
 
@@ -85,97 +83,26 @@ These are absolute. When a phase instruction appears to conflict, the hard rule 
 4. **Validate-and-reflect every step.** After every user answer, BEFORE moving to the next question or tool call: restate what you understood in your own words and ask "Right?" or "Does that capture it?". Only proceed once the user confirms. If they correct, repeat the restate-and-confirm loop until aligned. **Goal: zero ambiguity going into the next step.** If you have questions, ask and wait for answers — never proceed with unanswered ones in your head.
 5. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
 6. **Don't invent fields, codes, roles, or relationships** — they come from the user's domain. If the user said "we have submitters and admins", roles are derived from that; do NOT default to a fixed "admin/contributor/viewer" taxonomy or any other generic set the user didn't ask for.
-7. **A step is "done" only when its file is written AND reviewed.** Never mark a phase or step complete — in your todo list, a status update, or your own narration — until (a) its document has actually been produced via the corresponding `dforge_*` tool, and (b) for the Phase 0 documents, the user has seen and approved it. Deciding what you *would* write is not "done". Do not advance to the next phase on the strength of an intention; advance only after the tool call returned and the gate (review/approval) cleared.
+7. **A step is "done" only when its file is written AND reviewed.** Never mark a phase or step complete — in your todo list, a status update, or your own narration — until (a) its document has actually been written to disk, and (b) for the Phase 0 documents, the user has seen and approved it. Deciding what you *would* write is not "done". Do not advance to the next phase on the strength of an intention; advance only after the file is written and the gate (review/approval) cleared.
 
 ## Core rules (violations produce invalid modules)
 
-These apply to every module you author. They complement the reference files — load the reference files for details, but never violate these inline rules.
+Always-on guardrails. Load the matching `references/*.md` (per the table above) for detail; never violate these inline:
 
-### Naming
-
-- Module `code`: lowercase, letters+digits+underscores. Becomes the DB schema name.
-- Entity `dbObject` keys: `snake_case`, singular. E.g. `contact`, `opportunity_line` (not `contacts`, not `opportunityLine`).
-- Column keys: `snake_case`. Everything is case-sensitive.
-
-### FK+Reference pattern (the single biggest source of broken modules)
-
-Whenever one entity references another, produce **two columns**:
-
-1. **The hidden FK column** — `flags: "EM"` (Editable, Mandatory, not Visible); `dbDatatype` matches the target PK type (usually `cuid` or `int`). No `fieldTypeCd`.
-2. **The visible Reference column** — `columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, `link: { "entity": "<target>", "thisKey": "<fk_col>", "otherKey": "<target_pk>" }`.
-
-Plus: declare the FK constraint in the entity's `references` block.
-
-**Never produce a single column that is both the FK and the display.** Load `references/column-types.md` before writing any reference.
-
-### Flags
-
-Use letters only. Valid: `V` (Visible), `I` (Internal/platform-managed), `E` (Editable), `M` (Mandatory), `H` (Hidden). Common combinations:
-- `"VEM"` — required field shown in UI
-- `"VE"` — optional field shown in UI
-- `"V"` — visible, read-only
-- `"EM"` — hidden FK column
-- `"I"` — trait-provided (PK, audit timestamps)
-
-No `U`, `S`, or `P` flag exists.
-
-### Field types and dbDatatype
-
-`fieldTypeCd` is the UI component; `baseDatatypeCd` is the underlying type; `dbDatatype` is the SQL column type. Common mistakes:
-
-| Wrong | Correct |
-|-------|---------|
-| `fieldTypeCd: "integer"` | `"number"` |
-| `fieldTypeCd: "phoneNumber"` | `"phone"` |
-| `fieldTypeCd: "datePicker"` | `"date"` |
-| `dbDatatype: "datetime"` | `"timestamptz"` |
-| `dbDatatype: "number"` | `"numeric"` / `"int"` / `"bigint"` |
-| `dbDatatype: "boolean"` | `"bool"` |
-| `dbDatatype: "string"` | `"varchar"` (with `maxLen`) or `"text"` |
-
-### Traits
-
-Default to `traits: ["identity", "audit"]`. Only use `audit-full` when the user **explicitly** asks for user tracking — it adds NOT NULL `created_by`/`last_updated_by` columns that require a valid user ID in every seed record.
-
-### Formula columns
-
-`columnType: "F"` columns:
-- **Must** have `baseDatatypeCd` — required for filters and SQL to work correctly.
-- **Must NOT** have `dbDatatype` — formula columns are virtual; no physical DB column is generated.
-- Flags must be `"V"` — computed values are never directly editable.
-
-### `toString`
-
-Every entity must have a `toString` template that produces a human-readable label. Uses column names in braces: `"{first_name} {last_name}"`, `"{name}"`, `"{number} — {customer}"`.
-
-### Menus
-
-Root wrapper key → `label` + `items` → nested section dicts with `children` → leaf items with `itemType: "V"/"R"/"D"` + `dataViewCode`. Section nodes omit `itemType`. Icons: Bootstrap names **without** the `bi-` prefix. Never use `viewCode` (it's `dataViewCode`).
-
-### Data views
-
-Use `dataSources` array at root. Never root-level `entityCode` + `columns` — that is the wrong shape and will not parse.
-
-### Security roles
-
-Use `rights` (not `entityRights`). Entity rights letters: `S` (Select), `I` (Insert), `U` (Update), `D` (Delete), `C` (Clone). Actions/reports/folders: `E` (Execute).
-
-### Action script registration
-
-The `script` field in `ui/actions.json` is the **bare filename without path or extension**. The platform resolves it to `logic/actions/<script>.dsl` automatically. A full path or extension causes the action to silently fail to load.
-
-### SQL placeholders
-
-Always use `@paramName` in `query()` calls (not `:paramName` — that is PostgreSQL/psycopg syntax, not dForge DSL).
-
-### Manifest conventions
-
-- `translations` must be a **locale-keyed object** `{ "en-US": "./translations/en-US.json" }`, not an array.
-- `security` must include **both** `roles` and `folders`.
-
-### Seed data
-
-Seed files are executed in numeric prefix order. Put entities with FK dependencies **after** their targets. Use explicit **numeric** PKs (e.g. `1001`, `1002`) — the `cuid` type is `int8`, not a UUID string.
+- **Naming.** Module `code`, entity `dbObject` keys, and column keys are all `snake_case` (entities singular, e.g. `opportunity_line`), case-sensitive. `code` becomes the DB schema name.
+- **FK + Reference = two columns** (the single biggest source of broken modules): a hidden FK column (`flags: "EM"`, `dbDatatype` matching the target PK — usually `cuid`/`int` — no `fieldTypeCd`) **and** a visible Reference column (`columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, `link: {entity, thisKey, otherKey}`), plus the FK in the `references` block. Never one column that is both. → `column-types.md`
+- **Flags** are letters from `V I E M H` only (no `U`/`S`/`P`): `VEM`=required+visible, `VE`=optional+visible, `V`=read-only, `EM`=hidden FK, `I`=trait-provided. → `flags.md`
+- **Field types.** `fieldTypeCd` = UI control, `dbDatatype` = SQL type. Frequent fixes: `number` not `integer`, `phone` not `phoneNumber`, `date` not `datePicker`, `timestamptz` not `datetime`, `bool` not `boolean`, `varchar`/`text` not `string`. → `field-types.md`
+- **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, **no** `dbDatatype`, `flags: "V"`. → `formulas.md`
+- **Traits:** default `["identity", "audit"]`; use `audit-full` only when the user explicitly asks for user tracking (it forces NOT NULL `created_by`/`last_updated_by` in every seed row). → `traits.md`
+- **`toString`:** every entity needs one, using `{column}` braces, e.g. `"{first_name} {last_name}"`.
+- **Data views:** `dataSources` array at root — never root-level `entityCode` + `columns`. → `data-views.md`
+- **Menus:** leaf items use `dataViewCode` (not `viewCode`); section nodes omit `itemType`; icons are Bootstrap names without the `bi-` prefix. → `menus.md`
+- **Security roles:** use `rights` (not `entityRights`); entity letters `SIUDC`, actions/reports/folders `E`. → `security.md`
+- **Action script** in `ui/actions.json` is the bare filename — no path, no `.dsl` (resolves to `logic/actions/<script>.dsl`).
+- **SQL placeholders** are `@paramName` (not `:paramName`).
+- **Manifest:** `translations` is a locale-keyed object (not an array); `security` includes both `roles` and `folders`. → `manifest.md`
+- **Seed data:** explicit **numeric** PKs (`cuid` is `int8`, not a UUID string); parents before children via numeric file prefix (`01-`, `02-`).
 
 ## Tool failure protocol
 
@@ -198,18 +125,20 @@ At every session start:
 1. **Load resources.** Load `dforge://docs/conventions` and all `dforge://schema/*` resources listed in "Resources to load once per session." If any resource fails to load, halt immediately and notify the user before doing anything else.
 2. **Inspect module state.** Call `dforge_module_inspect` on the module dir (if the user has specified one).
 
-- If the dir doesn't exist or has no `manifest.json` (inspect output's `artifacts` carries `identityAt` / `requirementsAt` / `designAt` / `verifiedAt`):
-  - If **`identityAt` is not set** (no artifacts): start fresh from Phase 0a (`dforge_module_init`).
-  - If **`identityAt` is set but `requirementsAt` is not**: read `CLAUDE.md` to confirm identity, then resume from Phase 0b (intake).
-  - If **`requirementsAt` is set but `designAt` is not**: read `REQUIREMENTS.md`, summarise, then ask "Resume from Phase 0c (write the design) or revise requirements?"
-  - If **`designAt` is set but `verifiedAt` is not**: read `REQUIREMENTS.md` + `DESIGN.md`, summarise. Resume at Phase 0d — run `dforge_design_validate` (or revisit an earlier phase). Scaffolding is still blocked.
-  - If **`verifiedAt` is set**: read the docs + `docs/VALIDATION.md`, summarise. Ask "Scaffold now (Phase 1), or revisit an earlier phase?"
+Phase 0 progress is tracked by **which artifact files exist on disk** plus the **Module status** checklist inside `CLAUDE.md` (which you keep current as each phase completes) — there is no state file to read.
+
+- If the dir doesn't exist or has no `manifest.json`, check the module root for Phase 0 artifacts:
+  - **No `CLAUDE.md`**: start fresh from Phase 0a.
+  - **`CLAUDE.md` exists but no `docs/REQUIREMENTS.md`**: read `CLAUDE.md` to confirm identity, then resume from Phase 0b (intake).
+  - **`docs/REQUIREMENTS.md` exists but no `docs/DESIGN.md`**: read `REQUIREMENTS.md`, summarise, then ask "Resume from Phase 0c (write the design) or revise requirements?"
+  - **`docs/DESIGN.md` exists but `docs/VALIDATION.md` is absent or still has open findings**: read `REQUIREMENTS.md` + `DESIGN.md`, summarise. Resume at Phase 0d — cross-check the docs and (re)write `docs/VALIDATION.md` (or revisit an earlier phase). Hold scaffolding until validation is clean and the user has approved.
+  - **`docs/VALIDATION.md` exists and shows a clean pass**: read the docs + `docs/VALIDATION.md`, summarise. Ask "Scaffold now (Phase 1), or revisit an earlier phase?"
 - If the dir does exist (manifest found):
   1. Read `_brief/00-intake.md` and `_brief/changelog.md` if present.
-  2. Check `artifacts` in the inspect output:
-     - If `designAt` is **not** set and entities exist — module was created before design-gate was introduced; offer to write `docs/DESIGN.md` retroactively or proceed with existing state.
-     - If `designAt` is set but `verifiedAt` is not, and no entities → design confirmed but Phase 0d validation not yet passed; run `dforge_design_validate` before scaffolding.
-     - If `designAt` is set and entities exist → cross-reference entities/views/roles to infer last completed phase.
+  2. Check which Phase 0 artifacts exist on disk:
+     - If `docs/DESIGN.md` is **absent** and entities exist — module was created before the design phase was introduced; offer to write `docs/DESIGN.md` retroactively or proceed with existing state.
+     - If `docs/DESIGN.md` exists but `docs/VALIDATION.md` is absent/unresolved, and no entities → design confirmed but Phase 0d validation not yet passed; complete Phase 0d before scaffolding.
+     - If `docs/DESIGN.md` exists and entities exist → cross-reference entities/views/roles to infer last completed phase.
   3. Summarize: "Found module `<code>` v`<version>`. Looks like Phase N was the last completed phase. Resume from Phase N+1, or revisit an earlier phase?"
   4. Wait for the user's answer before proceeding.
 
@@ -234,11 +163,65 @@ At every session start:
 5. **Locales.** "English only, or any other locales the module needs to ship with translations for?"
    Reflect → wait.
 
-**Write `CLAUDE.md`** by calling `dforge_module_init(moduleDir, code, displayName, description?, dependencies?, locales?)` with the answers above. The tool returns `CLAUDE.md` — an identity table, the MCP-first rules, and a live **Module status** tracker (the `0a → 0b → 0c → 0d → scaffold` checklist that future sessions read to resume) — and records `identityAt` + the identity in `.dforge-artifacts.json`. Show the returned draft, get user approval, user writes it.
+**Write `CLAUDE.md`** to the module root using the template below, filling in the answers above. `CLAUDE.md` is loaded automatically by Claude Code in future sessions: it carries the module identity, the MCP-first rules, and a live **Module status** tracker (the `0a → 0b → 0c → 0d → scaffold` checklist future sessions read to resume). Draft it, show the draft, get user approval, the user writes it.
 
-The tool is the single source of truth for `CLAUDE.md`; do **not** hand-write or hand-edit it — every Phase 0 tool re-emits it with the status advanced. If `CLAUDE.md` / `identityAt` already exists (resume session), either re-call `dforge_module_init` to refresh identity, or read the existing file to confirm identity before continuing.
+```markdown
+# <Display Name> — dForge Module
 
-**Exit criteria:** `dforge_module_init` called, `CLAUDE.md` written and approved; module code, display name, directory, dependencies, and locales confirmed.
+<optional one-line description, or omit this line>
+
+This is a **dForge module** managed via the `dforge-mcp` MCP server.
+
+## For AI assistants working in this directory
+
+- **Run `dforge_module_inspect` at session start.** Do not read entity JSON files directly to infer structure — inspect returns the full authoritative state, including the module status below.
+- **Never edit module files directly.** Use the `dforge_*` MCP tools — they validate inputs, apply changes, and keep the manifest in sync automatically. (The Phase 0 docs in `docs/` are the exception — those you author directly.)
+- **Never invent field types, flags, or schemas.** Load `dforge://docs/conventions` and the relevant `dforge://schema/*` resource before authoring any file type.
+- **Use the `dforge-mcp-author` skill** for any authoring or modification work here. It enforces the phased flow: 0a identity → 0b requirements → 0c design → 0d validation → scaffold → behaviour/views/security.
+
+## Module identity
+
+| | |
+|---|---|
+| Code | `<code>` |
+| Display name | <Display Name> |
+| Dependencies | <comma-separated, or None> |
+| Locales | <comma-separated, default en-US> |
+
+## Module status
+
+<!-- Maintained by the dforge-mcp-author skill during Phase 0 — tick each box and update Next step as the phase completes. -->
+
+- [x] **0a** Identity & CLAUDE.md
+- [ ] **0b** Requirements — `docs/REQUIREMENTS.md`
+- [ ] **0c** Design — `docs/DESIGN.md`
+- [ ] **0d** Validation — `docs/VALIDATION.md`
+- [ ] **1** Scaffolded — module files
+
+**Next step:** Phase 0b — run intake, then draft `docs/REQUIREMENTS.md` and let the user review it before continuing.
+
+## Pack and install
+
+- Pack:    `dforge_module_pack`    → produces a `.dforge` tarball
+- Install: `dforge_module_install` → installs to a live tenant (the real validator)
+
+Install needs `DFORGE_URL` and `DFORGE_TOKEN` environment variables.
+
+## Module layout
+
+- `manifest.json` — module id, code, version, dependencies
+- `entities/*.json` — one file per entity
+- `logic/actions/*.dsl` — action DSL scripts
+- `ui/data_views.json`, `ui/menus.json`, `ui/folders.json`, `ui/actions.json`
+- `security/roles.json`
+- `seed-data/*.json` — numbered for load order (01-, 02-, …)
+- `translations/<locale>.json` — e.g. `en-US.json`
+- `docs/REQUIREMENTS.md`, `docs/DESIGN.md`, `docs/VALIDATION.md` — Phase 0 artifacts
+```
+
+You author and maintain `CLAUDE.md` yourself — keep the **Module status** checklist current: tick each phase's box and update **Next step** as you complete it, so a future session can resume from the file. If `CLAUDE.md` already exists (resume session), read it to confirm identity before continuing, and refresh the identity/status if anything changed.
+
+**Exit criteria:** `CLAUDE.md` written and approved; module code, display name, directory, dependencies, and locales confirmed.
 
 ## Phase 0b — Intake (required)
 
@@ -314,7 +297,7 @@ Dependencies and locales were already confirmed in Phase 0a — carry them into 
 
 ```markdown
 # Requirements Specification
-<!-- auto-generated after Phase 0b approval — edit with care -->
+<!-- written after Phase 0b approval — edit with care -->
 
 ## Domain & Purpose
 <one-sentence answer>
@@ -345,11 +328,11 @@ Dependencies and locales were already confirmed in Phase 0a — carry them into 
 
 - **Do NOT proceed to Phase 0c under any circumstances until the user has replied with an explicit confirmation** ("yes", "looks good", "confirmed", "LGTM", or equivalent).
 - If they request changes: apply them, re-output the full updated document, and ask again. Repeat until confirmed.
-- Once confirmed: call `dforge_requirements_write(moduleDir, content)` to persist the file. The next message after that call begins Phase 0c.
+- Once confirmed: write the approved `docs/REQUIREMENTS.md` to disk (you draft the content, the user/client writes the file), and tick **0b** in the `CLAUDE.md` Module status. The next message begins Phase 0c.
 
 ## Phase 0c — Schema Design (required)
 
-**Preconditions:** Phase 0b complete, `dforge_requirements_write` called, **and the user has explicitly confirmed `docs/REQUIREMENTS.md`**. Do not begin Phase 0c until the requirements file is written and confirmed — this is a hard block, not a suggestion.
+**Preconditions:** Phase 0b complete, `docs/REQUIREMENTS.md` written, **and the user has explicitly confirmed it**. Do not begin Phase 0c until the requirements file is written and confirmed — this is a hard block, not a suggestion.
 
 **Action:** produce a structured design outline — **readable prose and tables, not JSON yet**. If the user already provided entity names, fields, or relationships in their opening message, incorporate that material directly rather than designing from scratch — treat provided information as confirmed and flag only gaps or additions you are proposing.
 
@@ -379,7 +362,7 @@ Dependencies and locales were already confirmed in Phase 0a — carry them into 
 
 ````markdown
 # Design Document
-<!-- auto-generated after Phase 0c approval — edit with care -->
+<!-- written after Phase 0c approval — edit with care -->
 
 ## Entity List
 <name — one-line purpose, ordered least- to most-dependent>
@@ -433,17 +416,17 @@ Total FKs: <N>
 
 **Confirmation gate — DESIGN.md (blocking):** Output the entire draft `docs/DESIGN.md` in a fenced markdown code block so the user can read it in full. End with: "Please review this design document. Reply **YES** to confirm it is correct, or describe what to change."
 
-- **Do NOT call `dforge_design_write` or proceed to Phase 1 under any circumstances until the user has replied with an explicit confirmation** ("yes", "looks good", "confirmed", "LGTM", or equivalent).
+- **Do NOT write `docs/DESIGN.md` to disk or proceed to Phase 0d under any circumstances until the user has replied with an explicit confirmation** ("yes", "looks good", "confirmed", "LGTM", or equivalent).
 - If they request changes: apply them, re-output the full updated document, and ask again. Repeat until confirmed.
-- Once confirmed: call `dforge_design_write(moduleDir, content)`. This records `designAt` in `.dforge-artifacts.json` and opens Phase 0d. (Scaffolding is **not** unblocked yet — `dforge_design_validate` must pass first.)
+- Once confirmed: write the approved `docs/DESIGN.md` to disk and tick **0c** in the `CLAUDE.md` Module status. This opens Phase 0d. (Do not scaffold yet — Phase 0d validation must pass first.)
 
 ## Phase 0d — Pre-Scaffold Verification (required)
 
 **Preconditions:** Phases 0a, 0b, 0c complete — `CLAUDE.md` written, `docs/REQUIREMENTS.md` confirmed, `docs/DESIGN.md` confirmed.
 
-**Action:** Read all three documents and cross-check them for consistency, coverage, and completeness, then record the results into `dforge_design_validate` — the Phase 0d tool that runs structural checks of its own, writes `docs/VALIDATION.md`, and is the **hard gate** on scaffolding. This is blocking: `dforge_module_create` stays refused until 0d passes with zero open findings.
+**Action:** Read all three documents (`CLAUDE.md`, `docs/REQUIREMENTS.md`, `docs/DESIGN.md`) and cross-check them for consistency, coverage, and completeness, then write `docs/VALIDATION.md`. This is a **you-enforced gate**: do not scaffold until the cross-check is clean and the user has approved REQUIREMENTS + DESIGN.
 
-**Run these checks** (surface all findings in one message). Each becomes one entry in the `findings` array you pass to `dforge_design_validate` — `{ id, title, status: "pass" | "fail", detail, proposedFix? }`, where `fail` = an open gap/flaw/inconsistency:
+**Run these checks** (surface all findings in one message). Record each as a finding — `id`, `title`, `status` (`pass` / `fail`), `detail` (what you checked and found), and a `proposedFix` for any fail — where `fail` = an open gap/flaw/inconsistency:
 
 1. **Identity consistency** — module code and display name in `CLAUDE.md` match the Domain section of `REQUIREMENTS.md`.
 2. **Locale coverage** — locales declared in `CLAUDE.md` align with translation scope in `REQUIREMENTS.md` (Audit Depth, language implications).
@@ -455,21 +438,39 @@ Total FKs: <N>
 8. **Action completeness** — every verb in `REQUIREMENTS.md` Core Processes that implies a user-triggered operation appears in `DESIGN.md` Actions table.
 9. **Seed data coverage** — if `REQUIREMENTS.md` implies initial reference data or starting state, `DESIGN.md` Seed Data section covers it.
 10. **Gap resolution** — every item in `DESIGN.md` Gaps & Proposals section has an explicit resolution (confirmed or deferred with justification). No open, unaddressed gaps.
+11. **Docs present & substantive** — `REQUIREMENTS.md` and `DESIGN.md` both exist with real content, not empty stubs.
 
-**Call `dforge_design_validate(moduleDir, findings)`** with one entry per check above. The tool merges your findings with its own structural checks (docs present, identity consistency, relationship-map ↔ entity-list, gap resolution) and writes `docs/VALIDATION.md`. Then:
+**Write `docs/VALIDATION.md`** using the template below — one entry per check above. Then:
 
-- **If anything is `fail`** (your finding or a structural one): the tool does **not** set `verifiedAt` and returns the open list — scaffolding stays blocked. Work the loop:
+- **If anything is `fail`:** scaffolding stays held. Work the loop:
   1. Present `docs/VALIDATION.md` to the user — every gap, flaw, and inconsistency in one block.
   2. Propose a concrete fix for each (which document to change).
-  3. On the user's confirmation, apply fixes via `dforge_requirements_write` / `dforge_design_write`. (These clear `verifiedAt`, so re-validation is mandatory — you cannot edit a doc and then scaffold on a stale pass.)
-  4. **Re-run `dforge_design_validate`.** Repeat until it returns a clean pass.
-- **If all pass:** the tool records `verifiedAt` and unblocks `dforge_module_create`.
+  3. On the user's confirmation, edit `docs/REQUIREMENTS.md` / `docs/DESIGN.md` directly. (Any edit invalidates the prior pass — re-validate; you cannot edit a doc and then scaffold on a stale review.)
+  4. **Re-run the cross-check and rewrite `docs/VALIDATION.md`.** Repeat until every check passes.
+- **If all pass:** mark the result PASS, tick **0d** in the `CLAUDE.md` Module status, and proceed.
 
-**Exit criteria:** `dforge_design_validate` returned a clean pass (`verifiedAt` set) and you have shown `docs/VALIDATION.md` to the user. State: "Phase 0d complete — all documents consistent and validated. Ready to scaffold."
+```markdown
+# Validation Report — Phase 0d
+<!-- regenerate after any change to REQUIREMENTS.md or DESIGN.md -->
+
+**Result:** ✅ PASS — ready to scaffold
+**Validated:** <date>
+
+## ❌ Open findings (<N>)
+<!-- omit this whole section when there are none -->
+- **<check title>** (`<id>`) — <what you checked and what you found>
+  - _Fix:_ <which document to change and how>
+
+## ✅ Passing checks (<N>)
+
+- **<check title>** (`<id>`) — <what you checked and what you found>
+```
+
+**Exit criteria:** `docs/VALIDATION.md` shows a clean pass and you have shown it to the user. State: "Phase 0d complete — all documents consistent and validated. Ready to scaffold."
 
 ## Phase 1 — Domain (required)
 
-**Preconditions:** Phases 0a through 0d complete — `dforge_module_init` called and `CLAUDE.md` written; `dforge_requirements_write` called and `docs/REQUIREMENTS.md` confirmed; `dforge_design_write` called and `docs/DESIGN.md` confirmed; `dforge_design_validate` returned a clean pass (`verifiedAt` set, no open findings). `dforge_module_create` is gated on `verifiedAt` and will refuse otherwise.
+**Preconditions:** Phases 0a through 0d complete — `CLAUDE.md` written; `docs/REQUIREMENTS.md` confirmed; `docs/DESIGN.md` confirmed; `docs/VALIDATION.md` shows a clean pass with no open findings. Do not call `dforge_module_create` until then — enforcing this ordering is your responsibility.
 
 **This phase's FIRST deliverable — before any tool call — is the proposed entity inventory.** Show it. Get explicit sign-off. Then scaffold. The user needs to see "the module will have these N things in it" before files exist, because entities are the spine the rest of the module hangs from (views, actions, roles all reference entity codes).
 

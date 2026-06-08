@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
-import archiver from "archiver";
 
 // All three tools below shell out to the native C# dforge-cli binary. They
 // resolve the binary via DFORGE_CLI_BINARY env var or by trying the
@@ -25,6 +24,26 @@ function resolveDforgeCli(): string {
 	return "dforge-cli";
 }
 
+function run(args: string[], cwd?: string): { stdout: string; stderr: string; code: number } {
+	const bin = resolveDforgeCli();
+	const r = spawnSync(bin, args, {
+		encoding: "utf8",
+		cwd,
+		shell: false,
+	});
+	if (r.error) {
+		throw new Error(
+			`Failed to exec ${bin}: ${r.error.message}. ` +
+				`Install with: npm install -g @dforge-core/dforge-cli (or set DFORGE_CLI_BINARY=/path/to/binary).`,
+		);
+	}
+	return {
+		stdout: r.stdout ?? "",
+		stderr: r.stderr ?? "",
+		code: r.status ?? 1,
+	};
+}
+
 // ─── pack ────────────────────────────────────────────────────────────
 
 export const packModuleSchema = {
@@ -35,53 +54,30 @@ export const packModuleSchema = {
 		.describe("Output file or directory. Defaults to cwd, naming the file <code>-<version>.dforge."),
 };
 
-export async function packModule(
+export function packModule(
 	args: z.infer<z.ZodObject<typeof packModuleSchema>>,
-): Promise<{ tarballPath: string; sizeBytes: number; output: string }> {
-	const moduleDir = path.resolve(args.moduleDir);
-
-	const manifestPath = path.join(moduleDir, "manifest.json");
-	if (!fs.existsSync(manifestPath)) {
-		throw new Error(`manifest.json not found in: ${moduleDir}`);
-	}
-	const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { code: string; version: string };
-	const defaultName = `${manifest.code}-${manifest.version}.dforge`;
-
-	let outResolved: string;
+): { tarballPath: string; sizeBytes: number; output: string } {
+	const argList = ["module", "pack", args.moduleDir];
 	if (args.outPath) {
-		outResolved = path.resolve(args.outPath);
-		if (fs.existsSync(outResolved) && fs.statSync(outResolved).isDirectory()) {
-			outResolved = path.join(outResolved, defaultName);
-		}
-	} else {
-		outResolved = path.join(process.cwd(), defaultName);
+		argList.push("-o", args.outPath);
 	}
-
-	await new Promise<void>((resolve, reject) => {
-		const output = fs.createWriteStream(outResolved);
-		const archive = archiver("zip", { zlib: { level: 6 } });
-
-		output.on("close", resolve);
-		archive.on("error", reject);
-		archive.pipe(output);
-
-		// Normalize backslashes to forward slashes so the archive is valid on
-		// all platforms — Windows path.join uses backslashes but ZIP spec
-		// requires forward slashes and the dForge installer relies on them.
-		archive.directory(moduleDir, false, (entry) => {
-			entry.name = entry.name.replace(/\\/g, "/");
-			return entry;
-		});
-
-		archive.finalize();
-	});
-
-	const sizeBytes = fs.statSync(outResolved).size;
-	return {
-		tarballPath: outResolved,
-		sizeBytes,
-		output: `Packed ${outResolved} (${sizeBytes} bytes)`,
-	};
+	const r = run(argList);
+	if (r.code !== 0) {
+		throw new Error(`pack failed (exit ${r.code}):\n${r.stderr || r.stdout}`);
+	}
+	// Heuristic: dforge-cli prints the tarball path on success. Fall back to
+	// guessing if we can't parse it.
+	const m = r.stdout.match(/([\w./-]+\.dforge)/);
+	const tarballPath = m
+		? path.resolve(m[1])
+		: args.outPath
+			? path.resolve(args.outPath)
+			: "";
+	let sizeBytes = 0;
+	if (tarballPath && fs.existsSync(tarballPath)) {
+		sizeBytes = fs.statSync(tarballPath).size;
+	}
+	return { tarballPath, sizeBytes, output: r.stdout };
 }
 
 // ─── install ─────────────────────────────────────────────────────────
