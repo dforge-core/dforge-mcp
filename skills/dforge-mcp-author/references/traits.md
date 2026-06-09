@@ -29,6 +29,8 @@ Adds the primary key column named `{entity}_id`.
 - `dbDatatype: "cuid"`, `flags: "I"`, `isPk: true`, `isIdentity: true`
 - Auto-generated on insert
 
+**FK columns pointing to an `identity`-trait entity must use `dbDatatype: "cuid"`.** Do not use `bigint`, `int`, `int8`, or `integer` — `cuid` is the platform's type name even though it is physically stored as int8. Using any other value causes an `ENTITY_COLUMN_IMPORT_ERROR` type-mismatch on install.
+
 **Most entities should use `identity`.** Exceptions: junction tables with composite PKs, extension entities that share a PK with their parent, or entities using the `period` trait (which provides its own PK).
 
 ### `audit`

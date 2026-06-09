@@ -25,6 +25,8 @@ Each table in the source becomes a dForge entity. Apply naming conventions:
 
 For each column, determine `fieldTypeCd`, `baseDatatypeCd`, `dbDatatype`, `flags`, and params.
 
+> **The source SQL type is authoritative — always map from it, never from the column name alone.** A column named `floor`, `level`, `count`, `code` could be an integer or a string; only the source type tells you which. Using the wrong `dbDatatype` causes `ENTITY_COLUMN_IMPORT_ERROR` type-mismatch on install. Name heuristics in the table below are secondary signals applied only when no source type is available (e.g. pasted informal descriptions).
+
 **Type mapping table:**
 
 | Source type | `fieldTypeCd` | `baseDatatypeCd` | `dbDatatype` | Notes |
@@ -34,7 +36,8 @@ For each column, determine `fieldTypeCd`, `baseDatatypeCd`, `dbDatatype`, `flags
 | Column named `*phone*`, `*tel*`, `*mobile*` | `phone` | `string` | `varchar` | Name heuristic |
 | Column named `*url*`, `*website*` | `url` | `string` | `varchar` | Name heuristic |
 | `text` (large / multiline context) | `textarea` | `string` | `text` | |
-| `int`, `integer`, `bigint`, `smallint` | `number` | `number` | `int4` or `int8` | |
+| `int`, `integer`, `int4`, `smallint` | `number` | `number` | `int` | |
+| `bigint`, `int8` | `number` | `number` | `bigint` | |
 | `numeric(p,s)`, `decimal(p,s)` | `number` | `number` | `numeric` | Set `params.scale` |
 | Column named `*price*`, `*amount*`, `*cost*`, `*total*` | `currency` | `number` | `numeric` | Ask user for currency code |
 | `numeric` with CHECK `>= 0 AND <= 100` | `percent` | `number` | `numeric` | |

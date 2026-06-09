@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { z } from "zod";
 import {
 	buildManifest,
@@ -24,6 +26,11 @@ import type {
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
 export const createModuleSchema = {
+	moduleDir: z
+		.string()
+		.describe(
+			"Absolute path to the directory where the module will be written. Must contain docs/VALIDATION.md with readyToScaffold: true (written by dforge_module_plan validate).",
+		),
 	code: z
 		.string()
 		.regex(/^[a-z][a-z0-9_-]*$/)
@@ -65,6 +72,32 @@ export const createModuleSchema = {
 		.describe("At least one entity. Each entity gets a stub JSON, a default grid view, a menu item, and rights in the admin role."),
 };
 
+function assertPhase0Complete(moduleDir: string): void {
+	const root = path.resolve(moduleDir);
+	const required = [
+		{ rel: "CLAUDE.md", phase: "0a" },
+		{ rel: "docs/REQUIREMENTS.md", phase: "0b" },
+		{ rel: "docs/DESIGN.md", phase: "0c" },
+		{ rel: "docs/VALIDATION.md", phase: "0d" },
+	];
+
+	const missing = required.filter((f) => !fs.existsSync(path.join(root, f.rel)));
+	if (missing.length > 0) {
+		const lines = missing.map((f) => `  ✗ Phase ${f.phase}: ${f.rel}`).join("\n");
+		throw new Error(
+			`Phase 0 incomplete — cannot scaffold yet.\n${lines}\n\nRun dforge_module_plan({ action: "check", moduleDir: "${moduleDir}" }) to see what's needed.`,
+		);
+	}
+
+	const validationPath = path.join(root, "docs/VALIDATION.md");
+	const validationContent = fs.readFileSync(validationPath, "utf8");
+	if (!validationContent.includes("readyToScaffold: true")) {
+		throw new Error(
+			`Phase 0 incomplete — docs/VALIDATION.md exists but does not show a clean pass.\n\nRun dforge_module_plan({ action: "validate", moduleDir: "${moduleDir}" }) to complete Phase 0d.`,
+		);
+	}
+}
+
 /**
  * Build the full file map for a new module. Returns paths relative to the
  * module root, NOT absolute paths — the MCP client decides where to write.
@@ -75,6 +108,7 @@ export const createModuleSchema = {
 export function createModuleFiles(
 	args: z.infer<z.ZodObject<typeof createModuleSchema>>,
 ): Record<string, string> {
+	assertPhase0Complete(args.moduleDir);
 	const moduleId = randomUUID();
 
 	const opts: ScaffoldOpts = {

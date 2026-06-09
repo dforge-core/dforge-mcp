@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { createModuleSchema, createModuleFiles } from "./tools/create-module";
+import { planModuleSchema, planModule } from "./tools/plan-module";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
 import {
 	packModuleSchema,
@@ -75,8 +76,27 @@ function envelope<T>(fn: (a: T) => ToolResult) {
 // ── Module-level tools ──────────────────────────────────────────────
 
 server.tool(
+	"dforge_module_plan",
+	"Phase 0 owner — CALL THIS FIRST for any new or resumed module task. Drives the full Phase 0 workflow: 'check' returns current state and exact next steps; 'write_identity' (0a) writes CLAUDE.md; 'write_requirements' (0b) writes docs/REQUIREMENTS.md after user confirms YES; 'write_design' (0c) writes docs/DESIGN.md after user confirms YES; 'validate' (0d) runs pre-scaffold checks and writes docs/VALIDATION.md when all pass. dforge_module_create is blocked until this tool reports readyToScaffold: true.",
+	planModuleSchema,
+	async (args) => {
+		try {
+			const result = planModule(args);
+			return {
+				content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+			};
+		} catch (e) {
+			return {
+				content: [{ type: "text" as const, text: `Error: ${(e as Error).message}` }],
+				isError: true,
+			};
+		}
+	},
+);
+
+server.tool(
 	"dforge_module_create",
-	"PHASE 1: Build the file map for a brand-new dForge module. Returns { files: { '<relPath>': '<contents>' } } — the client decides whether to write them. Always preview the file map with the user before writing.",
+	"Scaffold a new dForge module (Phase 1). ⛔ REQUIRES Phase 0 complete — call dforge_module_plan first. Blocked until CLAUDE.md, docs/REQUIREMENTS.md, docs/DESIGN.md, and docs/VALIDATION.md (all-pass) exist in moduleDir. Returns { files: { '<relPath>': '<contents>' } } — always preview with user before writing.",
 	createModuleSchema,
 	async (args) => {
 		const files = createModuleFiles(args);

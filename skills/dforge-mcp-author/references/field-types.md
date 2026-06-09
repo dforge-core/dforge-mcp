@@ -35,6 +35,8 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 |---|---|---|---|---|
 | `checkbox` | `bool` | Boolean checkbox. | `bool` | — |
 
+> **`checkbox` is the only valid `fieldTypeCd` for boolean fields.** Do not use `bool`, `boolean`, or `toggle` as `fieldTypeCd` — those are not valid field type codes. (`bool` IS the correct `dbDatatype` for this field, but `checkbox` is the only correct `fieldTypeCd`.)
+
 ## Date/time-backed
 
 | `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |
@@ -71,16 +73,31 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 
 > **Wrong key name:** `fieldType` is a C# navigation property on the server model — it is not a valid JSON key in entity definitions. Always use `fieldTypeCd` (the string code). Using `fieldType: { ... }` or `fieldType: "date"` causes the platform to silently ignore the field type, producing null constraint errors on save.
 
+### Wrong `dbDatatype` values
+
+These are SQL type names LLMs tend to use for `dbDatatype`. **They are all wrong.** The right values come from the tables above.
+
+| Wrong `dbDatatype` | Right `dbDatatype` | Used with `fieldTypeCd` |
+|---|---|---|
+| `datetime` | `timestamptz` | `datetime` |
+| `timestamp` | `timestamptz` | `datetime` |
+| `boolean` | `bool` | `checkbox` |
+| `string` | `varchar` (with `maxLen`) or `text` | `text`, `textarea`, `dropdown`, … |
+| `integer` | `int` or `bigint` | `number` |
+| `float`, `double`, `decimal` | `numeric` | `number`, `currency`, `percent` |
+
+### Wrong `fieldTypeCd` values
+
 These are the field type names LLMs tend to invent. **They are all wrong.**
 
 | Wrong | Right |
 |---|---|
 | key `fieldType: { fieldTypeCd: "date", ... }` | key `fieldTypeCd: "date"` (plain string) |
 | key `fieldType: "date"` | key `fieldTypeCd: "date"` |
+| `bool`, `boolean` | `checkbox` |
 | `integer` | `number` |
 | `float` | `number` |
 | `decimal` | `number` with `scale` param |
-| `bool`, `boolean` | `checkbox` |
 | `datePicker` | `date` |
 | `timestamp` | `datetime` |
 | `money` | `currency` |

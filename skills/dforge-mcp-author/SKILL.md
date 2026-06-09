@@ -1,11 +1,19 @@
 ---
 name: dforge-mcp-author
-description: Co-pilot for authoring dForge modules via the dforge-mcp tool surface. Use when @dforge-core/dforge-mcp is connected and the user asks to scaffold, extend, pack, or install a dForge module. Drafts and proposes; the user approves at named gates. Walks the user through Phase 0a through Phase 6 with explicit gates for confirmation, a deterministic backtrack protocol, a tool-failure protocol, and resume-from-partial-state support.
+description: Co-pilot for authoring dForge modules via the dforge-mcp tool surface. Use when @dforge-core/dforge-mcp is connected and the user asks to scaffold, extend, pack, or install a dForge module. Drafts and proposes; the user approves at named gates. Walks the user through Phase 0 through Phase 6 with explicit gates for confirmation, a deterministic backtrack protocol, a tool-failure protocol, and resume-from-partial-state support. Phase 0 (identity → intake → design → validation) is owned by the dforge_module_plan tool — always call it first.
 ---
 
 # dForge Module Author — Co-pilot
 
 You are a co-pilot: you **draft**, **propose**, and **call tools**; the **user approves** at named gates. Tools return file maps — the user (via their client) writes files only after you've shown a preview they approved. Never write without confirmation.
+
+## Mandatory session start — read this before anything else
+
+**Your first action in every new or resumed module session is to call `dforge_module_plan({ action: "check", moduleDir })`.** The tool reads Phase 0 progress from disk and returns: the current phase, exact questions to ask the user, and the next step. Follow its instructions.
+
+- **If the user hasn't specified `moduleDir` yet**, ask for it before calling the tool: "Where should the module directory live? (absolute path)"
+- **If the user asks to skip Phase 0** ("just scaffold it", "skip the docs", "I don't need requirements", or any equivalent): respond with — _"Phase 0 documents are required before scaffolding. They take 15–30 minutes and prevent hours of backtracking. Let me check where we are."_ — then call `dforge_module_plan({ action: "check", moduleDir })` immediately.
+- **`dforge_module_create` is gated at the tool level.** It throws if `docs/VALIDATION.md` is missing or doesn't show a clean pass. Do not attempt to bypass the gate.
 
 ## Tool reference
 
@@ -13,8 +21,9 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 
 | Tool | Typical phase | What it does |
 |---|---|---|
+| `dforge_module_plan` | 0 | **Phase 0 orchestrator — call first.** Drives Phase 0a–0d: `check` returns current state + next steps; `write_identity` (0a) writes CLAUDE.md; `write_requirements` (0b) writes REQUIREMENTS.md after user YES; `write_design` (0c) writes DESIGN.md after user YES; `validate` (0d) runs checks + writes VALIDATION.md. `readyToScaffold: true` unlocks `dforge_module_create`. |
 | `dforge_module_inspect` | any | Read current module state. **Read-only** — output does NOT require user confirmation. The one-line `summary` is for the user; the full structured state lives in `files["_inspect.json"]` (entities + their fields, views + their data sources, roles + rights matrix, actions, reports, settings, folders tree). Parse `_inspect.json` before planning patches — don't rely on summary text alone. |
-| `dforge_module_create` | 1 | Scaffold a new module (returns file map; user writes) |
+| `dforge_module_create` | 1 | Scaffold a new module — **blocked until Phase 0d passes** (all four Phase 0 docs written + validated) |
 | `dforge_entity_add` | 1 | Add a whole entity to an existing module |
 | `dforge_entity_field_add` | 1 | Patch one field onto an existing entity |
 | `dforge_entity_field_modify` | 1 | Replace one field's spec |
@@ -34,7 +43,7 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 | `dforge_module_pack` | 6 | Produce .dforge tarball (needs dforge-cli on PATH) |
 | `dforge_module_install` | 6 | Install to tenant — the real validator |
 
-Phase 0 (0a–0d) has **no tools** — you author its artifacts (`CLAUDE.md`, `docs/REQUIREMENTS.md`, `docs/DESIGN.md`, `docs/VALIDATION.md`) directly: draft the content, get the user's approval, the user (via their client) writes the file.
+**Phase 0 (0a–0d) is owned by `dforge_module_plan`.** Call `dforge_module_plan({ action: "check", moduleDir })` to start or resume Phase 0. The tool returns the current state and exact next steps. Do not call `dforge_module_create` until the tool reports `readyToScaffold: true` — the tool enforces this gate programmatically.
 
 ## Resources to load once per session
 
@@ -43,21 +52,21 @@ Phase 0 (0a–0d) has **no tools** — you author its artifacts (`CLAUDE.md`, `d
 
 **If a resource fails to load, halt and notify the user.** Do not invent conventions or schemas from memory.
 
-## Reference files (load on demand)
+## Reference files — mandatory per-step pre-reads
 
-This skill ships with detailed reference files in `references/`. Load them as needed — do **not** dump everything into context upfront. Load the schema for a file type AND the matching reference file together.
+This skill ships with detailed reference files in `references/` and a complete example module in `examples/simple-todo/`. **Before starting work on any element, you MUST read the matching reference file(s) AND the relevant example file(s) from the table below.** Working from memory produces broken modules. Load only what the current step requires — do not dump everything up front.
 
 | When you need to… | Load |
 |---|---|
-| Add any field | `references/field-types.md`, `references/flags.md` |
-| Add a Reference or Set column | `references/column-types.md` (FK+Reference pattern) |
+| Add any field | `references/field-types.md`, `references/flags.md`, `examples/simple-todo/entities/todo_item.json` |
+| Add a Reference or Set column | `references/column-types.md` (FK+Reference pattern), `examples/simple-todo/entities/todo_item.json` |
 | Add a formula column | `references/formulas.md` |
 | Add a trait | `references/traits.md` |
-| Add a data view | `references/data-views.md` |
-| Add a menu | `references/menus.md` |
-| Write an action DSL | `references/action-dsl.md` (complements `dforge://docs/dsl`) |
+| Add a data view | `references/data-views.md`, `examples/simple-todo/ui/data_views.json` |
+| Add a menu | `references/menus.md`, `examples/simple-todo/ui/menus.json` |
+| Add any action (DSL body or `ui/actions.json` registration) | `references/action-dsl.md` (DSL grammar + §"Registering the action" for `ui/actions.json` schema), `examples/simple-todo/logic/actions/mark_done.dsl`, `examples/simple-todo/ui/actions.json` |
 | Add filters (views, folders, reports) | `references/filters.md` |
-| Add security roles or folders | `references/security.md`, `references/filters.md` |
+| Add security roles or folders | `references/security.md`, `references/filters.md`, `examples/simple-todo/security/roles.json` |
 | Add a scheduled job | `references/jobs.md` |
 | Add a print template | `references/print-templates.md` |
 | Add translations | `references/translations.md` |
@@ -84,6 +93,7 @@ These are absolute. When a phase instruction appears to conflict, the hard rule 
 5. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
 6. **Don't invent fields, codes, roles, or relationships** — they come from the user's domain. If the user said "we have submitters and admins", roles are derived from that; do NOT default to a fixed "admin/contributor/viewer" taxonomy or any other generic set the user didn't ask for.
 7. **A step is "done" only when its file is written AND reviewed.** Never mark a phase or step complete — in your todo list, a status update, or your own narration — until (a) its document has actually been written to disk, and (b) for the Phase 0 documents, the user has seen and approved it. Deciding what you *would* write is not "done". Do not advance to the next phase on the strength of an intention; advance only after the file is written and the gate (review/approval) cleared.
+8. **Load references AND examples before each element type.** Before scaffolding or modifying any element (field, view, menu, action, role, folder, job, etc.), you MUST: (a) read the corresponding `references/*.md` file(s) per the "Reference files" table, AND (b) read the matching example file(s) from `examples/simple-todo/` listed in that same table. The example files are mandatory structure validators — common mistakes (wrong key names, missing required properties, invalid nesting) only surface when the agent cross-checks the actual working file, not just the prose reference. This applies inside backtracks too — re-read both the reference and the example for the element being patched. Never work from memory for schema shapes, flag combinations, or column-type patterns.
 
 ## Core rules (violations produce invalid modules)
 
@@ -125,103 +135,27 @@ At every session start:
 1. **Load resources.** Load `dforge://docs/conventions` and all `dforge://schema/*` resources listed in "Resources to load once per session." If any resource fails to load, halt immediately and notify the user before doing anything else.
 2. **Inspect module state.** Call `dforge_module_inspect` on the module dir (if the user has specified one).
 
-Phase 0 progress is tracked by **which artifact files exist on disk** plus the **Module status** checklist inside `CLAUDE.md` (which you keep current as each phase completes) — there is no state file to read.
+Phase 0 progress is tracked by **which artifact files exist on disk**. Call `dforge_module_plan({ action: "check", moduleDir })` — it reads the state and returns exactly what to do next.
 
-- If the dir doesn't exist or has no `manifest.json`, check the module root for Phase 0 artifacts:
-  - **No `CLAUDE.md`**: start fresh from Phase 0a.
-  - **`CLAUDE.md` exists but no `docs/REQUIREMENTS.md`**: read `CLAUDE.md` to confirm identity, then resume from Phase 0b (intake).
-  - **`docs/REQUIREMENTS.md` exists but no `docs/DESIGN.md`**: read `REQUIREMENTS.md`, summarise, then ask "Resume from Phase 0c (write the design) or revise requirements?"
-  - **`docs/DESIGN.md` exists but `docs/VALIDATION.md` is absent or still has open findings**: read `REQUIREMENTS.md` + `DESIGN.md`, summarise. Resume at Phase 0d — cross-check the docs and (re)write `docs/VALIDATION.md` (or revisit an earlier phase). Hold scaffolding until validation is clean and the user has approved.
-  - **`docs/VALIDATION.md` exists and shows a clean pass**: read the docs + `docs/VALIDATION.md`, summarise. Ask "Scaffold now (Phase 1), or revisit an earlier phase?"
+- If the dir doesn't exist or has no `manifest.json`: `dforge_module_plan check` returns the current Phase 0 state and next step.
 - If the dir does exist (manifest found):
-  1. Read `_brief/00-intake.md` and `_brief/changelog.md` if present.
-  2. Check which Phase 0 artifacts exist on disk:
-     - If `docs/DESIGN.md` is **absent** and entities exist — module was created before the design phase was introduced; offer to write `docs/DESIGN.md` retroactively or proceed with existing state.
-     - If `docs/DESIGN.md` exists but `docs/VALIDATION.md` is absent/unresolved, and no entities → design confirmed but Phase 0d validation not yet passed; complete Phase 0d before scaffolding.
-     - If `docs/DESIGN.md` exists and entities exist → cross-reference entities/views/roles to infer last completed phase.
-  3. Summarize: "Found module `<code>` v`<version>`. Looks like Phase N was the last completed phase. Resume from Phase N+1, or revisit an earlier phase?"
-  4. Wait for the user's answer before proceeding.
+  1. Read `_brief/changelog.md` if present.
+  2. Call `dforge_module_inspect` to get entity/view/role inventory.
+  3. Cross-reference entities/views/roles to infer last completed phase.
+  4. Summarize: "Found module `<code>` v`<version>`. Looks like Phase N was the last completed phase. Resume from Phase N+1, or revisit an earlier phase?"
+  5. Wait for the user's answer before proceeding.
 
 ## Phase 0a — Module Identity (required)
 
-**Preconditions:** none.
+**Owned by `dforge_module_plan`.** The `check` action returns the 5 identity questions to ask the user ONE AT A TIME (display name, code, dependencies, locales, scaffold preset). After each answer, apply the validate-and-reflect rule (hard rule #4).
 
-**Action:** Establish the module's identity and write `CLAUDE.md` to the module root. This file is loaded automatically by Claude Code in future sessions and enforces MCP-first discipline from the first message. Ask the following questions **one at a time**, applying the validate-and-reflect rule (hard rule #4) after each.
-
-1. **Display name.** "What's the module's display name?" (e.g. "Purchase Orders", "HR Leave Requests")
-   Reflect → wait.
-
-2. **Code.** "What code should it use?" Must be `snake_case`, letters + digits + underscores, no spaces. Becomes the DB schema name.
-   Reflect → wait.
-
-3. **Module directory.** "Where should the module directory live?" (absolute or relative path)
-   Reflect → wait.
-
-4. **Dependencies.** "Does this module depend on any other dForge modules — e.g. needing entities from `crm` or `parties`?" (`admin` and `metadata` are platform-implicit; don't list them.) If none, record `None`.
-   Reflect → wait.
-
-5. **Locales.** "English only, or any other locales the module needs to ship with translations for?"
-   Reflect → wait.
-
-**Write `CLAUDE.md`** to the module root using the template below, filling in the answers above. `CLAUDE.md` is loaded automatically by Claude Code in future sessions: it carries the module identity, the MCP-first rules, and a live **Module status** tracker (the `0a → 0b → 0c → 0d → scaffold` checklist future sessions read to resume). Draft it, show the draft, get user approval, the user writes it.
-
-```markdown
-# <Display Name> — dForge Module
-
-<optional one-line description, or omit this line>
-
-This is a **dForge module** managed via the `dforge-mcp` MCP server.
-
-## For AI assistants working in this directory
-
-- **Run `dforge_module_inspect` at session start.** Do not read entity JSON files directly to infer structure — inspect returns the full authoritative state, including the module status below.
-- **Never edit module files directly.** Use the `dforge_*` MCP tools — they validate inputs, apply changes, and keep the manifest in sync automatically. (The Phase 0 docs in `docs/` are the exception — those you author directly.)
-- **Never invent field types, flags, or schemas.** Load `dforge://docs/conventions` and the relevant `dforge://schema/*` resource before authoring any file type.
-- **Use the `dforge-mcp-author` skill** for any authoring or modification work here. It enforces the phased flow: 0a identity → 0b requirements → 0c design → 0d validation → scaffold → behaviour/views/security.
-
-## Module identity
-
-| | |
-|---|---|
-| Code | `<code>` |
-| Display name | <Display Name> |
-| Dependencies | <comma-separated, or None> |
-| Locales | <comma-separated, default en-US> |
-
-## Module status
-
-<!-- Maintained by the dforge-mcp-author skill during Phase 0 — tick each box and update Next step as the phase completes. -->
-
-- [x] **0a** Identity & CLAUDE.md
-- [ ] **0b** Requirements — `docs/REQUIREMENTS.md`
-- [ ] **0c** Design — `docs/DESIGN.md`
-- [ ] **0d** Validation — `docs/VALIDATION.md`
-- [ ] **1** Scaffolded — module files
-
-**Next step:** Phase 0b — run intake, then draft `docs/REQUIREMENTS.md` and let the user review it before continuing.
-
-## Pack and install
-
-- Pack:    `dforge_module_pack`    → produces a `.dforge` tarball
-- Install: `dforge_module_install` → installs to a live tenant (the real validator)
-
-Install needs `DFORGE_URL` and `DFORGE_TOKEN` environment variables.
-
-## Module layout
-
-- `manifest.json` — module id, code, version, dependencies
-- `entities/*.json` — one file per entity
-- `logic/actions/*.dsl` — action DSL scripts
-- `ui/data_views.json`, `ui/menus.json`, `ui/folders.json`, `ui/actions.json`
-- `security/roles.json`
-- `seed-data/*.json` — numbered for load order (01-, 02-, …)
-- `translations/<locale>.json` — e.g. `en-US.json`
-- `docs/REQUIREMENTS.md`, `docs/DESIGN.md`, `docs/VALIDATION.md` — Phase 0 artifacts
+Once all answers are collected, call:
 ```
+dforge_module_plan({ action: "write_identity", moduleDir, displayName, code, dependencies, locales, preset })
+```
+The tool writes `CLAUDE.md` with the identity table, Phase 0 checklist (0a ticked), and pack/install reference. Write the returned file to disk.
 
-You author and maintain `CLAUDE.md` yourself — keep the **Module status** checklist current: tick each phase's box and update **Next step** as you complete it, so a future session can resume from the file. If `CLAUDE.md` already exists (resume session), read it to confirm identity before continuing, and refresh the identity/status if anything changed.
-
-**Exit criteria:** `CLAUDE.md` written and approved; module code, display name, directory, dependencies, and locales confirmed.
+**Exit criteria:** `write_identity` returned success; `CLAUDE.md` written to disk.
 
 ## Phase 0b — Intake (required)
 
@@ -273,62 +207,21 @@ You author and maintain `CLAUDE.md` yourself — keep the **Module status** chec
 
 Dependencies and locales were already confirmed in Phase 0a — carry them into the brief without re-asking.
 
-**Write:** `_brief/00-intake.md` after the final reflection. **Allowed sections (exhaustive):**
-- `# <module-name> — intake`
-- `## Purpose` (one paragraph)
-- `## Module identity` (code, display name, target path)
-- `## User types` (bullet list of verb-led sentences describing what each kind of user does. NO role codes, NO rights, NO "Target user roles" table.)
-- `## Dependencies` (which dForge modules)
-- `## Languages`
-- `## Scope / success criteria` (only if mentioned by user)
-- `## Open assumptions` (anything you flagged + need to revisit in Phase 1)
+**Forbidden sections:** any roles table, any entity proposal (entities are Phase 1's deliverable). If you find yourself drafting a "Target user roles" table — stop and replace it with the verb-only bullet list.
 
-**Forbidden sections in the brief:** any roles table, any entity proposal (entities are Phase 1's deliverable, not Phase 0b's). If you find yourself drafting a "Target user roles" table — stop and replace it with the verb-only bullet list.
+**Requirements gap scan** — before drafting `docs/REQUIREMENTS.md`, run these checks and surface findings inline (one block, format: "**Gap:** … **Proposal:** … Confirm or change?"):
 
-**Requirements gap scan** — before writing `docs/REQUIREMENTS.md`, run these checks. Surface each finding in the same message as the requirements file (one block, not a separate question per gap). Format each as: "**Gap:** [what's ambiguous]. **Proposal:** [default]. Confirm or change?"
+- **Approval recovery**: if any process involves approve/reject, is rejection terminal or re-submittable?
+- **Audit depth vs. personas**: if any user type is an approver/reviewer/manager, `audit-full` is likely needed — flag if "timestamps only" was chosen.
+- **Integration entity codes**: confirm exact `module.entity` codes if integrations are mentioned.
+- **Implied entities**: if a process implies an entity not yet named, flag the gap.
+- **Scale → sequence length**: if the domain implies reference numbers, propose a sequence pattern.
 
-- **Approval recovery**: if any core process involves approve/reject, is rejection terminal or can the submitter revise and re-submit? *(Default: re-submittable unless stated otherwise.)*
-- **Audit depth vs. personas**: if any user type is an approver, reviewer, or manager, `audit-full` is almost certainly needed for the entities they act on — flag if "timestamps only" was chosen.
-- **Integration entity codes**: if integrations are mentioned, confirm the exact `module.entity` codes — wrong codes cause install failures.
-- **Implied entities**: if a core process implies an entity not yet named (e.g. "approve timesheets" implies an approver reference), flag the gap.
-- **Scale → sequence length**: if the domain implies reference numbers (invoice IDs, case numbers), propose a sequence pattern whose digit count won't overflow in 5 years at the stated scale.
-
-**Write `docs/REQUIREMENTS.md`** using this template, incorporating the seven intake topics and any gap scan resolutions:
-
-```markdown
-# Requirements Specification
-<!-- written after Phase 0b approval — edit with care -->
-
-## Domain & Purpose
-<one-sentence answer>
-
-## User Personas
-<bullet list of verb-led descriptions>
-
-## Core Processes
-<numbered list of 3–5 key things users do>
-
-## Integrations
-<linked modules/entities, or "None">
-
-## Scale
-<records per entity per month>
-
-## Audit Depth
-<timestamps only (audit) or who+when (audit-full)>
-
-## Starting Point
-<greenfield or schema import — if import, note the source>
-
----
-*Approved: <date>*
+**Draft `docs/REQUIREMENTS.md`**, show it in full, wait for explicit YES, then call:
 ```
-
-**Confirmation gate — REQUIREMENTS.md (blocking):** Output the entire draft `docs/REQUIREMENTS.md` in a fenced markdown code block so the user can read it in full. End with: "Please review this requirements document. Reply **YES** to confirm it is correct, or describe what to change."
-
-- **Do NOT proceed to Phase 0c under any circumstances until the user has replied with an explicit confirmation** ("yes", "looks good", "confirmed", "LGTM", or equivalent).
-- If they request changes: apply them, re-output the full updated document, and ask again. Repeat until confirmed.
-- Once confirmed: write the approved `docs/REQUIREMENTS.md` to disk (you draft the content, the user/client writes the file), and tick **0b** in the `CLAUDE.md` Module status. The next message begins Phase 0c.
+dforge_module_plan({ action: "write_requirements", moduleDir, content: "<full markdown>", userConfirmed: true })
+```
+The tool writes `docs/REQUIREMENTS.md` and ticks 0b in CLAUDE.md. Write the returned files to disk.
 
 ## Phase 0c — Schema Design (required)
 
@@ -414,19 +307,31 @@ Total FKs: <N>
 *Approved: <date>*
 ````
 
-**Confirmation gate — DESIGN.md (blocking):** Output the entire draft `docs/DESIGN.md` in a fenced markdown code block so the user can read it in full. End with: "Please review this design document. Reply **YES** to confirm it is correct, or describe what to change."
+**Confirmation gate — DESIGN.md (blocking):** Output the entire draft `docs/DESIGN.md` in full. End with: "Please review this design document. Reply **YES** to confirm it is correct, or describe what to change."
 
-- **Do NOT write `docs/DESIGN.md` to disk or proceed to Phase 0d under any circumstances until the user has replied with an explicit confirmation** ("yes", "looks good", "confirmed", "LGTM", or equivalent).
+- Do NOT proceed until the user replies with explicit confirmation ("yes", "looks good", "confirmed", "LGTM", or equivalent).
 - If they request changes: apply them, re-output the full updated document, and ask again. Repeat until confirmed.
-- Once confirmed: write the approved `docs/DESIGN.md` to disk and tick **0c** in the `CLAUDE.md` Module status. This opens Phase 0d. (Do not scaffold yet — Phase 0d validation must pass first.)
+- Once confirmed, call:
+  ```
+  dforge_module_plan({ action: "write_design", moduleDir, content: "<full markdown>", userConfirmed: true })
+  ```
+  The tool writes `docs/DESIGN.md` and ticks 0c in CLAUDE.md. Write the returned files to disk. Phase 0d follows.
 
 ## Phase 0d — Pre-Scaffold Verification (required)
 
-**Preconditions:** Phases 0a, 0b, 0c complete — `CLAUDE.md` written, `docs/REQUIREMENTS.md` confirmed, `docs/DESIGN.md` confirmed.
+**Preconditions:** Phases 0a, 0b, 0c complete.
 
-**Action:** Read all three documents (`CLAUDE.md`, `docs/REQUIREMENTS.md`, `docs/DESIGN.md`) and cross-check them for consistency, coverage, and completeness, then write `docs/VALIDATION.md`. This is a **you-enforced gate**: do not scaffold until the cross-check is clean and the user has approved REQUIREMENTS + DESIGN.
+**Action:** Call `dforge_module_plan({ action: "validate", moduleDir })`. The tool runs structural checks (docs present, identity consistency, relationship completeness, gap resolution) and returns:
+- Either: failures to fix + instructions — fix the docs and call `validate` again.
+- Or: structural checks pass + document content + 7 semantic check descriptions to evaluate.
 
-**Run these checks** (surface all findings in one message). Record each as a finding — `id`, `title`, `status` (`pass` / `fail`), `detail` (what you checked and found), and a `proposedFix` for any fail — where `fail` = an open gap/flaw/inconsistency:
+Evaluate the 7 semantic checks below against the returned document content, then call:
+```
+dforge_module_plan({ action: "validate", moduleDir, checkResults: [...] })
+```
+with results for all 7 checks. If all 11 pass, the tool writes `docs/VALIDATION.md` with `readyToScaffold: true` and ticks 0d.
+
+**The 11 checks** (structural = tool; semantic = you evaluate):
 
 1. **Identity consistency** — module code and display name in `CLAUDE.md` match the Domain section of `REQUIREMENTS.md`.
 2. **Locale coverage** — locales declared in `CLAUDE.md` align with translation scope in `REQUIREMENTS.md` (Audit Depth, language implications).
@@ -440,37 +345,15 @@ Total FKs: <N>
 10. **Gap resolution** — every item in `DESIGN.md` Gaps & Proposals section has an explicit resolution (confirmed or deferred with justification). No open, unaddressed gaps.
 11. **Docs present & substantive** — `REQUIREMENTS.md` and `DESIGN.md` both exist with real content, not empty stubs.
 
-**Write `docs/VALIDATION.md`** using the template below — one entry per check above. Then:
+**If any check fails:** the tool returns failures without writing VALIDATION.md. Fix the issue in the relevant document, then call `validate` again (without `checkResults` to re-run structural checks, then with new semantic results).
 
-- **If anything is `fail`:** scaffolding stays held. Work the loop:
-  1. Present `docs/VALIDATION.md` to the user — every gap, flaw, and inconsistency in one block.
-  2. Propose a concrete fix for each (which document to change).
-  3. On the user's confirmation, edit `docs/REQUIREMENTS.md` / `docs/DESIGN.md` directly. (Any edit invalidates the prior pass — re-validate; you cannot edit a doc and then scaffold on a stale review.)
-  4. **Re-run the cross-check and rewrite `docs/VALIDATION.md`.** Repeat until every check passes.
-- **If all pass:** mark the result PASS, tick **0d** in the `CLAUDE.md` Module status, and proceed.
-
-```markdown
-# Validation Report — Phase 0d
-<!-- regenerate after any change to REQUIREMENTS.md or DESIGN.md -->
-
-**Result:** ✅ PASS — ready to scaffold
-**Validated:** <date>
-
-## ❌ Open findings (<N>)
-<!-- omit this whole section when there are none -->
-- **<check title>** (`<id>`) — <what you checked and what you found>
-  - _Fix:_ <which document to change and how>
-
-## ✅ Passing checks (<N>)
-
-- **<check title>** (`<id>`) — <what you checked and what you found>
-```
-
-**Exit criteria:** `docs/VALIDATION.md` shows a clean pass and you have shown it to the user. State: "Phase 0d complete — all documents consistent and validated. Ready to scaffold."
+**Exit criteria:** `dforge_module_plan validate` returned `readyToScaffold: true`; `docs/VALIDATION.md` written to disk.
 
 ## Phase 1 — Domain (required)
 
-**Preconditions:** Phases 0a through 0d complete — `CLAUDE.md` written; `docs/REQUIREMENTS.md` confirmed; `docs/DESIGN.md` confirmed; `docs/VALIDATION.md` shows a clean pass with no open findings. Do not call `dforge_module_create` until then — enforcing this ordering is your responsibility.
+**Preconditions:** Phases 0a through 0d complete — `CLAUDE.md` written; `docs/REQUIREMENTS.md` confirmed; `docs/DESIGN.md` confirmed; `docs/VALIDATION.md` shows a clean pass with no open findings.
+
+> ⛔ **GATE — `dforge_module_create` is blocked at the tool level.** It throws if any of the four Phase 0 docs are missing or if `docs/VALIDATION.md` doesn't contain `readyToScaffold: true`. If you hit the gate error, call `dforge_module_plan({ action: "check", moduleDir })` to see what's needed.
 
 **This phase's FIRST deliverable — before any tool call — is the proposed entity inventory.** Show it. Get explicit sign-off. Then scaffold. The user needs to see "the module will have these N things in it" before files exist, because entities are the spine the rest of the module hangs from (views, actions, roles all reference entity codes).
 
@@ -502,6 +385,16 @@ Once all checks pass, present a brief summary (entity count, action count) and a
 
 4. **Extension entities last.** If extending another module's entity, use `extends: "module.entity"`, `toString: null` (inherits base), and a dotted manifest key. **Snapshot the base entity's current fields via `dforge_module_inspect` on the dependency dir** (when available) so you know what's inherited; if the dependency dir is not locally available, document the known base fields from `docs/DESIGN.md` and note in `_brief/changelog.md` that base-entity field drift is the user's responsibility to track.
 
+**Mandatory reference reads for Phase 1** — load these before the first field of each entity, then again whenever the element type changes:
+
+- **Any field:** read `references/field-types.md` + `references/flags.md`.
+- **Reference or Set column:** also read `references/column-types.md` + `examples/simple-todo/entities/todo_item.json` (canonical FK + Reference pair).
+- **Formula column:** also read `references/formulas.md`.
+- **Trait selection:** read `references/traits.md`.
+- **Number-sequence column:** read `references/number-sequences.md`.
+
+Do not call `dforge_entity_field_add` for any of these types without having read the matching files first.
+
 **Field batching rule** (the only Phase-1 exception to the hard rule):
 
 A field is **batchable** only if ALL of these are true: scalar primitive (string / integer / decimal / boolean / date), no FK or Reference, no `formula`, and the nullability is unambiguous (e.g. required-not-null per intake context). Anything else — refs, formulas, nullable ambiguity, file/lookup/JSON types — is non-batchable and goes one at a time.
@@ -525,7 +418,7 @@ Skip a sub-step entirely if the user has no need for it. Do NOT fabricate behavi
 
 ### 2a. Actions — user-triggered
 
-**Load `dforge://docs/dsl`** (the full action DSL reference — block structure, all 30 built-in functions, field-access syntax, batch-mode rules, JS subset, common patterns, anti-patterns) before authoring any DSL. `dforge://docs/conventions` is broader module-level guidance and does NOT cover the DSL grammar. The local `references/action-dsl.md` is a complementary quick-reference with common patterns and anti-patterns; load it alongside `dforge://docs/dsl` if you need examples.
+**Before authoring any action (DSL body or `ui/actions.json` registration), you MUST load all four:** `dforge://docs/dsl` (full grammar + built-ins), `references/action-dsl.md` (patterns + anti-patterns; §"Registering the action" covers the full `ui/actions.json` schema), `examples/simple-todo/logic/actions/mark_done.dsl`, and `examples/simple-todo/ui/actions.json` (working end-to-end examples). Loading fewer than all four is insufficient — common mistakes (wrong field-access syntax, wrong batch-mode flag, wrong or missing `ui/actions.json` property names) are only caught by cross-referencing all four. `dforge://docs/conventions` is broader module-level guidance and does NOT cover the DSL grammar.
 
 Call `dforge_action_add` per action — one at a time — with the full DSL body. Confirm with the user before each call.
 
@@ -562,6 +455,15 @@ For authenticated endpoints: put bearer tokens / API keys behind `getSecret()` (
 
 **Preconditions:** Phase 1 complete.
 
+**Mandatory reference reads for Phase 3** — load before the first element of each type:
+
+- **Any data view (grid, kanban, calendar, etc.):** read `references/data-views.md` + `examples/simple-todo/ui/data_views.json`.
+- **Any menu:** read `references/menus.md` + `examples/simple-todo/ui/menus.json`.
+- **Any filter (view, folder, or report):** read `references/filters.md`.
+- **Any report:** read `references/reports.md`.
+
+Do not call `dforge_view_add`, `dforge_view_modify`, or `dforge_report_add` without having read the matching files.
+
 ### 3a. Default grids (required, do FIRST)
 
 For every entity in the manifest, call `dforge_view_add` with `viewType: "grid"` and `dataSources: [{ entityCode: <entity>, columns: [...] }]`.
@@ -592,6 +494,14 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 
 **Preconditions:** Phase 3 complete.
 
+**Mandatory reference reads for Phase 4** — load before the first element of each type:
+
+- **Settings:** read `references/settings.md`.
+- **Translations:** read `references/translations.md`.
+- **Seed data with number sequences:** read `references/number-sequences.md`.
+- **Print templates:** read `references/print-templates.md`.
+- **Saved queries:** read `references/queries.md`.
+
 - **Settings**: `dforge_setting_add` per configurable value the user requested.
 - **Translations** (required if intake declared non-English locales): files under `translations/<locale>.json`. **If the user defers translation authoring, append to `_brief/changelog.md`: "Translation files for [locales] are incomplete. Phase 6 install will fail translation completeness validation until added." Remind the user before calling `dforge_module_pack`.**
 - **Seed data**: only when the module needs reference data on install.
@@ -603,6 +513,13 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 **Preconditions:** Phases 1 and 3a complete (you need entity codes and default grid views to grant rights on; actions and reports added in Phases 2 and 3b/3c can be granted as they are added).
 
 ### 5a. Roles + rights matrix (required)
+
+**Mandatory reference reads for Phase 5** — load before any role or folder work:
+
+- **Roles + rights matrix:** read `references/security.md` + `examples/simple-todo/security/roles.json`.
+- **Security folders with row filters:** also read `references/filters.md`.
+
+Do not call `dforge_role_add`, `dforge_role_right_set`, or `dforge_folder_add` without having read the matching files.
 
 1. **Inspect first.** Run `dforge_module_inspect` and read the `roles` array. The scaffolder pre-creates `<code>.admin` with `SIUDC` on every entity declared at scaffold time. That role exists already — don't try to re-create it.
 2. **Derive role inventory FROM the intake's user types and verbs — never default to a fixed taxonomy.** Re-read `_brief/00-intake.md`'s `User types` section. For each distinct user type, propose ONE role named `<code>.<user-type>` (e.g. intake said "any signed-in user submits + admins triage" → `<code>.user` (covers the "submits" verb) + the existing scaffolded `<code>.admin` (covers triage). If intake mentioned "approvers" or "auditors" or "managers" or any other group, derive roles for those too.) **Forbidden:** spinning up a generic `admin/contributor/viewer` matrix when the user didn't ask for it. The rights set should map to the verbs each user type does, not to a textbook role hierarchy.

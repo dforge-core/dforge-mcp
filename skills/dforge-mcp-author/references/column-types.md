@@ -67,6 +67,11 @@ Plus declare the FK constraint in the entity's `references` block:
 }
 ```
 
+> **FK column `dbDatatype` must exactly match the referenced entity's PK `dbDatatype`.** Never guess.
+> - Entities using the `identity` trait → PK is `dbDatatype: "cuid"` → FK column must also be `"cuid"`
+> - Cross-module or legacy entities → call `dforge_module_inspect` on the referenced module and read the PK column's `dbDatatype` before declaring the FK
+> - **`bigint`, `integer`, `int8` are wrong values for FK columns** — even though `cuid` is physically stored as int8, the platform type name is `cuid`, not `bigint`
+
 **Why two columns?** The FK stores the actual value. The Reference column configures how the value is rendered in the UI (as a typeahead picker showing the target's `toString`). They must be kept in sync — column order in JSON doesn't matter but `orderNum` determines UI ordering.
 
 ## Set columns (`columnType: "S"`)

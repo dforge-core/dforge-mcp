@@ -6,6 +6,6 @@
 		"entityCode": "todo_item",
 		"executionMode": "each",
 		"script": "mark_done",
-		"async": false
+		"isAsync": false
 	}
 }
