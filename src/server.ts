@@ -77,7 +77,7 @@ function envelope<T>(fn: (a: T) => ToolResult) {
 
 server.tool(
 	"dforge_module_plan",
-	"Phase 0 owner — CALL THIS FIRST for any new or resumed module task. Drives the full Phase 0 workflow: 'check' returns current state and exact next steps; 'write_identity' (0a) writes CLAUDE.md; 'write_requirements' (0b) writes docs/REQUIREMENTS.md after user confirms YES; 'write_design' (0c) writes docs/DESIGN.md after user confirms YES; 'validate' (0d) runs pre-scaffold checks and writes docs/VALIDATION.md when all pass. dforge_module_create is blocked until this tool reports readyToScaffold: true.",
+	"Phase 0 owner — CALL THIS FIRST for any new or resumed module task. Drives the full Phase 0 workflow: 'check' returns current state and exact next steps; 'write_identity' (0a) writes CLAUDE.md; 'write_requirements' (0b) confirms docs/REQUIREMENTS.md (already written to disk by the agent) after user confirms YES and ticks CLAUDE.md; 'write_design' (0c) confirms docs/DESIGN.md (already written to disk by the agent) after user confirms YES and ticks CLAUDE.md; 'validate' (0d) runs pre-scaffold checks and writes docs/VALIDATION.md when all pass. dforge_module_create is blocked until this tool reports readyToScaffold: true.",
 	planModuleSchema,
 	async (args) => {
 		try {

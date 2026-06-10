@@ -10,6 +10,64 @@ const P0 = {
 	validation: "docs/VALIDATION.md",
 } as const;
 
+// docs/DESIGN.md template. Returned to the agent (as `designTemplate`) at the
+// 0b→0c handoff and on the 0c resume path, so the template lives in exactly one
+// place and is delivered just-in-time — instead of sitting permanently in the
+// skill prompt. The section headers (## Entity List / ## Relationship Map /
+// ## Gaps & Proposals) MUST stay in sync with the regexes in runStructuralChecks.
+const DESIGN_TEMPLATE = `# Design Document
+<!-- written after Phase 0c approval — edit with care -->
+
+## Entity List
+<name — one-line purpose, ordered least- to most-dependent>
+
+## Fields per Entity
+### <EntityName>
+<key fields, status values, formulas, number sequences>
+
+## Relationship Map
+<!-- crow's-foot cardinality: ||--o{ = required N:1 (child must have a parent); |o--o{ = optional N:1. One edge per FK; replace names with your entities. -->
+\`\`\`mermaid
+erDiagram
+    parent_entity ||--o{ child_entity : "verb"
+    lookup_entity |o--o{ child_entity : "verb"
+\`\`\`
+
+| Relationship (child FK → parent PK) | Required |
+|-------------------------------------|----------|
+| child_entity.parent_id → parent_entity.id | required |
+| child_entity.lookup_id → lookup_entity.id | optional |
+
+Total FKs: <N>
+
+## Status Machines
+### <EntityName>
+| Status | Transitions via | canExecute guard | Recovery |
+|--------|----------------|-----------------|----------|
+
+## Actions
+| Name | Target Entity | Description | Params |
+|------|--------------|-------------|--------|
+
+## Seed Data
+<entity name — rows needed, in parent-before-child order>
+
+## Number Sequences
+<column → pattern, or "None">
+
+## Reports & Queries
+<report/query name — entity, key columns; or "None">
+
+## Special Behaviors
+<entity — soft-delete? sorting? webhooks? print templates? — or "None">
+
+## Gaps & Proposals
+<findings from the gap detection pass, or omit this section if none>
+
+---
+*Approved: <date>*
+`;
+
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 export const planModuleSchema = {
@@ -52,17 +110,11 @@ export const planModuleSchema = {
 			"[write_identity] Scaffold depth: minimal = entities + views + role; full = + settings + translations + seed-data stubs.",
 		),
 	// ── write_requirements / write_design fields (Phase 0b / 0c) ────────
-	content: z
-		.string()
-		.optional()
-		.describe(
-			"[write_requirements, write_design] Full markdown content of the document being written.",
-		),
 	userConfirmed: z
 		.boolean()
 		.optional()
 		.describe(
-			"[write_requirements, write_design] MUST be true — only set after the user has explicitly confirmed the draft (replied YES / 'looks good' / 'confirmed').",
+			"[write_requirements, write_design] MUST be true — only set after the user has reviewed the on-disk draft (docs/REQUIREMENTS.md / docs/DESIGN.md, already written by you) and explicitly confirmed (replied YES / 'looks good' / 'confirmed').",
 		),
 	// ── validate fields (Phase 0d) ───────────────────────────────────────
 	checkResults: z
@@ -108,8 +160,11 @@ function handleCheck(root: string): unknown {
 	const validationPath = path.join(root, P0.validation);
 
 	const has0a = fileExists(claudePath);
-	const has0b = has0a && fileExists(reqPath);
-	const has0c = has0b && fileExists(designPath);
+	const claudeContent = has0a ? readFile(claudePath) : "";
+	// 0b/0c file existence alone isn't "done" — the agent writes the draft to disk
+	// before the user confirms it, so the CLAUDE.md checklist tick is the source of truth.
+	const has0b = has0a && /- \[x\] \*\*0b\*\*/.test(claudeContent);
+	const has0c = has0b && /- \[x\] \*\*0c\*\*/.test(claudeContent);
 	const has0d =
 		has0c &&
 		fileExists(validationPath) &&
@@ -158,6 +213,19 @@ function handleCheck(root: string): unknown {
 	}
 
 	if (!has0b) {
+		if (fileExists(reqPath)) {
+			return {
+				summary:
+					"Phase 0a complete. A draft docs/REQUIREMENTS.md exists on disk but hasn't been confirmed yet.",
+				currentPhase: "0b",
+				completed,
+				pending,
+				readyToScaffold: false,
+				nextStep:
+					"Read docs/REQUIREMENTS.md. Give the user a short outline (section headings + counts) and gap status (open items, or 'No gaps'), then ask them to review the file and reply YES, or describe what to change. If they request changes, edit docs/REQUIREMENTS.md directly (targeted edits), summarize the change in one line, and ask again. Once they reply YES, call dforge_module_plan({ action: 'write_requirements', moduleDir, userConfirmed: true }).",
+			};
+		}
+
 		return {
 			summary: "Phase 0a complete. Proceed to Phase 0b intake.",
 			currentPhase: "0b",
@@ -173,11 +241,24 @@ function handleCheck(root: string): unknown {
 			followUpNote:
 				"After answers 1-2: ask any domain ambiguity questions that remain open (e.g. 'What counts as a closed item?', 'Can anonymous users submit?'). Continue one at a time until no open questions remain. Dependencies and locales are confirmed from Phase 0a — carry them into REQUIREMENTS.md without re-asking.",
 			writeAction:
-				"Draft REQUIREMENTS.md, show full draft to user, wait for explicit YES ('yes', 'looks good', 'confirmed', 'LGTM'), then call dforge_module_plan({ action: 'write_requirements', moduleDir, content, userConfirmed: true }).",
+				"Draft REQUIREMENTS.md and write it directly to docs/REQUIREMENTS.md on disk (do not paste it into chat). Tell the user it's ready: give a short outline (section headings + counts) and gap status ('No gaps' or a one-line list), then ask them to review and reply YES, or describe what to change. If they request changes, edit the file directly and ask again. Once they reply YES ('yes', 'looks good', 'confirmed', 'LGTM'), call dforge_module_plan({ action: 'write_requirements', moduleDir, userConfirmed: true }).",
 		};
 	}
 
 	if (!has0c) {
+		if (fileExists(designPath)) {
+			return {
+				summary:
+					"Phase 0b complete. A draft docs/DESIGN.md exists on disk but hasn't been confirmed yet.",
+				currentPhase: "0c",
+				completed,
+				pending,
+				readyToScaffold: false,
+				nextStep:
+					"Read docs/DESIGN.md. Give the user a short outline (entity/status-machine counts, section headings) and Gaps & Proposals status (open items, or 'No gaps'), then ask them to review the file and reply YES, or describe what to change. If they request changes, edit docs/DESIGN.md directly (targeted edits), summarize the change in one line, and ask again. Once they reply YES, call dforge_module_plan({ action: 'write_design', moduleDir, userConfirmed: true }).",
+			};
+		}
+
 		return {
 			summary: "Phase 0b complete. Proceed to Phase 0c design.",
 			currentPhase: "0c",
@@ -185,7 +266,8 @@ function handleCheck(root: string): unknown {
 			pending,
 			readyToScaffold: false,
 			nextStep:
-				"Phase 0c — Design. Re-read REQUIREMENTS.md, then draft DESIGN.md with all 8 design items in a single message.",
+				"Phase 0c — Design. Re-read REQUIREMENTS.md, then draft DESIGN.md (use the designTemplate below) with all 8 design items in a single message.",
+			designTemplate: DESIGN_TEMPLATE,
 			designItems: [
 				"1. Entity list (ordered least-dependent → most-dependent, one-line purpose each)",
 				"2. Fields per entity (key fields, status values, lookups, formulas, sequences)",
@@ -199,7 +281,7 @@ function handleCheck(root: string): unknown {
 			gapDetection:
 				"After drafting: run gap detection pass (FK optionality, status recovery, boolean-to-status smell, set aggregation risk, deep navigation, self-referential FK, security coverage, seed data circular refs). Add a 'Gaps & Proposals' section for each issue found. ALL gaps must be resolved before Phase 0d.",
 			writeAction:
-				"Show full DESIGN.md draft to user, wait for explicit YES, then call dforge_module_plan({ action: 'write_design', moduleDir, content, userConfirmed: true }).",
+				"Once gaps are resolved, write docs/DESIGN.md directly to disk (do not paste it into chat). Tell the user it's ready: give a short outline (entity/status-machine counts, section headings) and Gaps & Proposals status ('No gaps' or a one-line summary), then ask them to review and reply YES, or describe what to change. If they request changes, edit the file directly and ask again. Once they reply YES, call dforge_module_plan({ action: 'write_design', moduleDir, userConfirmed: true }).",
 		};
 	}
 
@@ -232,7 +314,7 @@ function handleWriteIdentity(root: string, args: Args): unknown {
 		summary: `Phase 0a complete — CLAUDE.md prepared for module '${code}'.`,
 		files: { [P0.identity]: claudeMd },
 		nextStep:
-			"Write CLAUDE.md to disk. Then start Phase 0b intake: ask the user (1) 'In one sentence, what does this module do?' (2) 'Who will use this, and what does each type DO with it?' — capture as verb-led sentences, not role labels. Ask domain ambiguity follow-ups until no open questions remain. Draft REQUIREMENTS.md, show to user, wait for explicit YES, then call write_requirements.",
+			"Write CLAUDE.md to disk. Then start Phase 0b intake: ask the user (1) 'In one sentence, what does this module do?' (2) 'Who will use this, and what does each type DO with it?' — capture as verb-led sentences, not role labels. Ask domain ambiguity follow-ups until no open questions remain. Draft REQUIREMENTS.md and write it directly to docs/REQUIREMENTS.md on disk, give the user a short outline + gap status, wait for explicit YES, then call write_requirements with userConfirmed: true.",
 	};
 }
 
@@ -272,7 +354,7 @@ function buildClaudeMd(opts: {
 - [ ] **0d** Validation — \`docs/VALIDATION.md\`
 - [ ] **1** Scaffolded — \`manifest.json\`
 
-**Next step:** Phase 0b — run intake questions (purpose, user types, domain ambiguities), draft \`docs/REQUIREMENTS.md\`, get explicit user YES, then call \`dforge_module_plan({ action: "write_requirements", ... })\`.
+**Next step:** Phase 0b — run intake questions (purpose, user types, domain ambiguities), draft \`docs/REQUIREMENTS.md\` and write it to disk, get explicit user YES, then call \`dforge_module_plan({ action: "write_requirements", moduleDir, userConfirmed: true })\`.
 
 ## Pack and install (after Phase 0 complete)
 
@@ -286,12 +368,14 @@ dforge_module_install({ moduleDir: "${root}" })
 // ─── write_requirements ───────────────────────────────────────────────────────
 
 function handleWriteRequirements(root: string, args: Args): unknown {
+	const reqPath = path.join(root, P0.requirements);
+	assertDocReady(reqPath, P0.requirements);
+
 	if (!args.userConfirmed) {
 		throw new Error(
-			'User confirmation required — show the REQUIREMENTS.md draft to the user and wait for an explicit YES ("yes", "looks good", "confirmed", "LGTM", or equivalent) before calling write_requirements.',
+			'User confirmation required — ask the user to review docs/REQUIREMENTS.md (already written to disk) and wait for an explicit YES ("yes", "looks good", "confirmed", "LGTM", or equivalent) before calling write_requirements with userConfirmed: true.',
 		);
 	}
-	if (!args.content) throw new Error("content is required for write_requirements.");
 
 	const claudePath = path.join(root, P0.identity);
 	if (!fileExists(claudePath)) {
@@ -301,29 +385,31 @@ function handleWriteRequirements(root: string, args: Args): unknown {
 	const updatedClaude = tickChecklist(
 		readFile(claudePath),
 		"0b",
-		'Phase 0c — draft `docs/DESIGN.md` (8 design items + gap detection pass), get explicit user YES, then call `dforge_module_plan({ action: "write_design", ... })`.',
+		'Phase 0c — design docs/DESIGN.md (8 design items + gap detection pass), write it to disk, get explicit user YES, then call `dforge_module_plan({ action: "write_design", moduleDir, userConfirmed: true })`.',
 	);
 
 	return {
-		summary: "Phase 0b complete — REQUIREMENTS.md prepared.",
+		summary: "Phase 0b complete — docs/REQUIREMENTS.md confirmed.",
 		files: {
 			[P0.identity]: updatedClaude,
-			[P0.requirements]: args.content,
 		},
+		designTemplate: DESIGN_TEMPLATE,
 		nextStep:
-			"Write both files to disk. Now draft DESIGN.md with 8 design items: entity list, fields per entity, relationship map, status machines, actions, seed data, reports, special behaviors. Run gap detection pass, add Gaps & Proposals section, resolve all gaps. Show full draft to user, wait for explicit YES, then call write_design.",
+			"Write the updated CLAUDE.md to disk. Now design DESIGN.md using the designTemplate above: 8 design items (entity list, fields per entity, relationship map, status machines, actions, seed data, reports, special behaviors). Run gap detection pass, add Gaps & Proposals section, resolve all gaps. Write docs/DESIGN.md to disk, give the user a short outline (entity/status-machine counts, section headings) plus Gaps & Proposals status, wait for explicit YES, then call write_design with userConfirmed: true.",
 	};
 }
 
 // ─── write_design ─────────────────────────────────────────────────────────────
 
 function handleWriteDesign(root: string, args: Args): unknown {
+	const designPath = path.join(root, P0.design);
+	assertDocReady(designPath, P0.design);
+
 	if (!args.userConfirmed) {
 		throw new Error(
-			"User confirmation required — show the DESIGN.md draft to the user and wait for an explicit YES before calling write_design. Ensure all Gaps & Proposals items are resolved.",
+			"User confirmation required — ask the user to review docs/DESIGN.md (already written to disk, including the Gaps & Proposals section) and wait for an explicit YES before calling write_design with userConfirmed: true. Ensure all Gaps & Proposals items are resolved.",
 		);
 	}
-	if (!args.content) throw new Error("content is required for write_design.");
 
 	const claudePath = path.join(root, P0.identity);
 	if (!fileExists(claudePath)) throw new Error("CLAUDE.md not found — complete Phase 0a first.");
@@ -338,13 +424,12 @@ function handleWriteDesign(root: string, args: Args): unknown {
 	);
 
 	return {
-		summary: "Phase 0c complete — DESIGN.md prepared.",
+		summary: "Phase 0c complete — docs/DESIGN.md confirmed.",
 		files: {
 			[P0.identity]: updatedClaude,
-			[P0.design]: args.content,
 		},
 		nextStep:
-			"Write both files to disk. Now run Phase 0d validation: call dforge_module_plan({ action: 'validate', moduleDir }) for the structural pre-check, evaluate the returned semantic checks, then call validate again with all checkResults.",
+			"Write the updated CLAUDE.md to disk. Now run Phase 0d validation: call dforge_module_plan({ action: 'validate', moduleDir }) for the structural pre-check, evaluate the returned semantic checks, then call validate again with all checkResults.",
 	};
 }
 
@@ -542,22 +627,13 @@ function handleValidate(root: string, args: Args): unknown {
 			};
 		}
 
-		const claudePath = path.join(root, P0.identity);
-		const reqPath = path.join(root, P0.requirements);
-		const designPath = path.join(root, P0.design);
-
 		return {
 			summary:
-				"Structural checks passed. Evaluate the semantic checks below against the document content, then call validate with checkResults.",
+				"Structural checks passed. Evaluate the semantic checks below against the Phase 0 docs, then call validate with checkResults.",
 			structuralChecks: structuralResults,
-			docsContent: {
-				"CLAUDE.md": readFile(claudePath),
-				"docs/REQUIREMENTS.md": readFile(reqPath),
-				"docs/DESIGN.md": readFile(designPath),
-			},
 			semanticChecks: SEMANTIC_CHECK_DESCRIPTIONS,
 			nextStep:
-				"Read the docs content above. Evaluate each of the 7 semantic checks. Then call dforge_module_plan({ action: 'validate', moduleDir, checkResults: [...] }) with your results for all 7 checks.",
+				"Evaluate each semantic check against the Phase 0 docs — read docs/REQUIREMENTS.md and docs/DESIGN.md from disk (and CLAUDE.md) if they aren't already in your context — then call dforge_module_plan({ action: 'validate', moduleDir, checkResults: [...] }) with your results for all 7 checks.",
 		};
 	}
 
@@ -629,6 +705,19 @@ function fileExists(absPath: string): boolean {
 
 function readFile(absPath: string): string {
 	return fs.readFileSync(absPath, "utf8");
+}
+
+function assertDocReady(absPath: string, relPath: string): void {
+	if (!fileExists(absPath)) {
+		throw new Error(
+			`${relPath} not found — write the draft to disk first (using your file-write tool), then ask the user to review it before calling this action with userConfirmed: true.`,
+		);
+	}
+	if (readFile(absPath).trim().length < 100) {
+		throw new Error(
+			`${relPath} appears empty or too short (under 100 chars) — write the full draft to disk first.`,
+		);
+	}
 }
 
 function tickChecklist(claudeMd: string, phase: "0b" | "0c" | "0d", nextStep: string): string {

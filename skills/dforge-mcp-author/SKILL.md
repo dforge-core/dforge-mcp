@@ -21,7 +21,7 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 
 | Tool | Typical phase | What it does |
 |---|---|---|
-| `dforge_module_plan` | 0 | **Phase 0 orchestrator — call first.** Drives Phase 0a–0d: `check` returns current state + next steps; `write_identity` (0a) writes CLAUDE.md; `write_requirements` (0b) writes REQUIREMENTS.md after user YES; `write_design` (0c) writes DESIGN.md after user YES; `validate` (0d) runs checks + writes VALIDATION.md. `readyToScaffold: true` unlocks `dforge_module_create`. |
+| `dforge_module_plan` | 0 | **Phase 0 orchestrator — call first.** Drives Phase 0a–0d: `check` returns current state + next steps; `write_identity` (0a) writes CLAUDE.md; `write_requirements` (0b) confirms REQUIREMENTS.md (which you write to disk yourself) after user YES and ticks CLAUDE.md; `write_design` (0c) confirms DESIGN.md (which you write to disk yourself) after user YES and ticks CLAUDE.md; `validate` (0d) runs checks + writes VALIDATION.md. `readyToScaffold: true` unlocks `dforge_module_create`. |
 | `dforge_module_inspect` | any | Read current module state. **Read-only** — output does NOT require user confirmation. The one-line `summary` is for the user; the full structured state lives in `files["_inspect.json"]` (entities + their fields, views + their data sources, roles + rights matrix, actions, reports, settings, folders tree). Parse `_inspect.json` before planning patches — don't rely on summary text alone. |
 | `dforge_module_create` | 1 | Scaffold a new module — **blocked until Phase 0d passes** (all four Phase 0 docs written + validated) |
 | `dforge_entity_add` | 1 | Add a whole entity to an existing module |
@@ -45,40 +45,40 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 
 **Phase 0 (0a–0d) is owned by `dforge_module_plan`.** Call `dforge_module_plan({ action: "check", moduleDir })` to start or resume Phase 0. The tool returns the current state and exact next steps. Do not call `dforge_module_create` until the tool reports `readyToScaffold: true` — the tool enforces this gate programmatically.
 
-## Resources to load once per session
+## Loading policy — lazy, reference-first
 
-- `dforge://docs/conventions` — naming, FK+Reference pattern, traits, security model
-- `dforge://schema/manifest`, `entity`, `data-views`, `folders`, `menus`, `roles`, `reports`, `settings`, `jobs`, `triggers`, `webhooks`, `seed-data` — consult before emitting each file kind
+**Load nothing up front beyond this skill.** There is no session-start resource load. Pull material only at the step that needs it, and only what that step requires — this is what keeps a full scaffold inside one context window.
 
-**If a resource fails to load, halt and notify the user.** Do not invent conventions or schemas from memory.
+- **References and examples are MCP resources — load them by URI, not by filesystem path.** Each per-element reference is `dforge://reference/<name>` and each example file is `dforge://example/<path>` (e.g. `dforge://reference/flags`, `dforge://example/entities/todo_item.json`). These resolve from the server regardless of your working directory — do NOT try to `Read` a `references/*.md` path off disk; your CWD is the module dir, not the skill dir, so that path won't exist. Use the resource.
+- **One reference per step.** The `dforge://reference/<name>` in the table below is your primary source — it carries the schema shape, a worked example, and the common-mistakes list. Load it (plus the `dforge://example/...` file in the same row) before authoring that element type, and re-load it on every backtrack into that type. The example files are mandatory structure validators; never work from memory for schema shapes, flags, or column-type patterns.
+- **Schemas are fallback, not default.** Load a `dforge://schema/*` (or `dforge://docs/dsl`) resource only when the **Also load** column names one, or when a reference explicitly points you to its schema for a shape it doesn't fully specify.
+- **`dforge://docs/conventions` is not loaded by default** — per-element references cover the same ground. Load it only for cross-module **extension / bridge** work (its §1b is the one topic with no dedicated reference).
+- **Halt per load.** If a reference or schema you actually need fails to load, stop and notify the user — do not invent conventions or schemas from memory.
 
-## Reference files — mandatory per-step pre-reads
-
-This skill ships with detailed reference files in `references/` and a complete example module in `examples/simple-todo/`. **Before starting work on any element, you MUST read the matching reference file(s) AND the relevant example file(s) from the table below.** Working from memory produces broken modules. Load only what the current step requires — do not dump everything up front.
-
-| When you need to… | Load |
-|---|---|
-| Add any field | `references/field-types.md`, `references/flags.md`, `examples/simple-todo/entities/todo_item.json` |
-| Add a Reference or Set column | `references/column-types.md` (FK+Reference pattern), `examples/simple-todo/entities/todo_item.json` |
-| Add a formula column | `references/formulas.md` |
-| Add a trait | `references/traits.md` |
-| Add a data view | `references/data-views.md`, `examples/simple-todo/ui/data_views.json` |
-| Add a menu | `references/menus.md`, `examples/simple-todo/ui/menus.json` |
-| Add any action (DSL body or `ui/actions.json` registration) | `references/action-dsl.md` (DSL grammar + §"Registering the action" for `ui/actions.json` schema), `examples/simple-todo/logic/actions/mark_done.dsl`, `examples/simple-todo/ui/actions.json` |
-| Add filters (views, folders, reports) | `references/filters.md` |
-| Add security roles or folders | `references/security.md`, `references/filters.md`, `examples/simple-todo/security/roles.json` |
-| Add a scheduled job | `references/jobs.md` |
-| Add a print template | `references/print-templates.md` |
-| Add translations | `references/translations.md` |
-| Add a number sequence | `references/number-sequences.md` |
-| Add module settings | `references/settings.md` |
-| Add pre-built saved queries | `references/queries.md` |
-| Add reports | `references/reports.md` |
-| Import from DBML/SQL | `references/schema-import.md` |
-| Migrate from a legacy database | `references/data-migration.md` |
-| Final pre-pack validation | `references/validation-checklist.md` |
-
-For examples of correct patterns (FK+Reference, set columns, traits, views, menus, seed data), read `examples/simple-todo/`.
+| When you need to… | Load (primary reference + example) | Also load (schema / doc) |
+|---|---|---|
+| Add any field | `dforge://reference/field-types`, `dforge://reference/flags`, `dforge://example/entities/todo_item.json` | — |
+| Add a Reference or Set column | `dforge://reference/column-types` (FK+Reference pattern), `dforge://example/entities/todo_item.json` | — |
+| Add a formula column | `dforge://reference/formulas` | — |
+| Add a trait | `dforge://reference/traits` | — |
+| Add a data view (grid / list) | `dforge://reference/data-views`, `dforge://example/ui/data_views.json` | — |
+| Add a specialized view (kanban / calendar / tree-grid / master-detail) | `dforge://reference/data-views` | `dforge://schema/data-views` (viewConfig shape) |
+| Add a menu | `dforge://reference/menus`, `dforge://example/ui/menus.json` | — |
+| Add an action (DSL body + `ui/actions.json` registration) | `dforge://reference/action-dsl` (grammar + §"Registering the action"), `dforge://example/logic/actions/mark_done.dsl`, `dforge://example/ui/actions.json` | `dforge://docs/dsl` (full grammar + built-ins) |
+| Add a trigger (DB-event → action) | — (no dedicated reference) | `dforge://schema/triggers`; trigger-condition syntax in `dforge://docs/dsl` |
+| Add a scheduled job | `dforge://reference/jobs` | `dforge://schema/jobs` |
+| Add a webhook (outbound HTTP) | — (no dedicated reference) | `dforge://schema/webhooks` |
+| Add filters (views, folders, reports) | `dforge://reference/filters` | — |
+| Add security roles or folders | `dforge://reference/security`, `dforge://reference/filters`, `dforge://example/security/roles.json` | — |
+| Add a report | `dforge://reference/reports` | `dforge://schema/reports` |
+| Add a print template | `dforge://reference/print-templates` | — |
+| Add translations | `dforge://reference/translations` | — |
+| Add a number sequence | `dforge://reference/number-sequences` | — |
+| Add module settings | `dforge://reference/settings` | — |
+| Add pre-built saved queries | `dforge://reference/queries` | — |
+| Import from DBML/SQL | `dforge://reference/schema-import` | — |
+| Migrate from a legacy database | `dforge://reference/data-migration` | — |
+| Final pre-pack validation | `dforge://reference/validation-checklist` | — |
 
 ## Hard rules
 
@@ -93,26 +93,26 @@ These are absolute. When a phase instruction appears to conflict, the hard rule 
 5. **Tabs in JSON, trailing newline** — tools already emit this; don't reformat.
 6. **Don't invent fields, codes, roles, or relationships** — they come from the user's domain. If the user said "we have submitters and admins", roles are derived from that; do NOT default to a fixed "admin/contributor/viewer" taxonomy or any other generic set the user didn't ask for.
 7. **A step is "done" only when its file is written AND reviewed.** Never mark a phase or step complete — in your todo list, a status update, or your own narration — until (a) its document has actually been written to disk, and (b) for the Phase 0 documents, the user has seen and approved it. Deciding what you *would* write is not "done". Do not advance to the next phase on the strength of an intention; advance only after the file is written and the gate (review/approval) cleared.
-8. **Load references AND examples before each element type.** Before scaffolding or modifying any element (field, view, menu, action, role, folder, job, etc.), you MUST: (a) read the corresponding `references/*.md` file(s) per the "Reference files" table, AND (b) read the matching example file(s) from `examples/simple-todo/` listed in that same table. The example files are mandatory structure validators — common mistakes (wrong key names, missing required properties, invalid nesting) only surface when the agent cross-checks the actual working file, not just the prose reference. This applies inside backtracks too — re-read both the reference and the example for the element being patched. Never work from memory for schema shapes, flag combinations, or column-type patterns.
+8. **Load before authoring.** Load the matching `dforge://reference/<name>` + `dforge://example/<path>` resources (per the Loading policy table) before scaffolding or modifying any element — fields, views, menus, actions, roles, jobs, etc. — including inside backtracks. They're MCP resources (load by URI, not by disk path). The example files are mandatory structure validators; never work from memory for schema shapes, flags, or column-type patterns.
 
 ## Core rules (violations produce invalid modules)
 
-Always-on guardrails. Load the matching `references/*.md` (per the table above) for detail; never violate these inline:
+Always-on cheat-sheet — enough to author inline; load the linked `references/*.md` for full detail:
 
-- **Naming.** Module `code`, entity `dbObject` keys, and column keys are all `snake_case` (entities singular, e.g. `opportunity_line`), case-sensitive. `code` becomes the DB schema name.
-- **FK + Reference = two columns** (the single biggest source of broken modules): a hidden FK column (`flags: "EM"`, `dbDatatype` matching the target PK — usually `cuid`/`int` — no `fieldTypeCd`) **and** a visible Reference column (`columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, `link: {entity, thisKey, otherKey}`), plus the FK in the `references` block. Never one column that is both. → `column-types.md`
-- **Flags** are letters from `V I E M H` only (no `U`/`S`/`P`): `VEM`=required+visible, `VE`=optional+visible, `V`=read-only, `EM`=hidden FK, `I`=trait-provided. → `flags.md`
-- **Field types.** `fieldTypeCd` = UI control, `dbDatatype` = SQL type. Frequent fixes: `number` not `integer`, `phone` not `phoneNumber`, `date` not `datePicker`, `timestamptz` not `datetime`, `bool` not `boolean`, `varchar`/`text` not `string`. → `field-types.md`
-- **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, **no** `dbDatatype`, `flags: "V"`. → `formulas.md`
-- **Traits:** default `["identity", "audit"]`; use `audit-full` only when the user explicitly asks for user tracking (it forces NOT NULL `created_by`/`last_updated_by` in every seed row). → `traits.md`
-- **`toString`:** every entity needs one, using `{column}` braces, e.g. `"{first_name} {last_name}"`.
+- **Naming.** `code`, entity `dbObject` keys, column keys all `snake_case`, case-sensitive, entities singular (`opportunity_line`). `code` = DB schema name.
+- **FK + Reference = two columns** (the #1 source of broken modules): hidden FK (`flags: "EM"`, `dbDatatype` = target PK type, no `fieldTypeCd`) **plus** visible Reference (`columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, `link: {entity, thisKey, otherKey}`), plus the FK in `references`. Never one column that is both. → `column-types.md`
+- **Flags** = letters from `V I E M H` only (no `U`/`S`/`P`): `VEM` required+visible, `VE` optional+visible, `V` read-only, `EM` hidden FK, `I` trait-provided. → `flags.md`
+- **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type. Common fixes: `number` not `integer`, `phone` not `phoneNumber`, `date` not `datePicker`, `timestamptz` not `datetime`, `bool` not `boolean`, `varchar`/`text` not `string`. → `field-types.md`
+- **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, no `dbDatatype`, `flags: "V"`. → `formulas.md`
+- **Traits:** default `["identity", "audit"]`; `audit-full` only when the user asks for user tracking. → `traits.md`
+- **`toString`:** every entity needs one, `{column}` braces, e.g. `"{first_name} {last_name}"`.
 - **Data views:** `dataSources` array at root — never root-level `entityCode` + `columns`. → `data-views.md`
-- **Menus:** leaf items use `dataViewCode` (not `viewCode`); section nodes omit `itemType`; icons are Bootstrap names without the `bi-` prefix. → `menus.md`
-- **Security roles:** use `rights` (not `entityRights`); entity letters `SIUDC`, actions/reports/folders `E`. → `security.md`
-- **Action script** in `ui/actions.json` is the bare filename — no path, no `.dsl` (resolves to `logic/actions/<script>.dsl`).
-- **SQL placeholders** are `@paramName` (not `:paramName`).
-- **Manifest:** `translations` is a locale-keyed object (not an array); `security` includes both `roles` and `folders`. → `manifest.md`
-- **Seed data:** explicit **numeric** PKs (`cuid` is `int8`, not a UUID string); parents before children via numeric file prefix (`01-`, `02-`).
+- **Menus:** leaf items use `dataViewCode` (not `viewCode`); section nodes omit `itemType`; icons are Bootstrap names sans `bi-`. → `menus.md`
+- **Security roles:** `rights` (not `entityRights`); entities `SIUDC`, actions/reports/folders `E`. → `security.md`
+- **Action script** in `ui/actions.json` = bare filename (no path, no `.dsl`).
+- **SQL placeholders** = `@paramName` (not `:paramName`).
+- **Manifest:** `translations` is a locale-keyed object (not array); `security` has both `roles` and `folders`. → `manifest.md`
+- **Seed data:** explicit numeric PKs (`cuid` is `int8`, not a UUID); parents before children via numeric prefix (`01-`, `02-`).
 
 ## Tool failure protocol
 
@@ -130,10 +130,7 @@ Two specific tool errors have known causes worth distinguishing:
 
 ## Resume-from-partial-state
 
-At every session start:
-
-1. **Load resources.** Load `dforge://docs/conventions` and all `dforge://schema/*` resources listed in "Resources to load once per session." If any resource fails to load, halt immediately and notify the user before doing anything else.
-2. **Inspect module state.** Call `dforge_module_inspect` on the module dir (if the user has specified one).
+At every session start, **inspect** the module: call `dforge_module_inspect` on the module dir (if the user has specified one). Loading is otherwise lazy (see Loading policy) — do **not** bulk-load resources or schemas up front.
 
 Phase 0 progress is tracked by **which artifact files exist on disk**. Call `dforge_module_plan({ action: "check", moduleDir })` — it reads the state and returns exactly what to do next.
 
@@ -145,209 +142,41 @@ Phase 0 progress is tracked by **which artifact files exist on disk**. Call `dfo
   4. Summarize: "Found module `<code>` v`<version>`. Looks like Phase N was the last completed phase. Resume from Phase N+1, or revisit an earlier phase?"
   5. Wait for the user's answer before proceeding.
 
-## Phase 0a — Module Identity (required)
+## Phase 0 — owned by `dforge_module_plan`
 
-**Owned by `dforge_module_plan`.** The `check` action returns the 5 identity questions to ask the user ONE AT A TIME (display name, code, dependencies, locales, scaffold preset). After each answer, apply the validate-and-reflect rule (hard rule #4).
+Phase 0 (0a identity → 0b intake → 0c design → 0d validation) is driven entirely by the tool. **Call `dforge_module_plan({ action: "check", moduleDir })` and follow the fields it returns** — `questions` (ask ONE at a time), `designItems`, `designTemplate`, `gapDetection`, `semanticChecks`, and `nextStep`/`writeAction`. The tool is the source of truth for those lists; don't re-derive or re-enumerate them here. After every user answer, apply the validate-and-reflect rule (hard rule #4).
 
-Once all answers are collected, call:
+The loop the tool walks you through:
+
+| Sub-phase | You do | Then call |
+|---|---|---|
+| 0a Identity | ask the 5 returned questions one at a time | `write_identity` → write the returned `CLAUDE.md` to disk |
+| 0b Intake | ask the returned questions (free-form prose — see guardrails below); write `docs/REQUIREMENTS.md` to disk; get explicit YES | `write_requirements { userConfirmed: true }` |
+| 0c Design | draft `docs/DESIGN.md` from the returned `designTemplate`, covering the 8 `designItems`; run the gap detection the tool lists; write to disk; get explicit YES | `write_design { userConfirmed: true }` |
+| 0d Validate | `validate` (structural) → evaluate the returned `semanticChecks` against the docs (read them from disk) → `validate` again with `checkResults` | unlocks `readyToScaffold: true` |
+
+**Document-write ordering (exception to hard rule #1):** for REQUIREMENTS.md and DESIGN.md you write the file to disk *first*, then ask the user to review it and reply YES — do not paste the full document into chat. On change requests, edit the file directly (targeted edits) and re-ask until confirmed. `dforge_module_create` stays gated at the tool level until `readyToScaffold: true`.
+
+### 0b intake — guardrails the tool can't enforce
+
+**Free-form prose only — no pickers.** Ask every 0b question as a plain sentence. Do **NOT** use `AskUserQuestion`, picker UIs, multiple-choice tabs, or any predefined-option tool — predefined buckets bias the answer into your taxonomy and lose the verbs Phase 5 needs. Resume normal tool use in Phase 1+. Forbidden picker variants that have leaked before: "Single role / Two roles / Three+ roles"; "admin / manager / user / viewer".
+
+**Capture user types as verb-form sentences, never role labels.** Write each as `<descriptor of the person> <verb phrase>`:
+
+✅ Good:
 ```
-dforge_module_plan({ action: "write_identity", moduleDir, displayName, code, dependencies, locales, preset })
+- Anyone in the company submits purchase requests and tracks their own.
+- Department managers approve or reject pending requests for their team.
+- Buyers in procurement manage suppliers, collect quotes, and issue purchase orders.
 ```
-The tool writes `CLAUDE.md` with the identity table, Phase 0 checklist (0a ticked), and pack/install reference. Write the returned file to disk.
-
-**Exit criteria:** `write_identity` returned success; `CLAUDE.md` written to disk.
-
-## Phase 0b — Intake (required)
-
-**Preconditions:** Phase 0a complete — module identity confirmed, `CLAUDE.md` written.
-
-**Action:** Walk through the questions below **one at a time, in sequence**. After each answer, apply the validate-and-reflect rule (hard rule #4): restate what you understood, confirm, then proceed to the next question. Each subsequent question is informed by prior answers — don't ask Q2 in a way that contradicts what Q1 established. Don't batch.
-
-**Interaction style — free-form prose only.** Every question in Phase 0b is asked as a plain-language sentence in your conversation message. Do **NOT** use `AskUserQuestion`, picker UIs, multiple-choice tabs, structured forms, or any tool that presents the user with predefined options to choose from. The whole point of Phase 0b is to elicit the user's own words about purpose, user types, and verbs — predefined buckets bias the answer into your taxonomy and lose the verbs we need for Phase 5. If your client offers a picker tool, suppress it for Phase 0b; resume normal tool use in Phase 1+.
-
-**Forbidden picker examples that have leaked in past sessions** (do not present any variant of these):
-- "Single role / Two roles / Three+ roles" — predetermines security shape before entities exist
-- "admin / manager / user / viewer" or "admin / contributor / viewer" — imposes a generic taxonomy
-
-**Exception:** if the user explicitly says "give me defaults" / "pick reasonable defaults" / similar, you may propose a default brief in one block, restate it, and ask "any to override?". Otherwise, sequential free-form text only.
-
-**Question order** (use the wording in your own voice):
-
-1. **Purpose.** "In one sentence, what does this module do?"
-   Reflect: "OK — so it's a `<paraphrase>`. Right?" → wait.
-
-2. **User types and verbs** — capture in plain language. "Who'll use this, and what does each type DO with it?" Listen for verbs that imply actions on data: submits, approves, reviews, issues, receives, matches, closes, etc.
-
-   **Capture format — full verb-form sentences, not role labels.** Write each as `<descriptor of the person> <verb phrase>`. Never use role-noun labels (Requester, Manager, Buyer, Admin, Approver, Viewer, Contributor, AP Clerk, etc.) as the bullet head — those are role NAMES which prematurely commit to a security taxonomy.
-
-   ✅ Good:
-   ```
-   - Anyone in the company submits purchase requests and tracks their own.
-   - Department managers approve or reject pending requests for their team.
-   - Buyers in the procurement team manage suppliers, collect quotes, and issue purchase orders.
-   - Warehouse staff confirm what physically arrived against the PO.
-   - Accounts payable staff match supplier bills against the PO and receipt, then approve for payment.
-   ```
-
-   ❌ Bad (role labels as headings):
-   ```
-   - **Requester** — submits purchase requests
-   - **Approver** — approves pending requests
-   - **Buyer** — manages suppliers
-   - **AP Clerk** — matches bills
-   ```
-   The bad form trades situational verbs for fixed nouns and biases Phase 5 toward exactly those roles. Phase 5 might consolidate (e.g. one role covers both warehouse and AP) or split — that's Phase 5's job.
-
-   Example missing verbs: "admins and users" — push back: "What does an admin do that a user can't?"
-   Reflect: "So users are: `<bullets>`. Right?" → wait.
-
-   **Hard forbidden in Phase 0b:** do NOT emit role codes (`<code>.admin`, `<code>.requester`, etc.), do NOT use role-noun labels as bullet heads, do NOT propose a rights matrix, do NOT add a "Target user roles" section to the brief. Roles are derived from entities + verbs in Phase 5, and **entities don't exist yet**.
-
-3. **Optional follow-up — domain ambiguities.** If anything in answers 1-2 left an open question (e.g. "what counts as a 'closed' feedback item?", "is the submitter always a logged-in user or also anonymous?"), ask that question now, one at a time. Continue until you can describe how the module should work without any open questions in your head. **Goal of Phase 0b: you understand the module well enough to design entities in Phase 1 without further clarification.**
-
-Dependencies and locales were already confirmed in Phase 0a — carry them into the brief without re-asking.
-
-**Forbidden sections:** any roles table, any entity proposal (entities are Phase 1's deliverable). If you find yourself drafting a "Target user roles" table — stop and replace it with the verb-only bullet list.
-
-**Requirements gap scan** — before drafting `docs/REQUIREMENTS.md`, run these checks and surface findings inline (one block, format: "**Gap:** … **Proposal:** … Confirm or change?"):
-
-- **Approval recovery**: if any process involves approve/reject, is rejection terminal or re-submittable?
-- **Audit depth vs. personas**: if any user type is an approver/reviewer/manager, `audit-full` is likely needed — flag if "timestamps only" was chosen.
-- **Integration entity codes**: confirm exact `module.entity` codes if integrations are mentioned.
-- **Implied entities**: if a process implies an entity not yet named, flag the gap.
-- **Scale → sequence length**: if the domain implies reference numbers, propose a sequence pattern.
-
-**Draft `docs/REQUIREMENTS.md`**, show it in full, wait for explicit YES, then call:
+❌ Bad (role-noun headings bias Phase 5 toward exactly those roles):
 ```
-dforge_module_plan({ action: "write_requirements", moduleDir, content: "<full markdown>", userConfirmed: true })
+- **Requester** — submits purchase requests
+- **Approver** — approves pending requests
 ```
-The tool writes `docs/REQUIREMENTS.md` and ticks 0b in CLAUDE.md. Write the returned files to disk.
+Push back on verb-less answers ("admins and users" → "What does an admin do that a user can't?"). **Hard forbidden in 0b:** role codes (`<code>.admin`), role-noun bullet heads, a rights matrix, or a "Target user roles" section — roles are derived from entities + verbs in Phase 5, and entities don't exist yet.
 
-## Phase 0c — Schema Design (required)
-
-**Preconditions:** Phase 0b complete, `docs/REQUIREMENTS.md` written, **and the user has explicitly confirmed it**. Do not begin Phase 0c until the requirements file is written and confirmed — this is a hard block, not a suggestion.
-
-**Action:** produce a structured design outline — **readable prose and tables, not JSON yet**. If the user already provided entity names, fields, or relationships in their opening message, incorporate that material directly rather than designing from scratch — treat provided information as confirmed and flag only gaps or additions you are proposing.
-
-**Eight design items** (present all in one message, in this order):
-
-1. **Entity list** — each entity's name and one-line purpose, ordered least-dependent → most-dependent (lookup tables first, line items last).
-2. **Fields per entity** — key fields, status dropdown values (all options), required lookups/references, formula columns, number-sequence columns (e.g. `invoice_number → INV-{yyyy}-{seq:4}`).
-3. **Relationship map** — a Mermaid `erDiagram` of every entity and its N:1 FKs, plus a compact FK table (`child.fk_col → parent.pk_col`, required/optional). Count the total.
-4. **Status machines** — for every entity with a `status` field: all values, which action transitions each, `canExecute` guard expression, recovery path (re-submittable or terminal).
-5. **Actions** — name, target entity, what it does, any params the user must fill in.
-6. **Seed data** — which entities need initial rows and what records (with explicit numeric PKs), in parent-before-child order.
-7. **Reports & queries** — any aggregate reports, saved query shortcuts, or print templates (list each with entity/dataset and key columns, or "None").
-8. **Special behaviors** — per entity: soft-delete/archiving, manual ordering (`sorting` trait), outbound webhooks, print templates.
-
-**Gap detection pass** — after drafting all eight items, scan for the following issues. Add a "## Gaps & Proposals" section in `docs/DESIGN.md` for every gap found (format: "**Gap:** … **Proposal:** … Confirm or change?"). If no gaps, omit the section.
-
-- **FK optionality**: a required FK with no seed data for its target causes the first insert to fail — flag it.
-- **Status machine recovery**: for any rejected/failed/cancelled state, document whether the record is re-submittable or terminal. Add a "Recovery" column to the status table.
-- **Boolean-to-status smell**: if an entity has 2+ boolean fields (e.g. `is_active`, `is_approved`), flag that these may belong in a single `status` dropdown.
-- **Set aggregation risk**: any formula using `SUM([set].[field])` → mark `⚠ version-dependent` and ask the user to confirm their dForge version supports it.
-- **Deep navigation (async formulas)**: any formula with 2+ dot hops (e.g. `[department].[manager].[email]`) is async and may appear stale on initial page load — propose a denormalized field instead.
-- **Self-referential FK**: if an entity references itself, confirm the column is nullable and the seed data has no cycles.
-- **Security coverage**: verify every entity appears in at least one role with Insert (`I`) rights. List any entity reachable by no role's Insert right as a gap.
-- **Seed data circular references**: if entity A needs a FK to B in seed data and B needs a FK to A, one FK must be nullable and set in a second-pass update — flag which FK to make nullable.
-
-**Write `docs/DESIGN.md`** using this template:
-
-````markdown
-# Design Document
-<!-- written after Phase 0c approval — edit with care -->
-
-## Entity List
-<name — one-line purpose, ordered least- to most-dependent>
-
-## Fields per Entity
-### <EntityName>
-<key fields, status values, formulas, number sequences>
-
-## Relationship Map
-<!-- crow's-foot cardinality: ||--o{ = required N:1 (child must have a parent); |o--o{ = optional N:1. One edge per FK; replace names with your entities. -->
-```mermaid
-erDiagram
-    parent_entity ||--o{ child_entity : "verb"
-    lookup_entity |o--o{ child_entity : "verb"
-```
-
-| Relationship (child FK → parent PK) | Required |
-|-------------------------------------|----------|
-| child_entity.parent_id → parent_entity.id | required |
-| child_entity.lookup_id → lookup_entity.id | optional |
-
-Total FKs: <N>
-
-## Status Machines
-### <EntityName>
-| Status | Transitions via | canExecute guard | Recovery |
-|--------|----------------|-----------------|----------|
-
-## Actions
-| Name | Target Entity | Description | Params |
-|------|--------------|-------------|--------|
-
-## Seed Data
-<entity name — rows needed, in parent-before-child order>
-
-## Number Sequences
-<column → pattern, or "None">
-
-## Reports & Queries
-<report/query name — entity, key columns; or "None">
-
-## Special Behaviors
-<entity — soft-delete? sorting? webhooks? print templates? — or "None">
-
-## Gaps & Proposals
-<findings from the gap detection pass, or omit this section if none>
-
----
-*Approved: <date>*
-````
-
-**Confirmation gate — DESIGN.md (blocking):** Output the entire draft `docs/DESIGN.md` in full. End with: "Please review this design document. Reply **YES** to confirm it is correct, or describe what to change."
-
-- Do NOT proceed until the user replies with explicit confirmation ("yes", "looks good", "confirmed", "LGTM", or equivalent).
-- If they request changes: apply them, re-output the full updated document, and ask again. Repeat until confirmed.
-- Once confirmed, call:
-  ```
-  dforge_module_plan({ action: "write_design", moduleDir, content: "<full markdown>", userConfirmed: true })
-  ```
-  The tool writes `docs/DESIGN.md` and ticks 0c in CLAUDE.md. Write the returned files to disk. Phase 0d follows.
-
-## Phase 0d — Pre-Scaffold Verification (required)
-
-**Preconditions:** Phases 0a, 0b, 0c complete.
-
-**Action:** Call `dforge_module_plan({ action: "validate", moduleDir })`. The tool runs structural checks (docs present, identity consistency, relationship completeness, gap resolution) and returns:
-- Either: failures to fix + instructions — fix the docs and call `validate` again.
-- Or: structural checks pass + document content + 7 semantic check descriptions to evaluate.
-
-Evaluate the 7 semantic checks below against the returned document content, then call:
-```
-dforge_module_plan({ action: "validate", moduleDir, checkResults: [...] })
-```
-with results for all 7 checks. If all 11 pass, the tool writes `docs/VALIDATION.md` with `readyToScaffold: true` and ticks 0d.
-
-**The 11 checks** (structural = tool; semantic = you evaluate):
-
-1. **Identity consistency** — module code and display name in `CLAUDE.md` match the Domain section of `REQUIREMENTS.md`.
-2. **Locale coverage** — locales declared in `CLAUDE.md` align with translation scope in `REQUIREMENTS.md` (Audit Depth, language implications).
-3. **Persona → entity coverage** — every user persona in `REQUIREMENTS.md` User Personas maps to at least one entity in `DESIGN.md` that they interact with. No persona is left without a data home.
-4. **Core process coverage** — every core process in `REQUIREMENTS.md` Core Processes has a corresponding entity, action, or status machine in `DESIGN.md`. No orphan processes.
-5. **Entity traceability** — every entity in `DESIGN.md` Entity List can be traced to a need stated in `REQUIREMENTS.md`. No invented entities.
-6. **Relationship completeness** — every entity referenced in the Relationship Map exists in the Entity List.
-7. **Status machine completeness** — every entity with a `status` field has a complete machine: all values, all transitions, all guards, recovery path documented.
-8. **Action completeness** — every verb in `REQUIREMENTS.md` Core Processes that implies a user-triggered operation appears in `DESIGN.md` Actions table.
-9. **Seed data coverage** — if `REQUIREMENTS.md` implies initial reference data or starting state, `DESIGN.md` Seed Data section covers it.
-10. **Gap resolution** — every item in `DESIGN.md` Gaps & Proposals section has an explicit resolution (confirmed or deferred with justification). No open, unaddressed gaps.
-11. **Docs present & substantive** — `REQUIREMENTS.md` and `DESIGN.md` both exist with real content, not empty stubs.
-
-**If any check fails:** the tool returns failures without writing VALIDATION.md. Fix the issue in the relevant document, then call `validate` again (without `checkResults` to re-run structural checks, then with new semantic results).
-
-**Exit criteria:** `dforge_module_plan validate` returned `readyToScaffold: true`; `docs/VALIDATION.md` written to disk.
+**Requirements gap scan** (run before writing REQUIREMENTS.md; surface inline as "**Gap:** … **Proposal:** … Confirm or change?"): approval recovery (is reject terminal or re-submittable?); audit depth (approver/reviewer/manager personas usually need `audit-full`); exact `module.entity` codes for any integration; implied-but-unnamed entities; reference-number scale → sequence pattern.
 
 ## Phase 1 — Domain (required)
 
@@ -385,15 +214,7 @@ Once all checks pass, present a brief summary (entity count, action count) and a
 
 4. **Extension entities last.** If extending another module's entity, use `extends: "module.entity"`, `toString: null` (inherits base), and a dotted manifest key. **Snapshot the base entity's current fields via `dforge_module_inspect` on the dependency dir** (when available) so you know what's inherited; if the dependency dir is not locally available, document the known base fields from `docs/DESIGN.md` and note in `_brief/changelog.md` that base-entity field drift is the user's responsibility to track.
 
-**Mandatory reference reads for Phase 1** — load these before the first field of each entity, then again whenever the element type changes:
-
-- **Any field:** read `references/field-types.md` + `references/flags.md`.
-- **Reference or Set column:** also read `references/column-types.md` + `examples/simple-todo/entities/todo_item.json` (canonical FK + Reference pair).
-- **Formula column:** also read `references/formulas.md`.
-- **Trait selection:** read `references/traits.md`.
-- **Number-sequence column:** read `references/number-sequences.md`.
-
-Do not call `dforge_entity_field_add` for any of these types without having read the matching files first.
+**Before the first field of each entity** (and again whenever the element type changes), load the matching rows from the Loading policy table — fields, reference/set columns, formula columns, traits, number sequences. Do not call `dforge_entity_field_add` for a type without having read its reference + example first.
 
 **Field batching rule** (the only Phase-1 exception to the hard rule):
 
@@ -418,13 +239,13 @@ Skip a sub-step entirely if the user has no need for it. Do NOT fabricate behavi
 
 ### 2a. Actions — user-triggered
 
-**Before authoring any action (DSL body or `ui/actions.json` registration), you MUST load all four:** `dforge://docs/dsl` (full grammar + built-ins), `references/action-dsl.md` (patterns + anti-patterns; §"Registering the action" covers the full `ui/actions.json` schema), `examples/simple-todo/logic/actions/mark_done.dsl`, and `examples/simple-todo/ui/actions.json` (working end-to-end examples). Loading fewer than all four is insufficient — common mistakes (wrong field-access syntax, wrong batch-mode flag, wrong or missing `ui/actions.json` property names) are only caught by cross-referencing all four. `dforge://docs/conventions` is broader module-level guidance and does NOT cover the DSL grammar.
+**Before authoring any action, load the full "action" row from the Loading policy table** — `dforge://reference/action-dsl`, `dforge://example/logic/actions/mark_done.dsl`, `dforge://example/ui/actions.json`, AND `dforge://docs/dsl`. All four are required: the wrong-field-access / wrong-batch-flag / wrong-or-missing `ui/actions.json`-property mistakes only surface when you cross-check them. (`dforge://docs/conventions` does not cover the DSL grammar.)
 
 Call `dforge_action_add` per action — one at a time — with the full DSL body. Confirm with the user before each call.
 
 ### 2b. Triggers — DB-event-driven
 
-**Load `dforge://schema/triggers`** for the shape; also re-read the trigger formula rules in `dforge://docs/dsl` (trigger conditions use the same syntax as `canExecute:`: single-line `[field] op value` formulas).
+Load the "trigger" row from the Loading policy table (`dforge://schema/triggers`). Trigger conditions use the same single-line `[field] op value` syntax as `canExecute:` — see `dforge://docs/dsl`.
 
 For each trigger, propose: entity + event + (optional) condition formula + target action + async flag. Use `dforge_trigger_add`. Triggers reference EXISTING actions — make sure the target action was added in Phase 2a before creating any trigger that references it.
 
@@ -432,7 +253,7 @@ For each trigger, propose: entity + event + (optional) condition formula + targe
 
 ### 2c. Scheduled jobs — cron-driven
 
-**Load `dforge://schema/jobs`**.
+Load the "scheduled job" row from the Loading policy table (`dforge://reference/jobs` + `dforge://schema/jobs`).
 
 Constraints baked into the tool:
 - Action MUST NOT use record-context (`[field]`) syntax — jobs run as system user with NO current record. Wrap any record-context action in a thin job-friendly action that uses `query()` to fetch the records it needs.
@@ -443,7 +264,7 @@ Use `dforge_job_add` per job.
 
 ### 2d. Webhooks — outbound HTTP
 
-**Load `dforge://schema/webhooks`**.
+Load the "webhook" row from the Loading policy table (`dforge://schema/webhooks`).
 
 For each webhook: entity + event + endpoint URL + (optional) condition + (optional) payload shape (include/exclude/includeOld). Use `dforge_webhook_add`.
 
@@ -455,14 +276,7 @@ For authenticated endpoints: put bearer tokens / API keys behind `getSecret()` (
 
 **Preconditions:** Phase 1 complete.
 
-**Mandatory reference reads for Phase 3** — load before the first element of each type:
-
-- **Any data view (grid, kanban, calendar, etc.):** read `references/data-views.md` + `examples/simple-todo/ui/data_views.json`.
-- **Any menu:** read `references/menus.md` + `examples/simple-todo/ui/menus.json`.
-- **Any filter (view, folder, or report):** read `references/filters.md`.
-- **Any report:** read `references/reports.md`.
-
-Do not call `dforge_view_add`, `dforge_view_modify`, or `dforge_report_add` without having read the matching files.
+**Before the first element of each type**, load the matching rows from the Loading policy table — data views, menus, filters, reports. Do not call `dforge_view_add`, `dforge_view_modify`, or `dforge_report_add` without having read its reference + example first.
 
 ### 3a. Default grids (required, do FIRST)
 
@@ -482,11 +296,11 @@ Propose a specialized view (kanban / calendar / list-with-levels / tree-grid / m
 - The entity self-references (parent FK to itself) — tree-grid candidate.
 - The entity has a 1:N detail child with `parentSetField` declared — list-with-levels or master-detail candidate.
 
-If none of these fire, skip specialized views for that entity. Read `dforge://schema/data-views` for the `viewConfig` shape of the type you're proposing before calling `dforge_view_add`.
+If none of these fire, skip specialized views for that entity. Load the specialized-view row from the Loading policy table (`dforge://schema/data-views` for the `viewConfig` shape) before calling `dforge_view_add`.
 
 ### 3c. Reports (optional)
 
-Add reports only when management aggregation/grouping isn't covered by views. `dforge_report_add` with layout + datasets (Query type with entityCd + filter + sort, or Stored Procedure). Pull `dforge://schema/reports` first.
+Add reports only when management aggregation/grouping isn't covered by views. `dforge_report_add` with layout + datasets (Query type with entityCd + filter + sort, or Stored Procedure). Load the report row from the Loading policy table (`dforge://schema/reports`) first.
 
 **Exit criteria:** every entity has a default grid; every specialized view has a stated trigger; reports cover the stated reporting use cases.
 
@@ -494,13 +308,7 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 
 **Preconditions:** Phase 3 complete.
 
-**Mandatory reference reads for Phase 4** — load before the first element of each type:
-
-- **Settings:** read `references/settings.md`.
-- **Translations:** read `references/translations.md`.
-- **Seed data with number sequences:** read `references/number-sequences.md`.
-- **Print templates:** read `references/print-templates.md`.
-- **Saved queries:** read `references/queries.md`.
+**Before the first element of each type**, load the matching rows from the Loading policy table — settings, translations, number sequences (seed data), print templates, saved queries.
 
 - **Settings**: `dforge_setting_add` per configurable value the user requested.
 - **Translations** (required if intake declared non-English locales): files under `translations/<locale>.json`. **If the user defers translation authoring, append to `_brief/changelog.md`: "Translation files for [locales] are incomplete. Phase 6 install will fail translation completeness validation until added." Remind the user before calling `dforge_module_pack`.**
@@ -514,12 +322,7 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 
 ### 5a. Roles + rights matrix (required)
 
-**Mandatory reference reads for Phase 5** — load before any role or folder work:
-
-- **Roles + rights matrix:** read `references/security.md` + `examples/simple-todo/security/roles.json`.
-- **Security folders with row filters:** also read `references/filters.md`.
-
-Do not call `dforge_role_add`, `dforge_role_right_set`, or `dforge_folder_add` without having read the matching files.
+**Before any role or folder work**, load the "security roles or folders" row from the Loading policy table (`dforge://reference/security` + `dforge://example/security/roles.json`; `dforge://reference/filters` for folder row filters). Do not call `dforge_role_add`, `dforge_role_right_set`, or `dforge_folder_add` without having read it.
 
 1. **Inspect first.** Run `dforge_module_inspect` and read the `roles` array. The scaffolder pre-creates `<code>.admin` with `SIUDC` on every entity declared at scaffold time. That role exists already — don't try to re-create it.
 2. **Derive role inventory FROM the intake's user types and verbs — never default to a fixed taxonomy.** Re-read `_brief/00-intake.md`'s `User types` section. For each distinct user type, propose ONE role named `<code>.<user-type>` (e.g. intake said "any signed-in user submits + admins triage" → `<code>.user` (covers the "submits" verb) + the existing scaffolded `<code>.admin` (covers triage). If intake mentioned "approvers" or "auditors" or "managers" or any other group, derive roles for those too.) **Forbidden:** spinning up a generic `admin/contributor/viewer` matrix when the user didn't ask for it. The rights set should map to the verbs each user type does, not to a textbook role hierarchy.
@@ -547,7 +350,7 @@ If needed: `dforge_folder_add` per sub-folder, passing `entities` with `rowFilte
 
 ### Step 1 — Pre-pack self-review (blocking gate)
 
-Load `references/validation-checklist.md`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to Step 2 until all checks pass. Key areas:
+Load `dforge://reference/validation-checklist`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to Step 2 until all checks pass. Key areas:
 
 - **Manifest**: `moduleId` is a valid UUID; `version` and `dbSchemaVersion` are set; `supportedLocales` matches the translation files declared; `security` block has both `roles` and `folders`; `translations` is a locale-keyed object (not an array).
 - **Entities**: every entity has `identity` + `audit` traits, a `toString` template, and the FK+Reference pattern applied wherever a relation exists (hidden FK column `flags: "EM"` + visible Reference column `columnType: "R"` + entry in `references` block).

@@ -37,7 +37,12 @@ const fieldSchema = z
 	})
 	.passthrough()
 	.describe(
-		"Field spec. Common keys: dbDatatype, fieldTypeCd, flags (VEMHI letters), isNullable, maxLen, orderNum, description, link ({entity, otherKey}) for refs, formula for computed columns. Pass through whatever the entity.schema.json allows.",
+		"Field spec. RULES (load dforge://reference/flags, /field-types, /column-types first):\n" +
+			"• flags = a subset of V/E/M only. NEVER combine I or H with them. VEM = required+visible; VE = optional+visible; V = read-only/formula; EM = hidden FK. 'VEMHI' is INVALID.\n" +
+			"• dbDatatype values: bool, varchar, text, number, timestamptz, date, time, cuid. NOT boolean/string/datetime/integer/timestamp.\n" +
+			"• A relation is TWO fields: hidden FK (dbDatatype:'cuid', flags:'EM', NO fieldTypeCd) + a Reference (columnType:'R', fieldTypeCd:'lookup', flags:'VEM', link:{entity,thisKey,otherKey}). otherKey = the target entity's PK ('{entity}_id'), never 'id'.\n" +
+			"• Formula column: columnType:'F', baseDatatypeCd set, NO dbDatatype, flags:'V'.\n" +
+			"• dropdown/options params = [{value,label}] objects, never bare strings.",
 	);
 
 // ── add ─────────────────────────────────────────────────────────────
