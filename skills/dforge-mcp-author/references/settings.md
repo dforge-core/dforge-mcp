@@ -110,7 +110,7 @@ By default, only the module/tenant admin can change settings. If you want specif
 
 ## Common mistakes
 
-- Forgetting to declare `default` — missing setting values cause runtime errors when formulas reference them.
+- Forgetting to declare `defaultValue` (the key is `defaultValue`, not `default`) — missing setting values cause runtime errors when formulas reference them.
 - Using `lookup` as a setting field type — unsupported.
 - Hardcoding values that should be settings — makes the module non-configurable. Any string/number that might vary per deployment is a good candidate for a setting.
 - Reading a setting that doesn't exist — returns null, which causes formula errors. Always provide a default.

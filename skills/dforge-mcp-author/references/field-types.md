@@ -85,6 +85,7 @@ These are SQL type names LLMs tend to use for `dbDatatype`. **They are all wrong
 | `string` | `varchar` (with `maxLen`) or `text` | `text`, `textarea`, `dropdown`, … |
 | `integer` | `int` or `bigint` | `number` |
 | `float`, `double`, `decimal` | `numeric` | `number`, `currency`, `percent` |
+| `number` | `int`, `bigint`, or `numeric` | `number`, `currency`, `percent` |
 
 ### Wrong `fieldTypeCd` values
 

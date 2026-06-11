@@ -62,7 +62,7 @@ For each entity:
 - [ ] `entityCode` points to an entity that exists
 - [ ] Column codes in `columns` all exist on the entity
 - [ ] `viewType` is from the supported list (`grid`, `list`, `kanban`, `gallery`, `tree-grid`, `card`)
-- [ ] Sort entries are objects, not strings: `{column_cd, direction}`
+- [ ] Sort uses the view-def-root `order` key — a `string[]` like `["-created_date", "name"]` (leading `-` = descending), NOT `sort` / `[{column_cd, direction}]` (that object shape belongs to queries & reports, not data views)
 
 ## Menus
 
@@ -123,7 +123,7 @@ For each action:
 - [ ] Has `settings` section with labels for every setting (if settings exist)
 - [ ] Has `folders` section with label for the root folder
 - [ ] Additional language files (if any) have the same structure as `en-US.json`
-- [ ] Manifest `translations` block lists all translation files
+- [ ] Manifest `supportedLocales` lists every non-English locale that has a `translations/<locale>.json` file (English is not listed)
 
 ## Versioning
 

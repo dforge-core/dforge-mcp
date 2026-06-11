@@ -148,21 +148,7 @@ my_module/
 - **Trying to use `TODAY()` / `NOW()` in a formula column expecting it to render in print.** The print-time formula evaluator skips those. Pre-compute via a formula column at insert time, or use `{{ _today | format_date: '...' }}` directly in Liquid.
 - **Module-installed template renamed in editor.** The editor preserves the original `template_cd` so `{% include %}` references stay intact — don't try to work around it.
 
-## Storage (informational)
-
-```sql
-"dForge".print_template (
-    print_template_id, entity_id, template_cd,
-    template_type,        -- 'template' or 'snippet'
-    description, template, css, page_settings,
-    module_id,            -- NULL = user-created, NOT NULL = module-installed
-    active, …
-)
--- Unique:  (entity_id, template_cd) for templates
---          (module_id, template_cd) for snippets
-```
-
-Module-installed rows (`module_id IS NOT NULL`) can't be deleted from the editor — uninstall the owning module to remove them.
+Module-installed print-template rows can't be deleted from the editor — uninstall the owning module to remove them.
 
 ## Reference
 

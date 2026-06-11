@@ -102,7 +102,7 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **Naming.** `code`, entity `dbObject` keys, column keys all `snake_case`, case-sensitive, entities singular (`opportunity_line`). `code` = DB schema name.
 - **FK + Reference = two columns** (the #1 source of broken modules): hidden FK (`flags: "EM"`, `dbDatatype` = target PK type, no `fieldTypeCd`) **plus** visible Reference (`columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, `link: {entity, thisKey, otherKey}`), plus the FK in `references`. Never one column that is both. → `column-types.md`
 - **Flags** = letters from `V I E M H` only (no `U`/`S`/`P`): `VEM` required+visible, `VE` optional+visible, `V` read-only, `EM` hidden FK, `I` trait-provided. → `flags.md`
-- **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type. Common fixes: `number` not `integer`, `phone` not `phoneNumber`, `date` not `datePicker`, `timestamptz` not `datetime`, `bool` not `boolean`, `varchar`/`text` not `string`. → `field-types.md`
+- **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type — never the same value, and `dbDatatype` is never `"number"` (use `int`/`bigint`/`numeric`). Common `fieldTypeCd` fixes: `number` not `integer`/`float`, `phone` not `phoneNumber`, `date` not `datePicker`. Common `dbDatatype` fixes: `timestamptz` not `datetime`/`timestamp`, `bool` not `boolean`, `varchar`/`text` not `string`, `int`/`bigint`/`numeric` not `integer`/`float`/`decimal`. → `field-types.md`
 - **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, no `dbDatatype`, `flags: "V"`. → `formulas.md`
 - **Traits:** default `["identity", "audit"]`; `audit-full` only when the user asks for user tracking. → `traits.md`
 - **`toString`:** every entity needs one, `{column}` braces, e.g. `"{first_name} {last_name}"`.
@@ -111,7 +111,7 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **Security roles:** `rights` (not `entityRights`); entities `SIUDC`, actions/reports/folders `E`. → `security.md`
 - **Action script** in `ui/actions.json` = bare filename (no path, no `.dsl`).
 - **SQL placeholders** = `@paramName` (not `:paramName`).
-- **Manifest:** `translations` is a locale-keyed object (not array); `security` has both `roles` and `folders`. → `manifest.md`
+- **Manifest:** non-English locales go in `supportedLocales` (array of `ll-CC` tags; never `en`/`en-US`) — there is no `translations` manifest key; files are auto-discovered at `translations/<locale>.json`. `security` has both `roles` and `folders`. → `manifest.md`
 - **Seed data:** explicit numeric PKs (`cuid` is `int8`, not a UUID); parents before children via numeric prefix (`01-`, `02-`).
 
 ## Tool failure protocol
@@ -352,7 +352,7 @@ If needed: `dforge_folder_add` per sub-folder, passing `entities` with `rowFilte
 
 Load `dforge://reference/validation-checklist`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to Step 2 until all checks pass. Key areas:
 
-- **Manifest**: `moduleId` is a valid UUID; `version` and `dbSchemaVersion` are set; `supportedLocales` matches the translation files declared; `security` block has both `roles` and `folders`; `translations` is a locale-keyed object (not an array).
+- **Manifest**: `moduleId` is a valid UUID; `version` and `dbSchemaVersion` are set; `supportedLocales` lists every non-English locale that has a `translations/<locale>.json` file (and `en`/`en-US` is NOT listed); `security` block has both `roles` and `folders`.
 - **Entities**: every entity has `identity` + `audit` traits, a `toString` template, and the FK+Reference pattern applied wherever a relation exists (hidden FK column `flags: "EM"` + visible Reference column `columnType: "R"` + entry in `references` block).
 - **Formula columns** (`columnType: "F"`): have `baseDatatypeCd`, no `dbDatatype`, `flags: "V"`.
 - **Flags**: only `V`, `I`, `E`, `M`, `H` used — no `U`, `S`, or `P`.

@@ -140,24 +140,6 @@ Full source: [`modules/chore/`](../../../modules/chore/).
 - **"Schedule this 5 minutes from now" pattern.** There is no per-call `schedule()`. Use a cron-scan job that watches a queue table — see [memory: cron-scan pattern](../../../docs/business-logic/jobs.md#when-to-use-a-job-vs-a-trigger).
 - **Confusing `enabled` and `paused`.** `enabled: false` → "Run now" no-ops. `paused: true` → cron skips but "Run now" works. Use `paused` for incident response; use `enabled: false` when you mean "turn this off entirely".
 
-## Storage (informational)
-
-```sql
-"dForge".scheduled_job (
-    job_id, job_cd, module_id, impl_id, schedule, params,
-    timeout_sec, concurrency, idempotency_key_tmpl, class,
-    time_zone, enabled, paused,
-    manual_trigger_requested_at, manual_trigger_requested_by, …
-)
-
-"dForge".job_run (
-    run_id, job_id, scheduled_at, started_at, completed_at,
-    duration_ms, status, error_message, triggered_by
-)
--- FK ON DELETE CASCADE — uninstalling the module reaps history too.
--- status ∈ 'queued' | 'running' | 'succeeded' | 'failed'
-```
-
 ## Reference
 
 - Full developer guide: [`docs/business-logic/jobs.md`](../../../docs/business-logic/jobs.md)

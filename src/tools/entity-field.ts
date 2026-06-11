@@ -39,7 +39,7 @@ const fieldSchema = z
 	.describe(
 		"Field spec. RULES (load dforge://reference/flags, /field-types, /column-types first):\n" +
 			"• flags = a subset of V/E/M only. NEVER combine I or H with them. VEM = required+visible; VE = optional+visible; V = read-only/formula; EM = hidden FK. 'VEMHI' is INVALID.\n" +
-			"• dbDatatype values: bool, varchar, text, number, timestamptz, date, time, cuid. NOT boolean/string/datetime/integer/timestamp.\n" +
+			"• dbDatatype values: bool, varchar, text, int, bigint, numeric, timestamptz, date, time, cuid, json. NOT boolean/string/datetime/integer/timestamp/number — 'number' is a fieldTypeCd, not a dbDatatype.\n" +
 			"• A relation is TWO fields: hidden FK (dbDatatype:'cuid', flags:'EM', NO fieldTypeCd) + a Reference (columnType:'R', fieldTypeCd:'lookup', flags:'VEM', link:{entity,thisKey,otherKey}). otherKey = the target entity's PK ('{entity}_id'), never 'id'.\n" +
 			"• Formula column: columnType:'F', baseDatatypeCd set, NO dbDatatype, flags:'V'.\n" +
 			"• dropdown/options params = [{value,label}] objects, never bare strings.",

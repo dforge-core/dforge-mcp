@@ -78,7 +78,7 @@ For multi-tenant or multi-folder setups, prefixes can come from module settings 
 {
     "invoice_prefix": {
         "fieldTypeCd": "text",
-        "default": "INV",
+        "defaultValue": "INV",
         "label": "Invoice Prefix"
     }
 }

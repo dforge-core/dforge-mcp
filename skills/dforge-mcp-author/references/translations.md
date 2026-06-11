@@ -132,14 +132,13 @@ If you include these sections, the install succeeds (they're silently ignored) �
 
 ## Manifest declaration
 
-List translation files in the manifest:
+Non-English locales are declared in `supportedLocales` (an array of `ll-CC` tags) — **not** a `translations` object. The manifest schema has no `translations` key and rejects it (`additionalProperties: false`). Translation files are auto-discovered at `translations/<locale>.json`. Ship `translations/en-US.json` as the English base, but do **not** list `en`/`en-US` in `supportedLocales` — it covers the non-English locales only (the schema rejects `en`/`en-US` entries).
 
 ```json
-"translations": {
-    "en-US": "./translations/en-US.json",
-    "de-DE": "./translations/de-DE.json"
-}
+"supportedLocales": ["de-DE", "fr-FR"]
 ```
+
+Every listed locale MUST have a matching `translations/<locale>.json` with a label for each translatable resource, or install fails completeness validation.
 
 ## Rules
 
@@ -150,7 +149,7 @@ List translation files in the manifest:
 5. **Menu translations mirror the `ui/menus.json` structure** — root key → `items` → nested items.
 6. **Missing keys fall back** to the `en-US` value, then to the raw code name. So it's safe to ship partial translations — untranslated items show in English rather than breaking.
 7. **Don't translate column codes** — only the `label` values. Codes stay as-is in all languages.
-8. **File naming**: `translations/en-US.json`, `translations/de-DE.json`, etc. — must match the locale codes in the manifest.
+8. **File naming**: `translations/<locale>.json` (e.g. `de-DE.json`) — each non-English file must match a locale listed in `supportedLocales`.
 
 ## When to create translations
 
