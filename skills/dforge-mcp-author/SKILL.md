@@ -104,12 +104,15 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **Flags** = letters from `V I E M H` only (no `U`/`S`/`P`): `VEM` required+visible, `VE` optional+visible, `V` read-only, `EM` hidden FK, `I` trait-provided. → `flags.md`
 - **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type — never the same value, and `dbDatatype` is never `"number"` (use `int`/`bigint`/`numeric`). Common `fieldTypeCd` fixes: `number` not `integer`/`float`, `phone` not `phoneNumber`, `date` not `datePicker`. Common `dbDatatype` fixes: `timestamptz` not `datetime`/`timestamp`, `bool` not `boolean`, `varchar`/`text` not `string`, `int`/`bigint`/`numeric` not `integer`/`float`/`decimal`. → `field-types.md`
 - **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, no `dbDatatype`, `flags: "V"`. → `formulas.md`
-- **Traits:** default `["identity", "audit"]`; `audit-full` only when the user asks for user tracking. → `traits.md`
+- **Roll-up totals** over a child set → Formula `F` with `SUM([set].[field])` (query-time). Never a Generated `G` column aggregating a virtual `F`/`R`/`S` child — its DB trigger reads `OLD.<field>` and install fails (`column old.<field> does not exist`). → `column-types.md`
+- **Column defaults:** entity *data* columns have **no** `defaultValue`/`default` key. Set a default via a formula (`"formula": "TODAY()"`, `"formula": "'draft'"`) or in action/trigger logic. `defaultValue` is **settings-only**. → `field-types.md`
+- **Traits:** default `["identity", "audit"]`; `audit-full` (when the user needs *who*-tracking) adds required `created_by`/`last_updated_by` with no default — if such an entity is **seeded**, set both to the System user `0` in every record, or don't seed it. → `traits.md`
 - **`toString`:** every entity needs one, `{column}` braces, e.g. `"{first_name} {last_name}"`.
 - **Data views:** `dataSources` array at root — never root-level `entityCode` + `columns`. → `data-views.md`
 - **Menus:** leaf items use `dataViewCode` (not `viewCode`); section nodes omit `itemType`; icons are Bootstrap names sans `bi-`. → `menus.md`
-- **Security roles:** `rights` (not `entityRights`); entities `SIUDC`, actions/reports/folders `E`. → `security.md`
+- **Security roles:** `rights` (not `entityRights`); entities `SIUDC`, actions/reports/folders `E`. Rights keys: same-module entity bare (`product`), cross-module entity dotted (`fin.invoice`), and actions/reports/folders use a **colon** prefix — `action:approve`, `report:summary`, `folder:east` (never a dot). Omit a key to deny; never map to `""`. → `security.md`
 - **Action script** in `ui/actions.json` = bare filename (no path, no `.dsl`).
+- **Action DSL dates:** inside `execute:` use lowercase `now()`; `TODAY()`/`NOW()` are formula-only (`canExecute:`/formula columns) and are **undefined in `execute:`**. → `action-dsl.md`
 - **SQL placeholders** = `@paramName` (not `:paramName`).
 - **Manifest:** non-English locales go in `supportedLocales` (array of `ll-CC` tags; never `en`/`en-US`) — there is no `translations` manifest key; files are auto-discovered at `translations/<locale>.json`. `security` has both `roles` and `folders`. → `manifest.md`
 - **Seed data:** explicit numeric PKs (`cuid` is `int8`, not a UUID); parents before children via numeric prefix (`01-`, `02-`).
@@ -157,6 +160,8 @@ The loop the tool walks you through:
 
 **Document-write ordering (exception to hard rule #1):** for REQUIREMENTS.md and DESIGN.md you write the file to disk *first*, then ask the user to review it and reply YES — do not paste the full document into chat. On change requests, edit the file directly (targeted edits) and re-ask until confirmed. `dforge_module_create` stays gated at the tool level until `readyToScaffold: true`.
 
+> **What Phase 0d validates — and what it doesn't.** `docs/VALIDATION.md` / `readyToScaffold: true` certifies only that the **design documents** are internally consistent. It runs *before* scaffolding and does **not** inspect any generated entity / UI / security / DSL file. Artifact correctness is enforced by the **platform at install (Phase 6)** — a green VALIDATION.md is not a signal that the module will install. The Phase 6 pre-pack self-review (Step 1) is your real safeguard.
+
 ### 0b intake — guardrails the tool can't enforce
 
 **Free-form prose only — no pickers.** Ask every 0b question as a plain sentence. Do **NOT** use `AskUserQuestion`, picker UIs, multiple-choice tabs, or any predefined-option tool — predefined buckets bias the answer into your taxonomy and lose the verbs Phase 5 needs. Resume normal tool use in Phase 1+. Forbidden picker variants that have leaked before: "Single role / Two roles / Three+ roles"; "admin / manager / user / viewer".
@@ -176,7 +181,7 @@ The loop the tool walks you through:
 ```
 Push back on verb-less answers ("admins and users" → "What does an admin do that a user can't?"). **Hard forbidden in 0b:** role codes (`<code>.admin`), role-noun bullet heads, a rights matrix, or a "Target user roles" section — roles are derived from entities + verbs in Phase 5, and entities don't exist yet.
 
-**Requirements gap scan** (run before writing REQUIREMENTS.md; surface inline as "**Gap:** … **Proposal:** … Confirm or change?"): approval recovery (is reject terminal or re-submittable?); audit depth (approver/reviewer/manager personas usually need `audit-full`); exact `module.entity` codes for any integration; implied-but-unnamed entities; reference-number scale → sequence pattern.
+**Requirements gap scan** (run before writing REQUIREMENTS.md; surface inline as "**Gap:** … **Proposal:** … Confirm or change?"): approval recovery (is reject terminal or re-submittable?); audit depth (does the user need to record *who* changed each row, not just when? only then `audit-full`; if that entity is also seeded, each seed record must set `created_by`/`last_updated_by: 0`, the System user — otherwise `audit`); exact `module.entity` codes for any integration; implied-but-unnamed entities; reference-number scale → sequence pattern.
 
 ## Phase 1 — Domain (required)
 
@@ -193,6 +198,7 @@ Push back on verb-less answers ("admins and users" → "What does an admin do th
 3. Every seed record's FK references a parent entity that also has seed data (referential integrity in load order).
 4. Every formula column uses only fields that exist on the same entity or a directly referenced entity (exactly 1 FK hop). Transitive references (2+ hops) are async and must have been flagged in the Phase 0c gap scan.
 5. Any `SUM([set].[field])` formula is flagged as version-dependent.
+6. Every seeded entity handles audit traits: if it uses `audit-full`, every seed record sets `created_by`/`last_updated_by` to the System user `0` (else use `audit` / don't seed it) — `audit-full`'s required user columns otherwise fail seed install.
 
 Once all checks pass, present a brief summary (entity count, action count) and ask for final confirmation before calling `dforge_module_create`.
 
@@ -333,6 +339,7 @@ Add reports only when management aggregation/grouping isn't covered by views. `d
 **Rights semantics** (additive — multiple roles UNION, never revoke):
 - Entities: any subset of `SIUDC` (Select / Insert / Update / Delete / Clone)
 - Actions / reports: `E` (Execute), or omit to deny
+- **Object key format:** same-module entity bare (`product`); cross-module entity dotted (`fin.invoice`); action/report/folder use a **colon** prefix (`action:approve`, `report:summary`, `folder:east`). A dot before an action/report/folder code is rejected as an unknown object.
 
 ### 5b. Security folders (optional)
 
@@ -342,6 +349,8 @@ If needed: `dforge_folder_add` per sub-folder, passing `entities` with `rowFilte
 
 **Exit criteria:** run `dforge_module_inspect` and verify every entity code in the manifest appears in at least one role's rights map with at least `S` (Select); list any uncovered entity as a gap before advancing to Phase 6. If folders were declared, every folder has security mapped.
 
+> ⛔ **GATE — `dforge_module_pack` enforces entity coverage.** Pack refuses to build the tarball if any entity has no role granting `S`, and it warns about actions/reports with no `E` grant. The platform installs a security-less module without complaint (it just becomes inaccessible), so this is the only place it's caught. **Don't lean on the gate** — derive real persona roles from the intake user types here (not just the scaffolded `<code>.admin`), and grant `E` on the actions/reports each persona uses.
+
 ## Phase 6 — Verify (required, non-skippable)
 
 **Preconditions:** all required phases complete: 0a, 0b, 0c, 0d, 1, 3a, 5a. Optional phases (2, 3b/3c, 4, 5b) are not preconditions — explicitly skipped optional phases do not block Phase 6.
@@ -350,7 +359,18 @@ If needed: `dforge_folder_add` per sub-folder, passing `entities` with `rowFilte
 
 ### Step 1 — Pre-pack self-review (blocking gate)
 
-Load `dforge://reference/validation-checklist`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to Step 2 until all checks pass. Key areas:
+Load `dforge://reference/validation-checklist`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to Step 2 until all checks pass.
+
+**Top install-blockers — scan these first** (each is a documented real install failure the platform validator rejects):
+
+1. **DSL dates:** `execute:` blocks use lowercase `now()`; never `TODAY()`/`NOW()` (formula-only → `'TODAY' is not defined`).
+2. **Roll-ups:** a total over a child set is a Formula (`F`) column with `SUM([set].[field])` — never a Generated (`G`) column aggregating a virtual `F`/`R`/`S` child (→ `db_error: column old.<field> does not exist`).
+3. **Rights keys:** actions/reports/folders use a **colon** (`action:x`, `report:x`, `folder:x`); entities are bare or cross-module-dotted; deny by omitting the key, never `""`.
+4. **Manifest:** no `translations` key (translation files auto-discovered; non-English locales → `supportedLocales`).
+5. **Column defaults:** set via `formula` / `numberSequence` / DSL — never a `defaultValue` key on an entity field.
+6. **Seed + traits:** seeded `audit-full` entities set `created_by`/`last_updated_by: 0` (System user) in every record — otherwise use `audit` or don't seed (`required column 'created_by' … is not present in seed records`).
+
+Key areas (full checklist):
 
 - **Manifest**: `moduleId` is a valid UUID; `version` and `dbSchemaVersion` are set; `supportedLocales` lists every non-English locale that has a `translations/<locale>.json` file (and `en`/`en-US` is NOT listed); `security` block has both `roles` and `folders`.
 - **Entities**: every entity has `identity` + `audit` traits, a `toString` template, and the FK+Reference pattern applied wherever a relation exists (hidden FK column `flags: "EM"` + visible Reference column `columnType: "R"` + entry in `references` block).
@@ -378,7 +398,7 @@ Get user confirmation on both version strings before packing.
 
 ### Step 4 — Pack + install
 
-1. `dforge_module_pack` → produces `.dforge` tarball.
+1. `dforge_module_pack` → produces `.dforge` tarball. (Blocked if any entity lacks a role granting Select — the Phase 5a gate; fix security coverage and re-run.)
 2. `dforge_module_install` with `DFORGE_URL` / `DFORGE_TOKEN`. Runs the full server-side validator.
 
 **If install fails on a module defect**, use this table to identify which phase to backtrack to, then apply the backtrack protocol, fix, re-run Step 1 (self-review), and re-pack:

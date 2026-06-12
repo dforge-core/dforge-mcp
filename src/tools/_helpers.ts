@@ -148,3 +148,131 @@ export function makeResult(summary: string, files: FileMap, warning?: string): T
 export function withTodayStamp(manifest: Manifest): Manifest {
 	return { ...manifest, updated: new Date().toISOString().slice(0, 10) };
 }
+
+// ── rights validation ────────────────────────────────────────────────
+//
+// A role-rights key is one of: a same-module entity ('product'), a
+// cross-module entity ('fin.invoice', dotted), or a non-entity object with
+// a COLON prefix ('action:approve', 'report:summary', 'folder:east'). The
+// platform (every dForge-core module) uses the colon form for objects; the
+// dot form ('action.approve') is the #1 mistake — it's read as entity
+// 'approve' in a module named 'action' and rejected as unknown.
+
+const RIGHTS_ENTITY = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/;
+const RIGHTS_OBJECT = /^(action|report|folder):[a-z][a-z0-9_]*$/;
+const RIGHTS_OBJECT_DOT = /^(action|report|folder)\.[a-z]/;
+
+/** Validate one rights-map key. Throws an actionable error if malformed. */
+export function assertValidRightKey(key: string): void {
+	if (RIGHTS_OBJECT_DOT.test(key)) {
+		const fixed = key.replace(".", ":");
+		throw new Error(
+			`Rights key '${key}' uses a dot for an action/report/folder — use a colon: '${fixed}'. ` +
+				`(A dot is only for cross-module entities like 'fin.invoice'.)`,
+		);
+	}
+	if (RIGHTS_OBJECT.test(key) || RIGHTS_ENTITY.test(key)) return;
+	throw new Error(
+		`Invalid rights key '${key}'. Use a same-module entity ('product'), a cross-module entity ` +
+			`('fin.invoice'), or a colon-prefixed object ('action:approve', 'report:summary', 'folder:east').`,
+	);
+}
+
+/**
+ * Validate a rights value for a key. `allowEmpty` permits "" (used by
+ * role_right_set, where "" means "revoke/remove the grant"). For role_add an
+ * empty string is rejected — deny by omitting the key instead.
+ */
+export function assertValidRightValue(key: string, value: string, allowEmpty: boolean): void {
+	if (value === "") {
+		if (allowEmpty) return;
+		throw new Error(
+			`Rights on '${key}' is an empty string. To deny access, omit the key entirely; to grant, use rights letters.`,
+		);
+	}
+	if (!/^[SIUDCE]+$/.test(value)) {
+		throw new Error(
+			`Invalid rights '${value}' on '${key}'. Use S/I/U/D/C for entities, or 'E' for actions/reports/folders.`,
+		);
+	}
+	const isObject = /^(action|report|folder):/.test(key);
+	if (isObject && value !== "E") {
+		throw new Error(`Object '${key}' takes 'E' (Execute), got '${value}'.`);
+	}
+	if (!isObject && value.includes("E")) {
+		throw new Error(
+			`'${key}' is granted 'E' but has no action:/report:/folder: prefix — entity rights are S/I/U/D/C. ` +
+				`If '${key}' is an action or report, prefix it (e.g. 'action:${key}' or 'report:${key}').`,
+		);
+	}
+}
+
+/** Validate a whole rights map (role_add). Empty values are rejected. */
+export function assertValidRights(rights: Record<string, string>): void {
+	for (const [key, value] of Object.entries(rights)) {
+		assertValidRightKey(key);
+		assertValidRightValue(key, value, false);
+	}
+}
+
+// ── Phase 5a security-coverage gate ──────────────────────────────────
+//
+// Phase 5a (roles + rights matrix) is a required phase, but the platform
+// installs a security-less module without complaint (it's just inaccessible),
+// so nothing downstream catches a missing role. This gate enforces it at pack
+// time: every same-module entity must be granted Select by at least one role.
+// Actions/reports without an Execute grant are surfaced as a soft warning.
+
+interface RoleShape {
+	rights?: Record<string, string>;
+}
+
+export function checkSecurityCoverage(moduleDir: string): {
+	uncoveredEntities: string[];
+	uncoveredObjects: string[];
+} {
+	const { manifest, paths } = loadManifest(moduleDir);
+	// Same-module entities only — cross-module extensions (dotted keys) are
+	// owned and secured by their home module.
+	const entities = Object.keys(manifest.entities ?? {}).filter((k) => !k.includes("."));
+	const roles = readJsonOrDefault<Record<string, RoleShape>>(paths.roles, {});
+
+	const grantedSelect = new Set<string>();
+	const grantedExec = new Set<string>();
+	for (const role of Object.values(roles)) {
+		for (const [obj, r] of Object.entries(role?.rights ?? {})) {
+			if (typeof r !== "string") continue;
+			if (r.includes("S")) grantedSelect.add(obj);
+			if (r.includes("E")) grantedExec.add(obj);
+		}
+	}
+
+	const uncoveredEntities = entities.filter((e) => !grantedSelect.has(e));
+	const actions = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.actions, {}));
+	const reports = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.reports, {}));
+	const uncoveredObjects = [
+		...actions.filter((a) => !grantedExec.has(`action:${a}`)).map((a) => `action:${a}`),
+		...reports.filter((r) => !grantedExec.has(`report:${r}`)).map((r) => `report:${r}`),
+	];
+	return { uncoveredEntities, uncoveredObjects };
+}
+
+/**
+ * Pre-pack gate. Throws if any entity lacks Select coverage (Phase 5a
+ * incomplete). Returns an optional soft-warning string for ungranted
+ * actions/reports.
+ */
+export function assertSecurityCoverage(moduleDir: string): string | undefined {
+	const { uncoveredEntities, uncoveredObjects } = checkSecurityCoverage(moduleDir);
+	if (uncoveredEntities.length > 0) {
+		throw new Error(
+			`Phase 5a (security) incomplete — no role grants Select (S) on: ${uncoveredEntities.join(", ")}. ` +
+				`Every entity must appear in at least one role's rights with at least 'S'. Add or extend roles ` +
+				`with dforge_role_add / dforge_role_right_set, then re-pack.`,
+		);
+	}
+	if (uncoveredObjects.length > 0) {
+		return `Security note — no role grants Execute (E) on: ${uncoveredObjects.join(", ")}. Add 'E' grants if a role should run these.`;
+	}
+	return undefined;
+}

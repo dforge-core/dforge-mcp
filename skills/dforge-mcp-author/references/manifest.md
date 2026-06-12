@@ -110,6 +110,7 @@ The extension file has `"extends": "fin.invoice"` inside. See MODULE_CONVENTIONS
 
 ## What NOT to put in the manifest
 
+- **Do not** add a `translations` key (e.g. `"translations": { "en-US": "..." }`). There is **no** such manifest field — translation files are auto-discovered at `./translations/{locale}.json`, and non-English locales are declared in `supportedLocales` (English is never listed). The manifest schema is `additionalProperties: false`, so a stray `translations` key fails install.
 - **Do not** put entity definitions inline. Always reference external files.
 - **Do not** list sample or test files — only content that ships with the module.
 - **Do not** include `system: true` unless this is a dForge platform module (`admin`, `metadata`). Regular modules omit it (defaults to `false`).

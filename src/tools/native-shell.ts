@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
+import { assertSecurityCoverage } from "./_helpers";
 
 // All three tools below shell out to the native C# dforge-cli binary. They
 // resolve the binary via DFORGE_CLI_BINARY env var or by trying the
@@ -57,6 +58,9 @@ export const packModuleSchema = {
 export function packModule(
 	args: z.infer<z.ZodObject<typeof packModuleSchema>>,
 ): { tarballPath: string; sizeBytes: number; output: string } {
+	// Phase 5a gate — refuse to pack a module whose entities aren't covered by a
+	// role (the platform won't catch this; the module would install inaccessible).
+	const securityWarning = assertSecurityCoverage(args.moduleDir);
 	const argList = ["module", "pack", args.moduleDir];
 	if (args.outPath) {
 		argList.push("-o", args.outPath);
@@ -77,7 +81,8 @@ export function packModule(
 	if (tarballPath && fs.existsSync(tarballPath)) {
 		sizeBytes = fs.statSync(tarballPath).size;
 	}
-	return { tarballPath, sizeBytes, output: r.stdout };
+	const output = securityWarning ? `${securityWarning}\n\n${r.stdout}` : r.stdout;
+	return { tarballPath, sizeBytes, output };
 }
 
 // ─── install ─────────────────────────────────────────────────────────

@@ -92,11 +92,19 @@ Role codes use a `module.role` naming pattern (e.g. `crm.admin`, `crm.sales-rep`
 
 Role rights map object codes (entities, actions, reports) to rights strings. Object codes are:
 
-- `contact` — the entity named "contact" in this module
-- `fin.invoice` — the entity named "invoice" in the `fin` module (cross-module)
-- `action.send_welcome` — an action named "send_welcome"
-- `report.sales_pipeline` — a report named "sales_pipeline"
-- `folder.customers` — the folder with code "customers"
+- `contact` — the entity named "contact" in this module (bare, same-module)
+- `fin.invoice` — the entity "invoice" in the `fin` module (cross-module entity — **dot**)
+- `action:send_welcome` — an action named "send_welcome" (**colon**)
+- `report:sales_pipeline` — a report named "sales_pipeline" (**colon**)
+- `folder:customers` — the folder with code "customers" (**colon**)
+
+> **Separator matters — colon for non-entity objects, dot only for cross-module entities.**
+> Actions, reports and folders are prefixed with a **colon**: `action:<code>`, `report:<code>`,
+> `folder:<code>`. A **dot** is reserved for a cross-module *entity* (`module.entity`, e.g.
+> `parties.party`). Writing `action.send_welcome` (dot) is **wrong** — the installer treats it as
+> entity `send_welcome` in a module named `action`, finds nothing, and rejects the grant as an
+> unknown object. Same-module entities are bare (`contact`). This matches every dForge-core
+> module (`"action:submit_po": "E"`).
 
 ## Rules
 
@@ -225,6 +233,9 @@ For simple modules, a flat root folder (no `children`) is fine — just `label`,
 ## Common mistakes
 
 - Using `"entityRights"` instead of `"rights"` — **wrong**.
+- Using a **dot** for an action/report/folder (`action.send_welcome`) — **wrong**. Use a **colon**: `action:send_welcome`, `report:...`, `folder:...`. A dot is only for cross-module *entities* (`fin.invoice`).
+- Granting a bare action code (`send_welcome` with no prefix) — **wrong**, it's read as an entity and rejected as unknown. Prefix it: `action:send_welcome`.
+- Mapping an object to an empty rights string (`"action:x": ""`) — **wrong**. To deny, **omit** the key entirely; to grant, use `"E"`.
 - Using long names like `"read,write"` instead of `"SIU"` — **wrong**.
 - Forgetting to define any role — module installs but no user can access anything.
 - Granting `"D"` casually — delete should be rare.

@@ -84,7 +84,7 @@ var total = [quantity] * [unit_price]
 
 ```javascript
 [status] = 'Approved'           // bracket assignment — updates the field
-[approved_date] = TODAY()
+[approved_date] = now()
 [quantity] = newQty
 ```
 
@@ -139,12 +139,18 @@ var note = params[note]             // no quotes around param name in this DSL
 
 | Function | Returns | Description |
 |---|---|---|
-| `TODAY()` | Date | Current date (no time). |
-| `NOW()` | DateTime | Current datetime with timezone. |
+| `now()` | DateTime | Current date/time. Use for `date`, `datetime`, and `timestamp` fields. **Lowercase** — this is the execute-block date function. |
 | `IF(condition, trueVal, falseVal)` | Any | Ternary helper. |
-| `addDays(date, n)` | Date | Add `n` days to a date. |
+| `addDays(date, n)` | Date | Add `n` days to a date, e.g. `addDays(now(), 30)`. |
 | `nextNumber('entity')` | String | Generate next value from a number sequence. Usually not needed — platform auto-fills on `insert()`. Use for pre-generating numbers. |
 | `callProc('proc_name', { args })` | Result | Call a stored procedure. Args are passed as named parameters. |
+
+> **Dates: `now()` in `execute:`, `TODAY()`/`NOW()` in formulas.** The `execute:` block runs as
+> JavaScript (Jint) and exposes **lowercase `now()`** only — `TODAY()` and `NOW()` (uppercase) are
+> **formula-engine** functions and are **undefined in `execute:`** (using them throws
+> `'TODAY' is not defined` at install). Use `TODAY()`/`NOW()` only in `canExecute:`, formula
+> columns, and other formula contexts; use `now()` everywhere inside `execute:`. (Uppercase `NOW()`
+> is also fine *inside a raw SQL string* passed to `query()`, because that's SQL, not JS.)
 
 ## Real examples from the codebase
 
@@ -187,7 +193,7 @@ execute:
         warehouse_id: [warehouse_id],
         product_id: [product_id],
         quantity: IF(params[adjustment_qty] >= 0, params[adjustment_qty], params[adjustment_qty] * -1),
-        movement_date: TODAY(),
+        movement_date: now(),
         reference_no: params[reason]
     })
 
@@ -221,8 +227,8 @@ execute:
         account_id: [account_id],
         contact_id: [contact_id],
         status: 'Draft',
-        quote_date: TODAY(),
-        expiry_date: addDays(TODAY(), 30),
+        quote_date: now(),
+        expiry_date: addDays(now(), 30),
         subtotal: subtotal,
         discount_pct: 0,
         tax_pct: 0,
@@ -285,7 +291,7 @@ execute:
             warehouse_id: [warehouse_id],
             product_id: productId,
             quantity: qty,
-            movement_date: TODAY(),
+            movement_date: now(),
             reference_no: [po_number]
         })
 
@@ -382,6 +388,7 @@ In `ui/actions.json`:
 - Writing `query('entity', filter)` (filter object) — **wrong**. `query()` takes raw SQL strings with `@param` placeholders.
 - Forgetting `var` in loops — `for (i = 0; ...)` creates a global. Always `for (var i = 0; ...)`.
 - Using ES6 syntax (`const`, `let`, `=>`, template literals) — **may not work**. Jint supports ES5.1 primarily. Stick to `var`, `function`, string concatenation with `+`.
+- Calling `TODAY()` or `NOW()` (uppercase) inside `execute:` — **wrong**, they're undefined there and install fails with `'TODAY' is not defined`. Use lowercase **`now()`** in `execute:`; `TODAY()`/`NOW()` are formula-only (`canExecute:`, formula columns).
 - Forgetting that `insert()` returns the full row — you can use `quote.quote_id` immediately after insert.
 - Using `[field]` inside a `query()` SQL string — **wrong**. `[field]` is resolved in JS scope, not inside SQL strings. Pass values as `@param` arguments.
 

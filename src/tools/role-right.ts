@@ -9,6 +9,8 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	assertValidRightKey,
+	assertValidRightValue,
 	type ToolResult,
 } from "./_helpers";
 
@@ -20,16 +22,18 @@ export const roleRightSetSchema = {
 	object: z
 		.string()
 		.describe(
-			"Entity / action / report code to grant rights on. For cross-module rights, use dotted form ('fin.invoice').",
+			"Object to grant rights on. Same-module entity: bare ('product'). Cross-module entity: dotted ('fin.invoice'). Action/report/folder: COLON prefix ('action:approve', 'report:summary', 'folder:east') — never a dot.",
 		),
 	rights: z
 		.string()
 		.describe(
-			"Rights string. Entities: any combination of S/I/U/D/C (use '' to revoke all). Actions/reports: 'E' or ''.",
+			"Rights string. Entities: any combination of S/I/U/D/C (use '' to revoke all). Actions/reports/folders: 'E' or '' to revoke.",
 		),
 };
 
 export function roleRightSet(args: z.infer<z.ZodObject<typeof roleRightSetSchema>>): ToolResult {
+	assertValidRightKey(args.object);
+	assertValidRightValue(args.object, args.rights, true); // "" allowed = revoke
 	const { paths, manifest } = loadManifest(args.moduleDir);
 	const roles = readJson<Record<string, Record<string, unknown>>>(paths.roles);
 	const role = roles[args.roleCode];

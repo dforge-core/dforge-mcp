@@ -4,7 +4,7 @@
 		"rights": {
 			"todo_list": "SIUDC",
 			"todo_item": "SIUDC",
-			"action.mark_done": "E"
+			"action:mark_done": "E"
 		}
 	}
 }

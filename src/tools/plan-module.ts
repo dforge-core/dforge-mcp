@@ -667,13 +667,18 @@ function handleValidate(root: string, args: Args): unknown {
 
 *Generated: ${today}*
 
-## Phase 0 Pre-Scaffold Checks
+## Phase 0 Pre-Scaffold Design-Doc Checks
 
 | # | Check | Result | Detail |
 |---|-------|--------|--------|
 ${rows}
 
-**Result: ✅ ALL CHECKS PASSED**
+**Result: ✅ ALL DESIGN-DOC CHECKS PASSED**
+
+> Scope: these checks validate the **Phase 0 design documents** only (identity, requirements,
+> design consistency). They do **not** inspect generated entity / UI / security / DSL artifacts —
+> those are validated by the platform at install (Phase 6). A pass here unlocks scaffolding; it is
+> not a guarantee the module installs. Use the Phase 6 pre-pack self-review before packing.
 
 readyToScaffold: true
 `;
@@ -686,7 +691,8 @@ readyToScaffold: true
 	);
 
 	return {
-		summary: "Phase 0d validation complete — all checks passed. readyToScaffold: true.",
+		summary:
+			"Phase 0d complete — design docs validated (readyToScaffold: true). Note: this validates the design docs only; generated artifacts are checked by the platform at install.",
 		readyToScaffold: true,
 		files: {
 			[P0.identity]: updatedClaude,

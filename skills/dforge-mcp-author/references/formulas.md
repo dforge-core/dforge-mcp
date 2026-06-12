@@ -4,9 +4,13 @@ Formulas are used in:
 
 - **Formula columns** (`columnType: "F"`) — computed values
 - **Action `canExecute:` blocks** — availability checks
-- **Default values** — e.g. `default: TODAY()`
+- **Default values** — a setting's `formula` (e.g. `"formula": "TODAY()"`) or a formula (`F`) column. Note: entity *data* columns have **no** `default`/`defaultValue` key — model a default with an `F` column or set it in action/trigger logic.
 - **Filter expressions** (partially)
 - **Validation expressions** (partially)
+
+> These are **formula** contexts: date helpers are uppercase `TODAY()` / `NOW()` here. Action
+> `execute:` blocks are **not** a formula context — they run as JavaScript and use lowercase
+> `now()` (see `action-dsl.md`).
 
 The same grammar applies everywhere.
 
@@ -81,11 +85,17 @@ FORMAT([created_date], "yyyy-MM-dd")
 
 ### Aggregation (on set columns)
 
-- `COUNT([set_column])` — count related rows (if the formula engine supports aggregation in your version)
-- `SUM([set_column].[field])` — sum over a set
+- `COUNT([set_column])` — count related rows
+- `SUM([set_column].[field])` — sum a child field over a set
 - `AVG`, `MIN`, `MAX` similarly
 
-**Note**: set aggregation may not be fully implemented in all dForge versions. Ask the user to confirm before relying on it.
+Put set aggregations in a **Formula (`F`) column** — they evaluate at query time and may reference
+any child column, including the child's own formula columns, e.g. `SUM([lines].[line_total])`.
+
+> ⛔ Do **not** put a `SUM([set].[field])` in a **Generated (`G`)** column unless `field` is a
+> *physical* (`D`) column. A `G` aggregate is maintained by a DB trigger that reads the child's
+> `OLD`/`NEW` physical values; aggregating a virtual `F` child fails at install with
+> `db_error: column old.<field> does not exist`. See `column-types.md` → "Roll-up totals over child rows".
 
 ## Navigation (dot notation)
 

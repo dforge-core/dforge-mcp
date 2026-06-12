@@ -15,6 +15,7 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	assertValidRights,
 	type ToolResult,
 } from "./_helpers";
 
@@ -101,11 +102,12 @@ export const roleAddSchema = {
 	rights: z
 		.record(z.string(), z.string())
 		.describe(
-			"Map: entityCode (or actionCode/reportCode) → rights string. For entities: any combination of 'S' (Select), 'I' (Insert), 'U' (Update), 'D' (Delete), 'C' (Clone), e.g. 'SIUDC' for full. For actions/reports: 'E' (Execute).",
+			"Map: object code → rights string. Keys: same-module entity bare ('product'), cross-module entity dotted ('fin.invoice'), action/report/folder with a COLON prefix ('action:approve', 'report:summary', 'folder:east') — never a dot. Values: entities use 'S'/'I'/'U'/'D'/'C' (e.g. 'SIUDC'); actions/reports/folders use 'E'. To deny, omit the key (never map to '').",
 		),
 };
 
 export function roleAdd(args: z.infer<z.ZodObject<typeof roleAddSchema>>): ToolResult {
+	assertValidRights(args.rights);
 	const { paths, manifest } = loadManifest(args.moduleDir);
 	const roles = readJsonOrDefault<Record<string, unknown>>(paths.roles, {});
 	if (Object.prototype.hasOwnProperty.call(roles, args.code)) {

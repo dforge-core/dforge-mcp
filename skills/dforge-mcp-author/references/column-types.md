@@ -10,7 +10,7 @@ Every column has a `columnType` (optional for the default physical type). Seven 
 | `"F"` | No | **Formula column** — virtual computed value. Evaluated by the formula engine. |
 | `"A"` | Yes | **Accumulation register column** — stores posted state for accumulation registers. Advanced (accounting modules). |
 | `"L"` | Yes | **Ledger register column** — stores posted state for double-entry bookkeeping. Advanced (accounting modules). |
-| `"G"` | Yes | **Generated column** — DB-level computed aggregate (e.g. SUM over child set via trigger, or PostgreSQL `GENERATED ALWAYS AS`). |
+| `"G"` | Yes | **Generated column** — DB-level computed aggregate (e.g. SUM over child set via trigger, or PostgreSQL `GENERATED ALWAYS AS`). The aggregated child column **must be physical** (a `D` column) — never a virtual `F`/`R`/`S` column. For a simple roll-up total, prefer `F` (see below). |
 
 **For most module development, you'll only use D, R, S, and F.** Types A, L, and G are for advanced accounting/registry modules that use the `postable`, `accumulation`, or `ledger` traits.
 
@@ -127,6 +127,34 @@ Do **not** include `dbDatatype` on formula columns (there's no physical storage)
 
 See `formulas.md` for syntax.
 
+## Roll-up totals over child rows — use `F`, not `G`
+
+To total a child set on a header (line items → order total, movements → quantity on hand),
+**use a Formula column (`"F"`) with `SUM([set].[field])`**. It is computed at query time, so it
+can reference **any** child column — including the child's own formula columns.
+
+```json
+// purchase_order.total_amount — query-time roll-up (installs cleanly)
+"total_amount": {
+    "columnType": "F",
+    "fieldTypeCd": "currency",
+    "baseDatatypeCd": "number",
+    "flags": "V",
+    "orderNum": 90,
+    "formula": "SUM([lines].[line_total])",      // line_total may itself be a formula column
+    "description": "Total Amount"
+}
+```
+
+> ⛔ **Never make a `G` (Generated) column aggregate a virtual `F` column.** A `G` aggregate is
+> maintained by a database trigger that reads the child's `OLD`/`NEW` *physical* values. A formula
+> (`F`) column has no physical storage, so the trigger references a column that doesn't exist and
+> **install fails** with `db_error: column old.<field> does not exist`. If you need a stored
+> (`G`) aggregate over a *derived* quantity (e.g. a signed movement quantity), make that child
+> column **physical** first — either a plain `D` column written by the action logic, or a
+> same-row `G`/`GENERATED ALWAYS AS` column with a `dbDatatype` — then aggregate that. For most
+> modules a query-time `F` roll-up is the right choice; reserve `G` for high-volume stored aggregates.
+
 ## Quick reference: which columnType do I use?
 
 - **Plain text/number/date/etc. field that stores a value** → omit `columnType` (default `"D"`)
@@ -135,6 +163,6 @@ See `formulas.md` for syntax.
 - **"Compute full_name from first_name + last_name"** → `"F"`
 - **"User picker" (points to admin.user)** → omit `columnType`, use `fieldTypeCd: "user"` (writes user ID directly, no paired FK)
 - **"Polymorphic link to any entity"** → omit `columnType`, use `fieldTypeCd: "entitylink"` (stored as JSON)
-- **"Auto-computed aggregate over child records"** → `"G"` (advanced — DB trigger or `GENERATED ALWAYS AS`)
+- **"Roll-up total over child rows"** (line items → header total, movements → quantity on hand) → `"F"` with `SUM([set].[field])` (query-time; see "Roll-up totals" above). Reserve `"G"` for high-volume *stored* aggregates, and only over a **physical** child column — never over an `F` column.
 - **"Accumulation register state"** → `"A"` (advanced accounting — requires `postable` + `accumulation` traits)
 - **"Double-entry ledger state"** → `"L"` (advanced accounting — requires `postable` + `ledger` traits)

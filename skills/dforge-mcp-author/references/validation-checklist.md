@@ -2,6 +2,17 @@
 
 Run through this checklist **before** declaring a module complete. Do it mentally if there's no validate CLI available; run `dforge validate .` if there is.
 
+## Top install-blockers (scan first)
+
+These five have each caused a real install failure. Check them before the section-by-section pass:
+
+- [ ] **DSL dates** — `execute:` blocks use lowercase `now()`, never `TODAY()`/`NOW()` (formula-only; otherwise install fails `'TODAY' is not defined`)
+- [ ] **Roll-up totals** — a sum over a child set is a Formula (`F`) column with `SUM([set].[field])`, **not** a Generated (`G`) column over a virtual `F`/`R`/`S` child (otherwise `db_error: column old.<field> does not exist`)
+- [ ] **Rights keys** — actions/reports/folders use a **colon** (`action:x`, `report:x`, `folder:x`); entities bare or cross-module-dotted; deny by omitting the key, never `""`
+- [ ] **Manifest** — no `translations` key (auto-discovered; non-English locales go in `supportedLocales`)
+- [ ] **Column defaults** — set via `formula` / `numberSequence` / DSL, never a `defaultValue` key on an entity field
+- [ ] **Seed + traits** — seeded `audit-full` entities set `created_by`/`last_updated_by: 0` (System user) in every record (or use `audit` / don't seed them); otherwise install fails on the missing user columns
+
 ## Manifest
 
 - [ ] `manifest.json` exists at the module root
@@ -107,6 +118,7 @@ For each action:
 
 - [ ] Seed files are in `seed-data/` with numbered prefixes (`01-`, `02-`, …)
 - [ ] Seed files are ordered by FK dependency (parents before children)
+- [ ] Seeded `audit-full` entities supply `created_by`/`last_updated_by` — `audit-full` adds these as required (cuid, NOT NULL) columns. Either set both to the System user `0` in every seed record, switch the entity to `audit`, or don't seed it. (The `audit` timestamps need no value — they default to `NOW()`.)
 - [ ] Each seed file has `entityCode` and `records`
 - [ ] Every record has explicit values for NOT NULL columns
 - [ ] PKs are explicit **numeric integers** (e.g. 1001, 1002 — NOT UUID strings, `cuid` is int8)

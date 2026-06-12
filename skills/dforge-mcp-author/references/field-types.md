@@ -69,9 +69,27 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 
 ---
 
+## Default values
+
+There is **no** `defaultValue` (or `default`) key on an entity data column — it fails schema
+validation (`entity.schema.json` is `additionalProperties: false`). To give a column a default:
+
+| Need | Do this |
+|---|---|
+| Literal / computed default (`'draft'`, `TODAY()`) | Carry a `formula` on the column (formula context — uppercase `TODAY()`/`NOW()`), e.g. `"formula": "'draft'"` or `"formula": "TODAY()"`. |
+| Document number (PO-2026-0001) | Declare a `numberSequence` on the entity — auto-fills on insert. |
+| Anything set at create time | Set it in an action/trigger DSL (`execute:` uses lowercase `now()`). |
+
+> `defaultValue` **is** valid on **module settings** (`settings.json`) — that's the only place it
+> belongs. Don't carry the settings habit over to entity fields.
+
+---
+
 ## Common mistakes
 
 > **Wrong key name:** `fieldType` is a C# navigation property on the server model — it is not a valid JSON key in entity definitions. Always use `fieldTypeCd` (the string code). Using `fieldType: { ... }` or `fieldType: "date"` causes the platform to silently ignore the field type, producing null constraint errors on save.
+
+> **No `defaultValue` on entity fields:** `defaultValue` is a *settings* key, not a column key — on a field it fails schema validation. Set a column default with a `formula`, a `numberSequence`, or DSL logic (see "Default values" above).
 
 ### Wrong `dbDatatype` values
 

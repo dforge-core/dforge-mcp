@@ -30,19 +30,46 @@ const fieldSchema = z
 		maxLen: z.number().int().optional(),
 		orderNum: z.number().int().optional(),
 		description: z.string().optional(),
-		defaultValue: z.unknown().optional(),
 		formula: z.string().optional(),
 		link: z.record(z.string(), z.unknown()).optional(),
 		params: z.record(z.string(), z.unknown()).optional(),
 	})
 	.passthrough()
+	.superRefine((val, ctx) => {
+		const v = val as Record<string, unknown>;
+		// `defaultValue`/`default` are settings keys, not entity-field keys — the
+		// entity schema is additionalProperties:false. Set defaults via `formula`.
+		if (v.defaultValue !== undefined || v.default !== undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"entity fields have no 'defaultValue'/'default' key (settings-only). Set a default with 'formula' (e.g. \"formula\": \"'draft'\" or \"formula\": \"TODAY()\"), a numberSequence, or DSL logic.",
+			});
+		}
+		// Dropdown options live under params.options, never at the field root.
+		if (v.options !== undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"dropdown options go under params.options, not at the field root, e.g. \"params\": { \"options\": [{ \"value\": \"a\", \"label\": \"A\" }] }.",
+			});
+		}
+		// Flags letters must be from V/I/E/M/H (no U/S/P).
+		if (typeof v.flags === "string" && v.flags.length > 0 && !/^[VIEMH]+$/.test(v.flags)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: `flags '${v.flags}' contains invalid letters — use only V/I/E/M/H (e.g. VEM, VE, V, EM). U/S/P are not flag letters.`,
+			});
+		}
+	})
 	.describe(
 		"Field spec. RULES (load dforge://reference/flags, /field-types, /column-types first):\n" +
 			"• flags = a subset of V/E/M only. NEVER combine I or H with them. VEM = required+visible; VE = optional+visible; V = read-only/formula; EM = hidden FK. 'VEMHI' is INVALID.\n" +
 			"• dbDatatype values: bool, varchar, text, int, bigint, numeric, timestamptz, date, time, cuid, json. NOT boolean/string/datetime/integer/timestamp/number — 'number' is a fieldTypeCd, not a dbDatatype.\n" +
 			"• A relation is TWO fields: hidden FK (dbDatatype:'cuid', flags:'EM', NO fieldTypeCd) + a Reference (columnType:'R', fieldTypeCd:'lookup', flags:'VEM', link:{entity,thisKey,otherKey}). otherKey = the target entity's PK ('{entity}_id'), never 'id'.\n" +
 			"• Formula column: columnType:'F', baseDatatypeCd set, NO dbDatatype, flags:'V'.\n" +
-			"• dropdown/options params = [{value,label}] objects, never bare strings.",
+			"• Column DEFAULTS use 'formula' (e.g. \"'draft'\" or \"TODAY()\"), NOT 'defaultValue' (settings-only).\n" +
+			"• dropdown options go under params.options = [{value,label}] objects, never at the field root and never bare strings.",
 	);
 
 // ── add ─────────────────────────────────────────────────────────────
