@@ -84,7 +84,7 @@ Use the CRM sample module (`modules/crm/`) as a reference implementation.
 ```json
 {
 	"packageFormat": 1,
-	"moduleId": "10000000-0000-0000-0000-000000000002",
+	"moduleId": "REPLACE-WITH-A-FRESH-UUID",
 	"code": "hr",
 	"version": "0.0.1",
 	"dbSchemaVersion": "0.0.1",

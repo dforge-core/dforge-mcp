@@ -49,8 +49,8 @@ export const createModuleSchema = {
 		.default("0.0.1"),
 	dependencies: z
 		.array(z.string())
-		.default(["admin", "metadata"])
-		.describe("System modules this module depends on. Usually ['admin', 'metadata']."),
+		.default([])
+		.describe("Other modules this one requires, by code (e.g. ['parties']). Leave empty unless it genuinely depends on another module. Do NOT list 'admin' or 'metadata' — they're system modules present in every tenant, so depending on them is redundant (the check always passes and never affects install order)."),
 	preset: z
 		.enum(["minimal", "minimal-plus", "full"])
 		.default("minimal")
