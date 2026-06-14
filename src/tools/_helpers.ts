@@ -7,6 +7,8 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { z } from "zod";
+import { traits as TRAIT_DEFS } from "@dforge-core/metadata";
 
 export type FileMap = Record<string, string>;
 
@@ -275,4 +277,46 @@ export function assertSecurityCoverage(moduleDir: string): string | undefined {
 		return `Security note — no role grants Execute (E) on: ${uncoveredObjects.join(", ")}. Add 'E' grants if a role should run these.`;
 	}
 	return undefined;
+}
+
+// ── Entity traits ────────────────────────────────────────────────────
+//
+// Trait codes are validated against the canonical registry in
+// @dforge-core/metadata (identity, audit, audit-full, soft-delete, sorting,
+// postable, accumulation, ledger, period). The platform expands them into
+// physical columns at install — the entity JSON only carries the codes — so
+// the authoring tools can accept the full set, not just the CLI scaffolder's
+// two presets. `withTraits` overwrites the codes array on a built entity.
+
+/** All valid trait codes, from the metadata registry. */
+export const TRAIT_CODES: readonly string[] = TRAIT_DEFS.map((t) => t.cd);
+
+/**
+ * Reusable input schema for an entity's trait list. Defaults to identity+audit
+ * (the common case). Rejects unknown codes with the valid list.
+ */
+export const traitsInput = z
+	.array(z.string())
+	.default(["identity", "audit"])
+	.superRefine((arr, ctx) => {
+		for (const cd of arr) {
+			if (!TRAIT_CODES.includes(cd)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `trait '${cd}' is not a valid trait. Valid: ${TRAIT_CODES.join(", ")}. (See dforge://reference/traits.)`,
+				});
+			}
+		}
+	})
+	.describe(
+		"Entity trait codes — identity, audit, audit-full, soft-delete, sorting, postable, accumulation, ledger, period. " +
+			"'identity' makes the PK '{entity}_id'. Traits expand into columns server-side at install; list only the codes.",
+	);
+
+/** Override a built entity's `traits` array with a validated code list. */
+export function withTraits<T extends object>(
+	entity: T,
+	traitCodes: readonly string[],
+): T & { traits: string[] } {
+	return { ...entity, traits: [...traitCodes] };
 }

@@ -8,6 +8,7 @@
 // lines of actual logic.
 
 import { z } from "zod";
+import { isFieldTypeCd, fieldTypeCds } from "@dforge-core/metadata";
 import {
 	loadManifest,
 	readJsonOrDefault,
@@ -72,7 +73,16 @@ export const settingAddSchema = {
 			required: z.boolean().optional(),
 			params: z.record(z.string(), z.unknown()).optional(),
 		})
-		.passthrough(),
+		.passthrough()
+		.superRefine((val, ctx) => {
+			const ftc = (val as { fieldTypeCd?: unknown }).fieldTypeCd;
+			if (typeof ftc === "string" && !isFieldTypeCd(ftc)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `fieldTypeCd '${ftc}' is not a valid field type. Valid codes: ${[...fieldTypeCds].sort().join(", ")}. (See dforge://reference/field-types.)`,
+				});
+			}
+		}),
 };
 
 export function settingAdd(args: z.infer<z.ZodObject<typeof settingAddSchema>>): ToolResult {

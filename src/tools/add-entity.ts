@@ -9,6 +9,7 @@ import {
 	buildRoles,
 } from "@dforge-core/dforge-cli/templates";
 import type { EntitySpec, ScaffoldOpts } from "@dforge-core/dforge-cli/templates";
+import { traitsInput, withTraits } from "./_helpers";
 
 export const addEntitySchema = {
 	moduleDir: z
@@ -17,7 +18,7 @@ export const addEntitySchema = {
 	entity: z.object({
 		name: z.string().regex(/^[a-z][a-z0-9_]*$/),
 		label: z.string().min(1),
-		traits: z.enum(["identity", "identity+audit"]).default("identity+audit"),
+		traits: traitsInput,
 	}),
 };
 
@@ -67,7 +68,9 @@ export function addEntityFiles(
 	const newEntity: EntitySpec = {
 		name: args.entity.name,
 		label: args.entity.label,
-		traits: args.entity.traits,
+		// Placeholder preset for the view/menu/role builders (they ignore traits);
+		// the real validated trait codes are applied to the entity JSON below.
+		traits: "identity",
 	};
 	const allEntities = [...existingEntities, newEntity];
 
@@ -98,7 +101,7 @@ export function addEntityFiles(
 	const files: Record<string, string> = {};
 	files["manifest.json"] = JSON.stringify(newManifest, null, "\t") + "\n";
 	files[`entities/${newEntity.name}.json`] =
-		JSON.stringify(buildEntity(newEntity), null, "\t") + "\n";
+		JSON.stringify(withTraits(buildEntity(newEntity), args.entity.traits), null, "\t") + "\n";
 	files["ui/data_views.json"] =
 		JSON.stringify(buildDataViews(allEntities), null, "\t") + "\n";
 	files["ui/folders.json"] =
