@@ -2,7 +2,7 @@
 
 MCP server for dForge module authoring. Exposes 27 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
-Ships with a wizard Skill (`skills/dforge-mcp-author/`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps. The skill bundle includes 22 detailed reference files (field types, flags, traits, formulas, DSL, security, etc.) and an annotated `simple-todo` example module.
+Ships with a wizard Skill (`skills/dforge-mcp-author/`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps. The skill bundle includes 23 detailed reference files (field types, flags, traits, formulas, DSL, security, etc.) and an annotated `simple-todo` example module.
 
 **New here?** Start with **[docs/creating-modules.md](docs/creating-modules.md)** — three ways to scaffold a module (terminal CLI, VS Code sidebar, AI wizard) and when to pick each.
 
@@ -168,7 +168,7 @@ The skill bundle lives at `skills/dforge-mcp-author/` and contains:
 | Path | Contents |
 |---|---|
 | `SKILL.md` | Six-phase co-pilot wizard |
-| `references/*.md` | 22 detailed reference files (field types, flags, traits, formulas, DSL, security, views, menus, translations, …) |
+| `references/*.md` | 23 detailed reference files (field types, flags, traits, formulas, DSL, security, views, menus, translations, …) |
 | `examples/simple-todo/` | Annotated reference module showing all core patterns |
 
 **It is NOT auto-installed by `npm install`** — the skill ships in the npm tarball but Claude Code looks for skills in `~/.claude/skills/`, not in `node_modules`. Sync the whole bundle manually:
@@ -185,7 +185,7 @@ BASE="https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dfo
 mkdir -p ~/.claude/skills/dforge-mcp-author
 curl -fsSL "$BASE/SKILL.md" -o ~/.claude/skills/dforge-mcp-author/SKILL.md
 
-# Reference files (22 guides — load on demand per the table in SKILL.md)
+# Reference files (23 guides — load on demand per the table in SKILL.md)
 mkdir -p ~/.claude/skills/dforge-mcp-author/references
 for f in action-dsl column-types conventions data-migration data-views \
           field-types filters flags formulas jobs manifest menus \

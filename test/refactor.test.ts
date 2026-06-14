@@ -185,6 +185,35 @@ describe("entity_delete — example (todo_list)", () => {
 	});
 });
 
+describe("entity_field_rename — updates ALL formulas that reference the field", () => {
+	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-rename-formula-"));
+	mkdirSync(join(dir, "entities"), { recursive: true });
+	writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { item: "./entities/item.json" } }));
+	writeFileSync(
+		join(dir, "entities", "item.json"),
+		JSON.stringify({
+			description: "Item",
+			traits: ["identity"],
+			fields: {
+				qty: { fieldTypeCd: "number", dbDatatype: "numeric", flags: "VEM" },
+				price: { fieldTypeCd: "currency", flags: "VEM" },
+				// two separate formula columns, both referencing [qty]
+				line_total: { columnType: "F", baseDatatypeCd: "number", flags: "V", formula: "[qty] * [price]" },
+				qty_note: { columnType: "F", baseDatatypeCd: "string", flags: "V", formula: "'qty=' + [qty]" },
+			},
+		}),
+	);
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	it("rewrites every formula, not just the first", () => {
+		const { files } = entityFieldRename({ moduleDir: dir, entityName: "item", fieldName: "qty", newName: "quantity" });
+		const e = JSON.parse(files["entities/item.json"]);
+		expect(e.fields.line_total.formula).toBe("[quantity] * [price]");
+		expect(e.fields.qty_note.formula).toBe("'qty=' + [quantity]");
+		expect(JSON.stringify(e.fields)).not.toContain("[qty]");
+	});
+});
+
 describe("entity_field_rename — guards", () => {
 	it("rejects a name collision", () => {
 		expect(() => entityFieldRename({ moduleDir: EXAMPLE, entityName: "todo_list", fieldName: "name", newName: "color" })).toThrow(/already exists/);

@@ -16,10 +16,13 @@ and VS Code extension use.
   and top-level `Ref:` lines) into the table-spec and runs the import core. Drops
   the source PK column (the identity trait provides `{entity}_id`) and remaps FK
   targets to it. Both import tools accept a `module` identity for **greenfield**
-  imports (no manifest yet). The **spreadsheet/Excel** front-end is the AI itself:
-  it reads the upload, builds a table-spec (sheet → table, header → columns,
-  rows → `sampleValues`), and calls `dforge_module_import` — documented in the
-  skill's Phase 1 on-ramp.
+  imports (no manifest yet).
+- **Spreadsheet (.xlsx) import.** A binary `.xlsx` can't be read directly, so the
+  package ships a **pure-stdlib Python extractor** (`dforge://script/xlsx-to-model`,
+  no `pip install`) that decodes sheets → headers + sample rows as JSON. The skill
+  (`dforge://reference/excel-import`, wired into the Phase 1 on-ramp) drives it:
+  run the extractor, build a table-spec from the model, call `dforge_module_import`.
+  `.csv` is read directly (plain text).
 - **`dforge_module_import` — table-spec → entities (import core).** Takes a
   normalized spec (tables → columns → relationships) and generates entities:
   each column's `fieldTypeCd` is inferred from an explicit code, a source SQL
@@ -93,6 +96,28 @@ and VS Code extension use.
   **omit `dbDatatype` on plain data columns** (it's derived), keeping the
   explicit-value guidance only for FK columns (`cuid`) and size/precision
   overrides — so the derivation is actually used, not bypassed.
+
+### Fixed
+- **Field rename now updates *every* formula** that references the field, not
+  just the first — replaced a reused global `RegExp` (`.test()` carries
+  `lastIndex` across calls) with literal bracket-token string ops.
+- **Validator no longer rubber-stamps cross-module typos.** A dotted entity ref
+  (`crm.product`) is validated against the manifest's declared `dependencies`
+  (or this module's own code); an undeclared/typo'd module is now an error
+  instead of being accepted.
+- **xlsx extractor ignores styled-but-empty rows when sampling.** A bordered/
+  formatted cell with no value no longer counts as data, so placeholder rows
+  can't exhaust the row sample before the real data is reached. Headers-only
+  (structure-only) sheets are supported too — they yield `rows: []`.
+- **xlsx extractor is memory-bounded with no value loss.** Worksheets stream
+  (capped sample), and the shared-string table is read in a second pass that
+  loads **only the indices the sampled cells reference** — so a huge workbook
+  never loads the whole table, and there's no cap that could silently return a
+  raw index instead of the real string.
+- **`module pack` tarball-path resolution is robust.** It now collects every
+  `*.dforge` candidate from stdout (quoted/spaced paths and Windows separators
+  included) and picks the one that **actually exists on disk** — pack just wrote
+  it — instead of trusting a single fragile regex token.
 
 ### Notes
 - Earlier `0.1.0-rc.*` releases predate this changelog.

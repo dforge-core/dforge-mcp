@@ -63,16 +63,20 @@ export function entityFieldRename(
 	entity.fields = renameKey(fields, oldName, newName);
 	changes.push(`field '${oldName}' → '${newName}'`);
 
-	// 2. Same-entity: paired Reference's thisKey + formula refs.
-	const formulaRe = new RegExp("\\[" + oldName + "\\]", "g");
+	// 2. Same-entity: paired Reference's thisKey + formula refs. Use literal
+	// bracket-token string ops (not a shared /g/ regex, whose lastIndex would
+	// carry across .test() calls and skip later formulas). Field names are
+	// [a-z0-9_] so the token is unambiguous.
+	const oldToken = `[${oldName}]`;
+	const newToken = `[${newName}]`;
 	for (const [fname, f] of Object.entries(entity.fields as Record<string, Record<string, unknown>>)) {
 		const link = f.link as Record<string, unknown> | undefined;
 		if (link && link.thisKey === oldName) {
 			link.thisKey = newName;
 			changes.push(`${fname}.link.thisKey`);
 		}
-		if (typeof f.formula === "string" && formulaRe.test(f.formula)) {
-			f.formula = f.formula.replace(formulaRe, "[" + newName + "]");
+		if (typeof f.formula === "string" && f.formula.includes(oldToken)) {
+			f.formula = f.formula.split(oldToken).join(newToken);
 			changes.push(`formula in ${fname}`);
 		}
 	}
@@ -232,7 +236,7 @@ export function entityFieldRemove(
 	for (const [fn, f] of Object.entries(entity.fields as Record<string, Record<string, unknown>>)) {
 		if (typeof f.formula !== "string") continue;
 		for (const r of removed) {
-			if (new RegExp("\\[" + r + "\\]").test(f.formula)) {
+			if (f.formula.includes(`[${r}]`)) {
 				warnings.push(`formula in '${fn}' still references removed '[${r}]'`);
 			}
 		}

@@ -78,8 +78,20 @@ export function moduleValidate(
 		columnsOf[name] = cols;
 	}
 
-	const isKnownEntity = (code: string): boolean =>
-		code in entities || code in SYSTEM_ENTITY_PK || code.includes(".");
+	// A dotted code (cross-module entity, e.g. 'fin.invoice') is only valid if its
+	// module prefix is a declared dependency (or this module's own code). We can't
+	// confirm the entity exists in the other module offline, but this catches refs
+	// to an undeclared/typo'd module instead of accepting any dotted string.
+	const deps = new Set(Object.keys(manifest.dependencies ?? {}));
+	const isKnownEntity = (code: string): boolean => {
+		if (code in entities || code in SYSTEM_ENTITY_PK) return true;
+		const dot = code.indexOf(".");
+		if (dot > 0) {
+			const mod = code.slice(0, dot);
+			return deps.has(mod) || mod === manifest.code;
+		}
+		return false;
+	};
 	const pkOf = (code: string): string | undefined => {
 		if (code in SYSTEM_ENTITY_PK) return SYSTEM_ENTITY_PK[code];
 		const e = entities[code];

@@ -69,16 +69,24 @@ export function packModule(
 	if (r.code !== 0) {
 		throw new Error(`pack failed (exit ${r.code}):\n${r.stderr || r.stdout}`);
 	}
-	// Heuristic: dforge-cli prints the tarball path on success. Fall back to
-	// guessing if we can't parse it.
-	const m = r.stdout.match(/([\w./-]+\.dforge)/);
-	const tarballPath = m
-		? path.resolve(m[1])
-		: args.outPath
-			? path.resolve(args.outPath)
-			: "";
+	// Resolve the tarball path. Parsing freeform stdout is inherently fragile, so
+	// disambiguate by what's actually on disk — pack just wrote the file, so the
+	// right candidate is the one that exists. Prefer an explicit output FILE;
+	// then a quoted path (survives spaces); then every bare `*.dforge` token
+	// (allowing Windows backslashes, which `\S` covers); finally the output dir.
+	const candidates: string[] = [];
+	if (args.outPath && args.outPath.toLowerCase().endsWith(".dforge")) {
+		candidates.push(args.outPath);
+	}
+	const quoted = r.stdout.match(/["']([^"'\r\n]+\.dforge)["']/i);
+	if (quoted) candidates.push(quoted[1]);
+	for (const m of r.stdout.matchAll(/(\S+\.dforge)\b/gi)) candidates.push(m[1]);
+	if (args.outPath) candidates.push(args.outPath); // dir fallback
+
+	const resolved = candidates.map((c) => path.resolve(c));
 	let sizeBytes = 0;
-	if (tarballPath && fs.existsSync(tarballPath)) {
+	let tarballPath = resolved.find((p) => fs.existsSync(p) && fs.statSync(p).isFile()) ?? resolved[0] ?? "";
+	if (tarballPath && fs.existsSync(tarballPath) && fs.statSync(tarballPath).isFile()) {
 		sizeBytes = fs.statSync(tarballPath).size;
 	}
 	const output = securityWarning ? `${securityWarning}\n\n${r.stdout}` : r.stdout;

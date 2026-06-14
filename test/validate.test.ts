@@ -20,6 +20,37 @@ describe("module_validate — canonical example", () => {
 	});
 });
 
+describe("module_validate — cross-module references", () => {
+	const make = (dependencies: Record<string, unknown>) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-xmod-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", dependencies, entities: { line: "./entities/line.json" } }));
+		writeFileSync(
+			join(dir, "entities", "line.json"),
+			JSON.stringify({
+				description: "Line",
+				traits: ["identity"],
+				fields: {
+					product_id: { dbDatatype: "cuid", flags: "EM" },
+					product: { columnType: "R", fieldTypeCd: "lookup", flags: "VEM", link: { entity: "crm.product", thisKey: "product_id", otherKey: "product_id" } },
+				},
+			}),
+		);
+		const res = JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		rmSync(dir, { recursive: true, force: true });
+		return res;
+	};
+
+	it("flags a dotted ref whose module is NOT a declared dependency", () => {
+		const res = make({});
+		expect(JSON.stringify(res.errors)).toContain("crm.product");
+	});
+	it("accepts a dotted ref to a declared dependency", () => {
+		const res = make({ crm: ">=0.0.1" });
+		expect(JSON.stringify(res.errors)).not.toContain("crm.product");
+	});
+});
+
 describe("module_validate — broken fixture", () => {
 	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-validate-"));
 	mkdirSync(join(dir, "entities"), { recursive: true });

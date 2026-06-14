@@ -173,7 +173,16 @@ export const resources: ResourceDef[] = [
 	reference("print-templates", "Liquid HTML print templates."),
 	reference("translations", "Translation files: locale-keyed, every trait-provided field needs an entry."),
 	reference("queries", "Pre-built saved queries."),
-	reference("schema-import", "Importing entities from DBML/SQL."),
+	reference("schema-import", "Importing entities from DBML/SQL (use dforge_dbml_import for the parse)."),
+	reference("excel-import", "Importing a data model from a spreadsheet (.xlsx/.csv): decode the binary xlsx with the bundled stdlib Python extractor (dforge://script/xlsx-to-model), build a table-spec, call dforge_module_import. Load before handling any spreadsheet upload."),
+	{
+		uri: "dforge://script/xlsx-to-model",
+		name: "xlsx → model extractor (Python, stdlib)",
+		description:
+			"Pure standard-library Python 3 script (no pip needed) that extracts each sheet's headers + sample rows from an .xlsx into JSON. Write it to a temp file and run `python3 <tmp>.py <file.xlsx>`. See dforge://reference/excel-import for the full flow.",
+		mimeType: "text/x-python",
+		read: () => readSkill("scripts/xlsx_to_model.py"),
+	},
 	reference("data-migration", "Migrating data from a legacy database."),
 	reference("manifest", "manifest.json shape: moduleId UUID, semver, entities map, locale-keyed translations, security block."),
 	reference("validation-checklist", "Final pre-pack self-review checklist covering every file type."),
