@@ -1,0 +1,11 @@
+{
+	"mark_done": {
+		"label": "Mark Done",
+		"description": "Mark this todo item as completed",
+		"icon": "bi-check-circle",
+		"entityCode": "todo_item",
+		"executionMode": "each",
+		"script": "mark_done",
+		"isAsync": false
+	}
+}

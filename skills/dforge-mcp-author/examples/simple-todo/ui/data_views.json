@@ -1,0 +1,35 @@
+{
+	"todo_list_grid": {
+		"label": "All Lists",
+		"description": "All todo lists",
+		"viewType": "grid",
+		"icon": "bi-list-ul",
+		"dataSources": [{
+			"entityCode": "todo_list",
+			"columns": [
+				{ "column_cd": "name", "width": 200 },
+				{ "column_cd": "color", "width": 80 },
+				{ "column_cd": "description", "width": 400 }
+			],
+			"order": ["name"]
+		}]
+	},
+	"todo_item_grid": {
+		"label": "All Items",
+		"description": "All todo items across all lists",
+		"viewType": "grid",
+		"icon": "bi-check-square",
+		"dataSources": [{
+			"entityCode": "todo_item",
+			"columns": [
+				{ "column_cd": "title", "width": 300 },
+				{ "column_cd": "list", "width": 150 },
+				{ "column_cd": "priority", "width": 100 },
+				{ "column_cd": "done", "width": 80 },
+				{ "column_cd": "due_date", "width": 120 },
+				{ "column_cd": "owner_id", "width": 150 }
+			],
+			"order": ["due_date"]
+		}]
+	}
+}

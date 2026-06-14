@@ -8,6 +8,13 @@ import * as path from "node:path";
 
 const RESOURCES_DIR = path.resolve(__dirname, "..", "resources");
 
+// The authoring references + worked example live in the skill directory,
+// which ships in the npm tarball (package.json `files` includes "skills/").
+// Exposing them as dforge:// resources gives the agent stable URIs it can
+// pull regardless of its working directory — unlike filesystem paths in the
+// skill prompt, which don't resolve from a module-build CWD.
+const SKILL_DIR = path.resolve(__dirname, "..", "skills", "dforge-mcp-author");
+
 export interface ResourceDef {
 	uri: string;
 	name: string;
@@ -31,6 +38,31 @@ function schema(name: string, label: string, description: string): ResourceDef {
 		description,
 		mimeType: "application/schema+json",
 		read: () => readVendored(`schemas/${name}.schema.json`),
+	};
+}
+
+// A per-element authoring reference (skills/.../references/<name>.md). Carries
+// the schema shape, a worked example, and the common-mistakes list for one
+// element type — the agent's primary source before authoring that element.
+function reference(name: string, description: string): ResourceDef {
+	return {
+		uri: `dforge://reference/${name}`,
+		name: `Reference: ${name}`,
+		description,
+		mimeType: "text/markdown",
+		read: () => readSkill(`references/${name}.md`),
+	};
+}
+
+// A file from the canonical simple-todo example module. These are the
+// mandatory structure validators — copy their shapes, don't invent.
+function example(relPath: string, description: string): ResourceDef {
+	return {
+		uri: `dforge://example/${relPath}`,
+		name: `Example: ${relPath}`,
+		description,
+		mimeType: relPath.endsWith(".json") ? "application/json" : "text/plain",
+		read: () => readSkill(`examples/simple-todo/${relPath}`),
 	};
 }
 
@@ -122,12 +154,63 @@ export const resources: ResourceDef[] = [
 		mimeType: "text/markdown",
 		read: () => readVendored("docs/dsl-reference.md"),
 	},
+
+	// ── Per-element authoring references (skills/.../references/*.md) ──────
+	reference("field-types", "Field types — fieldTypeCd (UI control) vs dbDatatype (SQL type), and the correct value for each. Load before adding any field."),
+	reference("flags", "Column flags — only V/I/E/M/H; valid combos (VEM/VE/V/EM/I) and why 'VEMHI' is invalid. Load before setting any flags."),
+	reference("column-types", "The FK + Reference two-column pattern (the #1 source of broken modules) and Set columns. Load before any relation."),
+	reference("formulas", "Formula columns (columnType 'F'): baseDatatypeCd, no dbDatatype, flags 'V', and the formula expression grammar."),
+	reference("traits", "Entity traits (identity, audit, audit-full, ...). identity → PK is '{entity}_id'; don't redefine trait columns."),
+	reference("data-views", "Data views: dataSources array, columns, the order string-array ('order': ['-col','col']), and specialized view configs."),
+	reference("menus", "Menus: leaf items use dataViewCode; section nodes omit itemType; icons are Bootstrap names WITHOUT the bi- prefix."),
+	reference("action-dsl", "Action DSL grammar + 'Registering the action' (ui/actions.json: entityCode/executionMode/script/isAsync/bi- icon)."),
+	reference("filters", "Canonical filter shape for views, folders, and reports."),
+	reference("security", "Security roles + rights matrix: 'rights' key, SIUDC for entities, E for actions/reports/folders."),
+	reference("reports", "Reports: layout panels + datasets (Query or Stored Procedure)."),
+	reference("settings", "Module settings shape."),
+	reference("jobs", "Scheduled jobs: cron, timeout, jobClass, and the no-record-context constraint."),
+	reference("number-sequences", "Number sequences for reference numbers / codes."),
+	reference("print-templates", "Liquid HTML print templates."),
+	reference("translations", "Translation files: locale-keyed, every trait-provided field needs an entry."),
+	reference("queries", "Pre-built saved queries."),
+	reference("schema-import", "Importing entities from DBML/SQL (use dforge_dbml_import for the parse)."),
+	reference("excel-import", "Importing a data model from a spreadsheet (.xlsx/.csv): decode the binary xlsx with the bundled stdlib Python extractor (dforge://script/xlsx-to-model), build a table-spec, call dforge_module_import. Load before handling any spreadsheet upload."),
+	{
+		uri: "dforge://script/xlsx-to-model",
+		name: "xlsx → model extractor (Python, stdlib)",
+		description:
+			"Pure standard-library Python 3 script (no pip needed) that extracts each sheet's headers + sample rows from an .xlsx into JSON. Write it to a temp file and run `python3 <tmp>.py <file.xlsx>`. See dforge://reference/excel-import for the full flow.",
+		mimeType: "text/x-python",
+		read: () => readSkill("scripts/xlsx_to_model.py"),
+	},
+	reference("data-migration", "Migrating data from a legacy database."),
+	reference("manifest", "manifest.json shape: moduleId UUID, semver, entities map, locale-keyed translations, security block."),
+	reference("validation-checklist", "Final pre-pack self-review checklist covering every file type."),
+
+	// ── Canonical example module (skills/.../examples/simple-todo) ────────
+	example("manifest.json", "Canonical manifest.json."),
+	example("entities/todo_item.json", "Canonical entity: traits, flags (VEM/VE), dropdown options as {value,label}, FK+Reference pattern (otherKey = '{entity}_id'), references block, toString uses a business field."),
+	example("entities/todo_list.json", "Canonical parent/lookup entity."),
+	example("ui/actions.json", "Canonical ui/actions.json: label/description/icon('bi-...')/entityCode/executionMode/script(bare)/isAsync."),
+	example("ui/data_views.json", "Canonical data views: dataSources array + order string-array."),
+	example("ui/menus.json", "Canonical menus: dataViewCode leaves, bi-less icons."),
+	example("security/roles.json", "Canonical roles: rights with SIUDC / E."),
+	example("seed-data/01-lists.json", "Canonical seed data: PK key is '{entity}_id' (not 'id'), parent-before-child via numeric prefix."),
+	example("logic/actions/mark_done.dsl", "Canonical action DSL body (params/canExecute/execute)."),
 ];
 
 function readVendored(rel: string): string {
 	const p = path.join(RESOURCES_DIR, rel);
 	if (!fs.existsSync(p)) {
 		return `// Resource missing at build time: ${rel}\n// Run scripts/vendor-resources.sh in dforge-mcp to refresh from dForge-core.`;
+	}
+	return fs.readFileSync(p, "utf8");
+}
+
+function readSkill(rel: string): string {
+	const p = path.join(SKILL_DIR, rel);
+	if (!fs.existsSync(p)) {
+		return `// Skill resource missing: ${rel}\n// Expected under skills/dforge-mcp-author/ — check the package 'files' list.`;
 	}
 	return fs.readFileSync(p, "utf8");
 }

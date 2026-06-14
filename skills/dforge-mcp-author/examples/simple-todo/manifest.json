@@ -1,0 +1,32 @@
+{
+	"packageFormat": 1,
+	"moduleId": "20000000-0000-0000-0000-000000000001",
+	"code": "simple_todo",
+	"version": "0.1.0",
+	"dbSchemaVersion": "0.0.1",
+	"displayName": "Simple Todo",
+	"description": "Minimal example module demonstrating the dForge package format",
+	"author": { "name": "dForge Examples" },
+	"license": "MIT",
+	"category": "Examples",
+	"tags": ["example", "todo"],
+	"icon": "bi-check-square",
+	"dependencies": {
+		"admin": ">=0.0.1"
+	},
+	"created": "2026-04-08",
+	"updated": "2026-04-08",
+	"entities": {
+		"todo_list": "./entities/todo_list.json",
+		"todo_item": "./entities/todo_item.json"
+	},
+	"dataViews": "./ui/data_views.json",
+	"menus": "./ui/menus.json",
+	"actions": "./ui/actions.json",
+	"security": {
+		"roles": "./security/roles.json"
+	},
+	"seedData": [
+		"./seed-data/01-lists.json"
+	]
+}

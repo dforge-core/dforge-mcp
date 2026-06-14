@@ -10,5 +10,5 @@ export default defineConfig({
 	// Bundle SDK + dforge-cli/templates into one dist/server.js so users
 	// invoking via `npx @dforge-core/dforge-mcp` get a single file with no
 	// post-install node_modules tree to materialize.
-	noExternal: ["@modelcontextprotocol/sdk", "@dforge-core/dforge-cli", "zod"],
+	noExternal: ["@modelcontextprotocol/sdk", "@dforge-core/dforge-cli", "@dforge-core/metadata", "zod"],
 });

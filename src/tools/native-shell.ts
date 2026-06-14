@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
+import { assertSecurityCoverage } from "./_helpers";
 
 // All three tools below shell out to the native C# dforge-cli binary. They
 // resolve the binary via DFORGE_CLI_BINARY env var or by trying the
@@ -57,6 +58,9 @@ export const packModuleSchema = {
 export function packModule(
 	args: z.infer<z.ZodObject<typeof packModuleSchema>>,
 ): { tarballPath: string; sizeBytes: number; output: string } {
+	// Phase 5a gate — refuse to pack a module whose entities aren't covered by a
+	// role (the platform won't catch this; the module would install inaccessible).
+	const securityWarning = assertSecurityCoverage(args.moduleDir);
 	const argList = ["module", "pack", args.moduleDir];
 	if (args.outPath) {
 		argList.push("-o", args.outPath);
@@ -65,19 +69,48 @@ export function packModule(
 	if (r.code !== 0) {
 		throw new Error(`pack failed (exit ${r.code}):\n${r.stderr || r.stdout}`);
 	}
-	// Heuristic: dforge-cli prints the tarball path on success. Fall back to
-	// guessing if we can't parse it.
-	const m = r.stdout.match(/([\w./-]+\.dforge)/);
-	const tarballPath = m
-		? path.resolve(m[1])
-		: args.outPath
-			? path.resolve(args.outPath)
-			: "";
-	let sizeBytes = 0;
-	if (tarballPath && fs.existsSync(tarballPath)) {
-		sizeBytes = fs.statSync(tarballPath).size;
+	// Resolve the tarball path. Parsing freeform stdout is inherently fragile, so
+	// disambiguate by what's actually on disk — pack just wrote the file, so the
+	// right candidate is the one that exists. Prefer an explicit output FILE;
+	// then a quoted path (survives spaces); then every bare `*.dforge` token
+	// (allowing Windows backslashes, which `\S` covers); finally the output dir.
+	const candidates: string[] = [];
+	if (args.outPath && args.outPath.toLowerCase().endsWith(".dforge")) {
+		candidates.push(args.outPath);
 	}
-	return { tarballPath, sizeBytes, output: r.stdout };
+	const quoted = r.stdout.match(/["']([^"'\r\n]+\.dforge)["']/i);
+	if (quoted) candidates.push(quoted[1]);
+	for (const m of r.stdout.matchAll(/(\S+\.dforge)\b/gi)) candidates.push(m[1]);
+	if (args.outPath) candidates.push(args.outPath); // dir fallback
+
+	// Strip wrapping punctuation a freeform log line may add around the path
+	// (e.g. quotes, parens, a trailing comma/period) before resolving.
+	const clean = (s: string) => s.replace(/^[\s'"([{<]+/, "").replace(/[\s'"),.;:\]}>]+$/, "");
+	// One stat per path: file size if it's an existing regular file, else undefined.
+	const fileSize = (p: string): number | undefined => {
+		try {
+			const st = fs.statSync(p);
+			return st.isFile() ? st.size : undefined;
+		} catch {
+			return undefined;
+		}
+	};
+
+	let tarballPath = "";
+	let sizeBytes = 0;
+	for (const c of candidates) {
+		const resolved = path.resolve(clean(c));
+		const size = fileSize(resolved);
+		if (size !== undefined) {
+			tarballPath = resolved;
+			sizeBytes = size;
+			break;
+		}
+	}
+	// Nothing on disk matched — surface the best-guess path anyway.
+	if (!tarballPath && candidates.length) tarballPath = path.resolve(clean(candidates[0]));
+	const output = securityWarning ? `${securityWarning}\n\n${r.stdout}` : r.stdout;
+	return { tarballPath, sizeBytes, output };
 }
 
 // ─── install ─────────────────────────────────────────────────────────
@@ -124,26 +157,4 @@ export function installModule(
 	const ok = r.status === 0;
 	const output = (r.stdout ?? "") + (r.stderr ?? "");
 	return { ok, output };
-}
-
-// ─── dbml-import (stub) ──────────────────────────────────────────────
-
-export const dbmlImportSchema = {
-	dbmlText: z.string().describe("DBML source text."),
-	moduleCode: z
-		.string()
-		.regex(/^[a-z][a-z0-9_-]*$/)
-		.describe("Module code for the generated module."),
-};
-
-export function dbmlImport(
-	_args: z.infer<z.ZodObject<typeof dbmlImportSchema>>,
-): { ok: false; message: string } {
-	return {
-		ok: false,
-		message:
-			"dbml-import is not yet implemented in dforge-cli. The CLI command " +
-			"`dforge-cli dbml-import --from-dbml <file>` is a stub. When it lands, " +
-			"this tool will shell out to it and return the generated module file map.",
-	};
 }

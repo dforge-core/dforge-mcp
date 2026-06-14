@@ -159,6 +159,10 @@
 					"description": "Field type code (see settings.schema.json for the common list)"
 				},
 				"label": { "type": "string" },
+				"orderNum": {
+					"type": "integer",
+					"description": "Display order of the parameter in the report's parameter form. Read by ReportRegistrar (paramDef.OrderNum); falls back to declaration order when omitted."
+				},
 				"required": {
 					"type": "boolean",
 					"default": false,

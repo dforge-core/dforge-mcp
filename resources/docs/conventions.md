@@ -518,7 +518,7 @@ seed-data/
 	"entityCode": "department",
 	"records": [
 		{
-			"department_id": "a0030000-0000-0000-0000-000000000001",
+			"department_id": 3001,
 			"department_code": "EXEC",
 			"department_name": "Executive / Leadership",
 			"is_active": true
@@ -530,10 +530,10 @@ seed-data/
 **Rules:**
 - Files are loaded alphabetically — use numbered prefixes (01-, 02-, etc.)
 - Parent tables must come before child tables (FK dependency order)
-- Include explicit PK values (UUIDs) so child records can reference them
-- Use a stable UUID scheme: `a00X0000-0000-0000-0000-00000000000Y` where X=entity type, Y=record
+- Include explicit PK values so child records can reference them
+- PKs from the `identity` trait are `cuid` — physically `int8` (bigint), **not** UUID strings. Use numeric integers with a stable per-entity scheme: `1001`–`1099` for the first entity type, `2001`–`2099` for the next, etc. Using UUID strings here fails the seed load against `int8` columns.
 - Inserts use `ON CONFLICT DO NOTHING` (idempotent)
-- UUIDs and dates in string format are auto-converted by the seed runner
+- Dates in string format are auto-converted by the seed runner
 - Omit auto-generated fields (`created_date`, `last_updated`) — they use DB defaults
 - Omit cross-module FK fields (e.g., `owner_id` referencing `user` table)
 
@@ -616,7 +616,7 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 	"toString": "{first_name} {last_name}",
 	"fields": {
 		"employee_id": {
-			"dbDatatype": "uuid",
+			"dbDatatype": "cuid",
 			"isPk": true,
 			"isIdentity": true,
 			"isNullable": false,
@@ -633,7 +633,8 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 			"description": "Employee Code"
 		},
 		"department_id": {
-			"dbDatatype": "uuid",
+			"dbDatatype": "cuid",
+			"fieldTypeCd": "hidden",
 			"flags": "EM",
 			"orderNum": 30,
 			"description": "Department ID"
@@ -706,7 +707,8 @@ For every foreign key relationship, create TWO columns:
 ### 1. Hidden FK Column (Database)
 ```json
 "department_id": {
-	"dbDatatype": "uuid",
+	"dbDatatype": "cuid",
+	"fieldTypeCd": "hidden",
 	"flags": "EM",
 	"orderNum": 30,
 	"description": "Department ID"
@@ -745,6 +747,7 @@ For every foreign key relationship, create TWO columns:
 - `params` is used for other purposes (e.g., dropdown `options`)
 - Hidden FK column: `flags: "EM"` (no `V` = hidden from UI)
 - Visible reference column: `flags: "VEM"`, `columnType: "R"`
+- The FK column's `dbDatatype` **MUST match the referenced PK's type** — use `cuid` for `identity`-trait PKs (`cuid` is physically `int8`, **not** a UUID). A mismatch (e.g. FK `uuid` → PK `cuid`) fails install with *"foreign key constraint … cannot be implemented"*.
 
 ---
 
@@ -924,7 +927,7 @@ When creating a module, ensure:
 - [ ] `folders.json` uses entity dictionary with `{ viewName, quickAdd }` objects
 - [ ] `roles.json` uses `"rights"` property (not `"entityRights"`)
 - [ ] Seed data files are numbered for FK dependency order (01-, 02-, etc.)
-- [ ] Seed data includes explicit PK UUIDs for cross-entity references
+- [ ] Seed data includes explicit numeric (int8) PKs for cross-entity references — NOT UUID strings (`cuid` is `int8`)
 - [ ] `translations/<locale>.json` covers entities (+ fields), folders, views, menus (+ items), actions (+ params), and reports (+ dataset captions, + params) for every locale declared in `manifest.supportedLocales`. Do not include `en`/`en-US`. Sections `roles` and `print_templates` are not displayed even if listed.
 - [ ] Constraints have clear user-facing `message` values
 - [ ] Check constraint `expression` uses standard SQL subset (test in PostgreSQL first)
