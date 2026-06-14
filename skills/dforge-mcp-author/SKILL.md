@@ -23,11 +23,16 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 |---|---|---|
 | `dforge_module_plan` | 0 | **Phase 0 orchestrator — call first.** Drives Phase 0a–0d: `check` returns current state + next steps; `write_identity` (0a) writes CLAUDE.md; `write_requirements` (0b) confirms REQUIREMENTS.md (which you write to disk yourself) after user YES and ticks CLAUDE.md; `write_design` (0c) confirms DESIGN.md (which you write to disk yourself) after user YES and ticks CLAUDE.md; `validate` (0d) runs checks + writes VALIDATION.md. `readyToScaffold: true` unlocks `dforge_module_create`. |
 | `dforge_module_inspect` | any | Read current module state. **Read-only** — output does NOT require user confirmation. The one-line `summary` is for the user; the full structured state lives in `files["_inspect.json"]` (entities + their fields, views + their data sources, roles + rights matrix, actions, reports, settings, folders tree). Parse `_inspect.json` before planning patches — don't rely on summary text alone. |
+| `dforge_module_validate` | 6 (or any) | **Read-only** offline cross-reference check. Catches dangling FK/reference targets, a missing hidden-FK column, view/menu/role references to things that don't exist, and uncovered entities — errors that otherwise only surface at install. Read `files["_validate.json"]`; fix every `error` before packing. Run it as the first Phase 6 step, and after any backtrack that touched references. |
 | `dforge_module_create` | 1 | Scaffold a new module — **blocked until Phase 0d passes** (all four Phase 0 docs written + validated) |
+| `dforge_module_import` | 1 | Import a normalized **table-spec** (tables → columns → relationships) into an existing module as entities. Infers each column's `fieldTypeCd` (from explicit code / SQL type / sample values / name) and builds the FK+Reference pair per relationship. Front-end is DBML/SQL, Excel/CSV, or hand-authored. ADDS entities; review inferred types + refine views, then validate. |
 | `dforge_entity_add` | 1 | Add a whole entity to an existing module |
+| `dforge_entity_rename` | backtrack | **Refactor-safe entity rename.** Moves the file (apply the response `deletes`), cascades the identity PK `{old}_id → {new}_id`, and repoints link.entity / references / view entityCode / role keys / action entity / folder bindings / seed. Reports/translations/menus/DSL warned, not rewritten. |
+| `dforge_entity_delete` | backtrack | **Refactor-safe entity delete.** Drops the file + seed (in `deletes`), manifest entry, role key, folder binding, and view sources (deletes a view left empty). Cross-entity FKs / actions / menus warned. |
 | `dforge_entity_field_add` | 1 | Patch one field onto an existing entity |
-| `dforge_entity_field_modify` | 1 | Replace one field's spec |
-| `dforge_entity_field_remove` | 1 | Drop one field (warns about dependents) |
+| `dforge_entity_field_modify` | 1 | Replace one field's spec (same name) |
+| `dforge_entity_field_rename` | 1 / backtrack | **Refactor-safe rename.** Propagates the new name to the paired Reference (`link.thisKey` + `references`), same-entity formulas, view columns + `order`, seed-data records, and other entities' FKs targeting it. Use this to rename a field — never remove+add. |
+| `dforge_entity_field_remove` | 1 / backtrack | **Refactor-safe remove.** Drops the field and cascade-cleans the paired Reference (when removing its FK), references entry, view columns + `order`, and seed keys. Formula/cross-entity dependents are warned, not auto-deleted. |
 | `dforge_action_add` | 2 | DSL action + ui/actions.json entry |
 | `dforge_trigger_add` | 2 | DB-event trigger in logic/triggers.json |
 | `dforge_job_add` | 2 | Scheduled job in logic/jobs.json |
@@ -102,7 +107,7 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **Naming.** `code`, entity `dbObject` keys, column keys all `snake_case`, case-sensitive, entities singular (`opportunity_line`). `code` = DB schema name.
 - **FK + Reference = two columns** (the #1 source of broken modules): hidden FK (`flags: "EM"`, `dbDatatype` = target PK type, no `fieldTypeCd`) **plus** visible Reference (`columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, `link: {entity, thisKey, otherKey}`), plus the FK in `references`. Never one column that is both. → `column-types.md`
 - **Flags** = letters from `V I E M H` only (no `U`/`S`/`P`): `VEM` required+visible, `VE` optional+visible, `V` read-only, `EM` hidden FK, `I` trait-provided. → `flags.md`
-- **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type — never the same value, and `dbDatatype` is never `"number"` (use `int`/`bigint`/`numeric`). Common `fieldTypeCd` fixes: `number` not `integer`/`float`, `phone` not `phoneNumber`, `date` not `datePicker`. Common `dbDatatype` fixes: `timestamptz` not `datetime`/`timestamp`, `bool` not `boolean`, `varchar`/`text` not `string`, `int`/`bigint`/`numeric` not `integer`/`float`/`decimal`. → `field-types.md`
+- **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type. **Omit `dbDatatype` on plain data columns — it's derived from `fieldTypeCd`** (`currency` → `numeric(18,2)`, `text` → `varchar`). Only set it for a **hidden FK** (no `fieldTypeCd`, so use the target PK type `cuid`) or to override size/precision. When you do set it: never the same as `fieldTypeCd`, and never `"number"` (use `int`/`bigint`/`numeric`). Common `fieldTypeCd` fixes: `number` not `integer`/`float`, `phone` not `phoneNumber`, `date` not `datePicker`. Common `dbDatatype` fixes: `timestamptz` not `datetime`/`timestamp`, `bool` not `boolean`, `varchar`/`text` not `string`. (Invalid `fieldTypeCd`/`columnType` are now rejected at authoring time.) → `field-types.md`
 - **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, no `dbDatatype`, `flags: "V"`. → `formulas.md`
 - **Roll-up totals** over a child set → Formula `F` with `SUM([set].[field])` (query-time). Never a Generated `G` column aggregating a virtual `F`/`R`/`S` child — its DB trigger reads `OLD.<field>` and install fails (`column old.<field> does not exist`). → `column-types.md`
 - **Column defaults:** entity *data* columns have **no** `defaultValue`/`default` key. Set a default via a formula (`"formula": "TODAY()"`, `"formula": "'draft'"`) or in action/trigger logic. `defaultValue` is **settings-only**. → `field-types.md`
@@ -160,7 +165,7 @@ The loop the tool walks you through:
 
 **Document-write ordering (exception to hard rule #1):** for REQUIREMENTS.md and DESIGN.md you write the file to disk *first*, then ask the user to review it and reply YES — do not paste the full document into chat. On change requests, edit the file directly (targeted edits) and re-ask until confirmed. `dforge_module_create` stays gated at the tool level until `readyToScaffold: true`.
 
-> **What Phase 0d validates — and what it doesn't.** `docs/VALIDATION.md` / `readyToScaffold: true` certifies only that the **design documents** are internally consistent. It runs *before* scaffolding and does **not** inspect any generated entity / UI / security / DSL file. Artifact correctness is enforced by the **platform at install (Phase 6)** — a green VALIDATION.md is not a signal that the module will install. The Phase 6 pre-pack self-review (Step 1) is your real safeguard.
+> **What Phase 0d validates — and what it doesn't.** `docs/VALIDATION.md` / `readyToScaffold: true` certifies only that the **design documents** are internally consistent. It runs *before* scaffolding and does **not** inspect any generated entity / UI / security / DSL file. Artifact correctness is enforced by the **platform at install (Phase 6)** — a green VALIDATION.md is not a signal that the module will install. The Phase 6 automated validation + pre-pack self-review (Steps 1–2) are your real safeguard.
 
 ### 0b intake — guardrails the tool can't enforce
 
@@ -357,9 +362,13 @@ If needed: `dforge_folder_add` per sub-folder, passing `entities` with `rowFilte
 
 **Steps:**
 
-### Step 1 — Pre-pack self-review (blocking gate)
+### Step 1 — Automated validation (blocking gate)
 
-Load `dforge://reference/validation-checklist`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to Step 2 until all checks pass.
+Call **`dforge_module_validate`** on the module dir first. It runs the cross-reference checks offline (dangling FK/reference targets, a missing hidden-FK column, view columns / menu dataViewCodes / role rights pointing at things that don't exist, entities with no Select grant) — the errors that otherwise only surface at install. Read `files["_validate.json"]`: **every `error` must be fixed** (apply the backtrack protocol) before continuing; review `warning`s with the user. Re-run until `ok: true`. This is faster and more reliable than eyeballing — but it is structural only; it does not judge intent, so still do Step 2.
+
+### Step 2 — Pre-pack self-review (blocking gate)
+
+Load `dforge://reference/validation-checklist`. Run through **every section** in order. Surface each failure to the user and apply the backtrack protocol before proceeding. Do not advance to packing until all checks pass.
 
 **Top install-blockers — scan these first** (each is a documented real install failure the platform validator rejects):
 
@@ -383,11 +392,11 @@ Key areas (full checklist):
 - **Seed data**: numeric PKs; parent entities loaded before children; no circular references.
 - **Translations**: a `translations/<locale>.json` file exists for every locale in `supportedLocales`; every trait-provided field (`created_at`, `updated_at`, etc.) has a translation entry in each file.
 
-### Step 2 — Translation deferral check
+### Step 3 — Translation deferral check
 
-Read `_brief/changelog.md`. If a translation deferral warning is present ("Translation files for [locales] are incomplete"), halt here. Tell the user: "Translation files must be completed before packing — install will fail translation completeness validation." Do not proceed to Step 3 until resolved.
+Read `_brief/changelog.md`. If a translation deferral warning is present ("Translation files for [locales] are incomplete"), halt here. Tell the user: "Translation files must be completed before packing — install will fail translation completeness validation." Do not proceed to Step 4 until resolved.
 
-### Step 3 — Final inspect + version audit
+### Step 4 — Final inspect + version audit
 
 Run `dforge_module_inspect`. Show a one-line summary: entity count, view count, action count, role count. Then confirm version strings with the user:
 
@@ -396,12 +405,12 @@ Run `dforge_module_inspect`. Show a one-line summary: entity count, view count, 
 
 Get user confirmation on both version strings before packing.
 
-### Step 4 — Pack + install
+### Step 5 — Pack + install
 
 1. `dforge_module_pack` → produces `.dforge` tarball. (Blocked if any entity lacks a role granting Select — the Phase 5a gate; fix security coverage and re-run.)
 2. `dforge_module_install` with `DFORGE_URL` / `DFORGE_TOKEN`. Runs the full server-side validator.
 
-**If install fails on a module defect**, use this table to identify which phase to backtrack to, then apply the backtrack protocol, fix, re-run Step 1 (self-review), and re-pack:
+**If install fails on a module defect**, use this table to identify which phase to backtrack to, then apply the backtrack protocol, fix, re-run Steps 1–2 (validate + self-review), and re-pack:
 
 | Install error pattern | Backtrack to |
 |---|---|
@@ -427,16 +436,19 @@ When a later phase exposes a problem in an earlier phase, follow steps 1–6 IN 
 2. **Name the issue precisely.** "Phase 3 wants a kanban grouped by `lead_status`, but Phase 1 didn't define `lead_status` on entity `lead`."
 3. **Identify the target phase + decision.** "Backtrack to Phase 1: add field `lead_status` to entity `lead`."
 4. **Get user sign-off.** Describe the change including any cascading impacts.
-5. **Apply the smallest tool that fits.** This rule overrides the "typical phase" labels in the tool reference table. Prefer `entity_field_add` over `entity_add`; `role_right_set` over `role_add`; `view_modify` over `view_add` + remove.
+5. **Apply the smallest tool that fits.** This rule overrides the "typical phase" labels in the tool reference table. Prefer `entity_field_add` over `entity_add`; `entity_field_rename` over remove+add when renaming (it propagates references for you); `role_right_set` over `role_add`; `view_modify` over `view_add` + remove.
 6. **Run `dforge_module_inspect` again** to surface knock-on impacts. Fix in order. Resume the original phase.
 
-**Entity rename or deletion specifically requires cascade discovery:**
+**Field and entity rename/delete are handled for you** by the refactor-safe tools, which propagate the cascade in one call:
 
-Before applying:
-1. Run `dforge_module_inspect` to enumerate every reference: views' `dataSources.entityCode`, role `rights` keys, action `entity`, report dataset `entityCd`, seed-data files, formula/DSL bodies.
-2. List every affected artifact to the user. Require explicit confirmation.
-3. Apply in **reverse dependency order**: roles → reports → views → actions → entity itself.
-4. Re-inspect; verify no dangling references remain.
+- **Rename a field** → `dforge_entity_field_rename` (paired Reference, formulas, views, seed, cross-entity FKs).
+- **Remove a field** → `dforge_entity_field_remove` (cascade-cleans views/seed/paired Reference; warns formula/cross-entity).
+- **Rename an entity** → `dforge_entity_rename` (PK `{old}_id → {new}_id`, link.entity, references, view entityCode, role keys, action entity, folder bindings, seed).
+- **Delete an entity** → `dforge_entity_delete` (file + seed + manifest + roles + folders + view sources).
+
+**Always apply the response's `deletes` array as well as `files`** — rename/delete move or drop files, and `deletes` lists the module-root-relative paths to remove. Each tool surfaces what it could NOT auto-fix (reports datasets, translations, menu labels, DSL bodies, dangling cross-entity FKs) in `warning` — address those by hand. **After any rename/delete, run `dforge_module_validate`** and fix anything that still dangles before resuming.
+
+If you must do an entity-level change by hand (e.g. a surface a tool doesn't cover): enumerate references with `dforge_module_inspect`, confirm with the user, apply in reverse dependency order (roles → reports → views → actions → entity itself), then `dforge_module_validate`.
 
 **After every backtrack** append to `_brief/changelog.md`:
 

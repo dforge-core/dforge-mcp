@@ -16,7 +16,8 @@
 		"docs/",
 		"resources/",
 		"skills/",
-		"README.md"
+		"README.md",
+		"CHANGELOG.md"
 	],
 	"main": "dist/server.js",
 	"engines": {
@@ -24,7 +25,8 @@
 	},
 	"scripts": {
 		"build": "tsup",
-		"prepublishOnly": "tsup",
+		"sync-schemas": "node scripts/vendor-schemas.cjs",
+		"prepublishOnly": "node scripts/vendor-schemas.cjs && tsup",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run"
 	},

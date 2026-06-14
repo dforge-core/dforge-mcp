@@ -138,11 +138,18 @@ export interface ToolResult {
 	summary: string;
 	files: FileMap;
 	warning?: string;
+	/**
+	 * Module-root-relative paths the client should DELETE (used by rename/delete
+	 * refactors that move or drop a file). Distinct from `files`, which are
+	 * written. The client must apply both.
+	 */
+	deletes?: string[];
 }
 
-export function makeResult(summary: string, files: FileMap, warning?: string): ToolResult {
+export function makeResult(summary: string, files: FileMap, warning?: string, deletes?: string[]): ToolResult {
 	const out: ToolResult = { summary, files };
 	if (warning) out.warning = warning;
+	if (deletes && deletes.length) out.deletes = deletes;
 	return out;
 }
 

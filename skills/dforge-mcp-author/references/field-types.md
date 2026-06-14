@@ -4,6 +4,12 @@ The canonical list of field types supported by dForge. **Do not invent new value
 
 Source of truth: `server/database/system-modules/metadata/seed-data/field_types.json` in the dForge repo.
 
+> **You usually don't set `dbDatatype`.** For a plain data column, omit it — the field tools derive it from `fieldTypeCd` (the "Common `dbDatatype`" column below): `currency` → `numeric(18,2)`, `text` → `varchar`, `checkbox` → `bool`, etc. An explicit value is never overridden, so only set `dbDatatype` when you need to:
+> - **a hidden FK column** — it has no `fieldTypeCd`, so derivation can't fire; set `dbDatatype: "cuid"` to match the target entity's `identity` PK (see `column-types.md`);
+> - **override the size/precision** — e.g. `varchar(100)` via `maxLen`, or a specific numeric scale.
+>
+> Reference (`columnType: "R"`) and formula (`columnType: "F"`) columns never get a `dbDatatype` at all.
+
 ## String-backed
 
 | `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |

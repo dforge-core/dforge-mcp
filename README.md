@@ -1,6 +1,6 @@
 # @dforge-core/dforge-mcp
 
-MCP server for dForge module authoring. Exposes 18 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
+MCP server for dForge module authoring. Exposes 27 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
 Ships with a wizard Skill (`skills/dforge-mcp-author/`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps. The skill bundle includes 22 detailed reference files (field types, flags, traits, formulas, DSL, security, etc.) and an annotated `simple-todo` example module.
 
@@ -24,6 +24,8 @@ your AI editor (Claude Code / Cursor / Zed)
 ```
 
 The native binary actually talks to your tenant. The npm-CLI wrapper is just a launcher that picks the right platform binary and exec's it. **You don't need to install dforge-cli separately** — it comes along when you install dforge-mcp (or when `npx -y @dforge-core/dforge-mcp` runs cold).
+
+The server also bundles **`@dforge-core/metadata`** — the canonical, dependency-free registry of field types, traits, column types, and the JSON schemas (the same package the dForge app, SDK, and VS Code extension use). It's the source of truth for the authoring-time validation below (valid `fieldTypeCd` / `columnType` / trait codes, `dbDatatype` derivation) and for the vendored schemas. Bundled at build time, so there's nothing extra to install.
 
 If you want to use a hand-built native binary instead of the npm-shipped one, point `DFORGE_CLI_BINARY` at the executable file's absolute path:
 
@@ -70,7 +72,7 @@ claude mcp list
 # Should show: dforge — npx -y @dforge-core/dforge-mcp — connected
 ```
 
-Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 18 `dforge_*` tools should be listed.
+Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 27 `dforge_*` tools should be listed.
 
 ### Cursor / Zed
 
@@ -78,7 +80,7 @@ Same `command + args` config shape; check their docs for the file location. Veri
 
 ## What it exposes
 
-### Tools (18)
+### Tools (27)
 
 Grouped by typical phase in the wizard flow. All "return" tools emit `{ summary, files: { '<relPath>': '<contents>' } }`; the client decides whether to write — lets the AI preview diffs with the user before committing.
 
@@ -88,17 +90,24 @@ Phase 0 (identity → requirements → design → validation) is driven by the `
 | Tool | Behavior |
 |---|---|
 | `dforge_module_create` | New module scaffold |
+| `dforge_module_import` | Import a normalized **table-spec** (tables → columns → relationships) into an existing module as entities. Infers `fieldTypeCd` from SQL type / sample values / name (metadata-validated, `dbDatatype` derived) and builds the FK+Reference pair per relationship. Fed by DBML/SQL, Excel/CSV, or a hand-authored spec |
 | `dforge_module_inspect` | Read current module state. Full structured data is in `files["_inspect.json"]`; `summary` is one-line stats |
+| `dforge_module_validate` | Offline cross-reference check (run before pack): dangling FK targets, missing hidden-FK columns, view/menu/role refs to non-existent things, uncovered entities. Errors + warnings in `files["_validate.json"]` |
 | `dforge_module_pack` | Shells to `dforge-cli module pack`. Returns tarball path + size |
 | `dforge_module_install` | Shells to `dforge-cli module install`. Args: `pathOrTarball`, optional `tenantUrl` / `token` / `tenantCode` — fall back to `DFORGE_URL` / `DFORGE_TOKEN` env. `tenantCode` is an optional `--code` sanity check the server cross-references against the JWT |
 
 **Entities (Phase 1)**
 | Tool | Behavior |
 |---|---|
-| `dforge_entity_add` | Add an entity to an existing module |
+| `dforge_entity_add` | Add an entity to an existing module. `traits` accepts the full platform set — identity, audit, audit-full, soft-delete, sorting, postable, accumulation, ledger, period |
+| `dforge_entity_rename` | **Refactor-safe entity rename** — moves the file (see `deletes`), cascades the PK `{old}_id → {new}_id`, repoints link.entity / references / view entityCode / role keys / action entity / folder bindings / seed |
+| `dforge_entity_delete` | **Refactor-safe entity delete** — drops the file + seed (see `deletes`), manifest entry, role key, folder binding, view sources; warns on dangling cross-entity FKs |
 | `dforge_entity_field_add` | Patch a single field |
-| `dforge_entity_field_modify` | Replace a field's spec |
-| `dforge_entity_field_remove` | Drop a field (warns about dependents) |
+| `dforge_entity_field_modify` | Replace a field's spec (same name) |
+| `dforge_entity_field_rename` | **Refactor-safe rename** — propagates the new name to the paired Reference, formulas, view columns + order, seed data, and other entities' FKs |
+| `dforge_entity_field_remove` | **Refactor-safe remove** — cascade-cleans paired Reference, view columns + order, seed keys; warns on formula/cross-entity dependents |
+
+The field/entity tools validate against the `@dforge-core/metadata` registry: an unknown `fieldTypeCd` (e.g. `integer`, `reference`), `columnType`, or trait code is rejected at authoring time with a "did you mean" hint, and `dbDatatype` is auto-derived from the field type (currency → `numeric(18,2)`, text → `varchar`; reference/formula columns get none) unless you set it explicitly.
 
 **Behavior (Phase 2 — optional)**
 | Tool | Behavior |
@@ -124,7 +133,7 @@ Phase 0 (identity → requirements → design → validation) is driven by the `
 | Tool | Behavior |
 |---|---|
 | `dforge_dependency_add` | Add a dep on another dForge module |
-| `dforge_dbml_import` | Stub — not implemented yet |
+| `dforge_dbml_import` | Stub — a DBML front-end that will parse into the `dforge_module_import` table-spec |
 
 ### Resources (13)
 
@@ -223,34 +232,37 @@ Key principles encoded in the Skill: inspect-before-patch, one-at-a-time, determ
 
 ```bash
 pnpm install
-pnpm build          # tsup → dist/server.js (bundles SDK + zod + dforge-cli/templates)
+pnpm build          # tsup → dist/server.js (bundles SDK + zod + dforge-cli/templates + metadata)
 pnpm typecheck      # tsc --noEmit
+pnpm test           # vitest — validation + dbDatatype derivation + trait flow
 node dist/server.js # stdio JSON-RPC — pipe a request to smoke-test
 ```
 
 To iterate against an in-tree `dforge-cli`, temporarily pin the dep at the sibling path:
 
 ```bash
-sed -i '' 's|"@dforge-core/dforge-cli": "\^0.1.[0-9.]*"|"@dforge-core/dforge-cli": "file:../dforge-cli"|' package.json
+sed -i '' 's|"@dforge-core/dforge-cli": "\^0.2.[0-9.]*"|"@dforge-core/dforge-cli": "file:../dforge-cli"|' package.json
 rm -rf node_modules pnpm-lock.yaml && pnpm install
 # Flip back before publish — file: deps don't resolve for npm consumers.
 ```
 
 ### Refresh vendored resources
 
-When `dForge-core/docs/schemas/`, `MODULE_CONVENTIONS.md`, or the skill reference files change:
+**Schemas** (`resources/schemas/`) are copied from the installed **`@dforge-core/metadata`** package — bumping that dep is how you pick up schema changes. They're served as MCP resources via `dforge://schema/*` and, in the published tarball, via jsdelivr.
 
 ```bash
-scripts/vendor-resources.sh                              # auto-locate ../dForge-core
-DFORGE_CORE=/abs/path/to/dForge-core scripts/vendor-resources.sh
+pnpm sync-schemas      # node script — cross-platform (Windows/macOS/Linux)
 ```
 
-This syncs three things:
-1. **JSON schemas** (`resources/schemas/`) — served as MCP resources via `dforge://schema/*`
-2. **Conventions doc** (`resources/docs/conventions.md`) — served as `dforge://docs/conventions`
-3. **Skill reference files** (`skills/dforge-mcp-author/references/`) — 22 Markdown guides, read on demand from disk by Claude
+You rarely run this by hand: **`prepublishOnly` runs it automatically**, so every publish regenerates the schemas from the exact metadata version this package depends on — they can't silently drift. The schemas are committed, so consumers always have them regardless.
 
-Republish to update jsdelivr-served schemas + the bundled resources + the skill reference files.
+`scripts/vendor-resources.sh` is a Unix convenience wrapper around the same Node script, and it additionally can pull the **conventions doc + skill reference files** from `dForge-core` — but only when `VENDOR_REFS=1`:
+
+```bash
+VENDOR_REFS=1 scripts/vendor-resources.sh   # also pull conventions + skill refs from ../dForge-core
+```
+
+**That ref pull is off by default on purpose:** the per-topic references under `skills/dforge-mcp-author/references/` are authored in this repo and are ahead of `dForge-core/skills/dforge-module-author/`, so an unguarded pull would clobber them. Only set `VENDOR_REFS=1` once you've confirmed core is the source of truth for those files. (This part is bash-only; on Windows use WSL/Git Bash for the ref pull — schema refresh via `pnpm sync-schemas` is native.)
 
 ### Publishing
 
@@ -263,7 +275,8 @@ scripts/publish.sh 0.1.0-rc.N --tag latest --otp <code>
 **Pre-publish checklist:**
 - [ ] `@dforge-core/dforge-cli` dep is a real version (not `file:...`)
 - [ ] `pnpm typecheck` passes
-- [ ] Smoke test stdio: `tools/list` returns 18 tools
+- [ ] `pnpm test` passes
+- [ ] Smoke test stdio: `tools/list` returns 27 tools
 - [ ] Skill updated for any new/changed tools (it's a SEPARATE artifact; users sync it manually after upgrades)
 
 ### Adding a new tool

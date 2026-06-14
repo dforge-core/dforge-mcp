@@ -26,40 +26,12 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Resolve the schemas/ dir inside the installed @dforge-core/metadata package.
-META_SCHEMAS="$(node -e "const p=require('path');console.log(p.join(p.dirname(require.resolve('@dforge-core/metadata/package.json')),'schemas'))" 2>/dev/null || true)"
-if [ -z "$META_SCHEMAS" ] || [ ! -d "$META_SCHEMAS" ]; then
-	echo "Can't find @dforge-core/metadata schemas. Run 'pnpm install' first." >&2
-	exit 1
-fi
-
-echo "→ Vendoring schemas from $META_SCHEMAS"
-
-mkdir -p "$REPO_ROOT/resources/schemas" "$REPO_ROOT/resources/docs"
-
-# Schemas. Source (metadata package) uses snake_case (data_views, seed_data);
-# output uses kebab-case so the URLs read more like other JSON Schema repos.
-# Editor settings emitted by dforge-cli map file paths to these kebab URLs.
-copy_schema() {
-	local src_name="$1"; local dst_name="$2"
-	cp "$META_SCHEMAS/$src_name" "$REPO_ROOT/resources/schemas/$dst_name"
-	echo "  ✓ schemas/$dst_name"
-}
-
-copy_schema manifest.schema.json    manifest.schema.json
-copy_schema entity.schema.json      entity.schema.json
-copy_schema data_views.schema.json  data-views.schema.json
-copy_schema folders.schema.json     folders.schema.json
-copy_schema menus.schema.json       menus.schema.json
-copy_schema roles.schema.json       roles.schema.json
-copy_schema jobs.schema.json        jobs.schema.json
-copy_schema seed_data.schema.json   seed-data.schema.json
-copy_schema traits.schema.json      traits.schema.json
-copy_schema webhooks.schema.json    webhooks.schema.json
-copy_schema settings.schema.json    settings.schema.json
-copy_schema reports.schema.json     reports.schema.json
-copy_schema triggers.schema.json    triggers.schema.json
-copy_schema print_templates.schema.json print-templates.schema.json
+# Schemas — delegate to the portable Node script. It's the same logic that
+# `pnpm sync-schemas` and the publish step (`prepublishOnly`) run, and it works
+# on Windows too (this .sh is the Unix convenience wrapper, not the source of
+# truth). It copies the JSON schemas from the installed @dforge-core/metadata
+# package into resources/schemas/ (snake_case -> kebab-case).
+node "$SCRIPT_DIR/vendor-schemas.cjs"
 
 # ── Conventions doc + skill references — OPT-IN (VENDOR_REFS=1) ────────────
 #
@@ -77,6 +49,7 @@ if [ "${VENDOR_REFS:-0}" = "1" ]; then
 		exit 1
 	fi
 	echo "→ Vendoring docs + references from $SRC"
+	mkdir -p "$REPO_ROOT/resources/docs"
 	cp "$SRC/docs/modules/MODULE_CONVENTIONS.md" "$REPO_ROOT/resources/docs/conventions.md"
 	echo "  ✓ docs/conventions.md"
 

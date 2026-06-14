@@ -203,35 +203,6 @@ export function entityFieldModify(
 	);
 }
 
-// ── remove ──────────────────────────────────────────────────────────
-
-export const entityFieldRemoveSchema = {
-	moduleDir: z.string(),
-	entityName: z.string().regex(/^[a-z][a-z0-9_]*$/),
-	fieldName: z.string().regex(/^[a-z][a-z0-9_]*$/),
-};
-
-export function entityFieldRemove(
-	args: z.infer<z.ZodObject<typeof entityFieldRemoveSchema>>,
-): ToolResult {
-	const { paths, manifest } = loadManifest(args.moduleDir);
-	const entityPath = path.join(paths.entitiesDir, `${args.entityName}.json`);
-	const entity = readJson<Record<string, unknown>>(entityPath);
-	const fields = (entity.fields as Record<string, unknown> | undefined) ?? {};
-	if (!Object.prototype.hasOwnProperty.call(fields, args.fieldName)) {
-		throw new Error(
-			`Field '${args.fieldName}' not found on entity '${args.entityName}'.`,
-		);
-	}
-	const { [args.fieldName]: _removed, ...rest } = fields;
-	void _removed;
-	entity.fields = rest;
-	return makeResult(
-		`Removed field '${args.fieldName}' from entity '${args.entityName}'. Note: dependent views / formulas referencing this field will break — review them.`,
-		{
-			[rel(paths.root, entityPath)]: jsonText(entity),
-			"manifest.json": jsonText(withTodayStamp(manifest)),
-		},
-		"Removing fields can break dependent views, role rights, formulas, action DSL, and seed data. Run `dforge_module_inspect` after writing to spot broken references.",
-	);
-}
+// `entity_field_remove` lives in ./refactor.ts — it's a refactor-safe cascade
+// (cleans up paired Reference, views, seed data; warns on formula/cross-entity
+// dependents), alongside entity_field_rename.
