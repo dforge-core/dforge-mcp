@@ -22,7 +22,7 @@ import type {
 	Preset,
 	ScaffoldOpts,
 } from "@dforge-core/dforge-cli/templates";
-import { traitsInput, withTraits } from "./_helpers";
+import { traitsInput, withTraits, isReadyToScaffold, PHASE_STATE_FILE } from "./_helpers";
 
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
@@ -30,7 +30,7 @@ export const createModuleSchema = {
 	moduleDir: z
 		.string()
 		.describe(
-			"Absolute path to the directory where the module will be written. Must contain docs/VALIDATION.md with readyToScaffold: true (written by dforge_module_plan validate).",
+			"Absolute path to the directory where the module will be written. Phase 0 must be validated first — dforge_module_plan validate writes a docs/phase.json marker that this gate reads (readyToScaffold: true).",
 		),
 	code: z
 		.string()
@@ -88,11 +88,9 @@ function assertPhase0Complete(moduleDir: string): void {
 		);
 	}
 
-	const validationPath = path.join(root, "docs/VALIDATION.md");
-	const validationContent = fs.readFileSync(validationPath, "utf8");
-	if (!validationContent.includes("readyToScaffold: true")) {
+	if (!isReadyToScaffold(root)) {
 		throw new Error(
-			`Phase 0 incomplete — docs/VALIDATION.md exists but does not show a clean pass.\n\nRun dforge_module_plan({ action: "validate", moduleDir: "${moduleDir}" }) to complete Phase 0d.`,
+			`Phase 0 incomplete — design validation has not passed (no readyToScaffold marker in ${PHASE_STATE_FILE} or docs/VALIDATION.md).\n\nRun dforge_module_plan({ action: "validate", moduleDir: "${moduleDir}" }) to complete Phase 0d.`,
 		);
 	}
 }

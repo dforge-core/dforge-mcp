@@ -184,10 +184,12 @@ export function moduleValidate(
 				if (!(rp in reports)) err(`roles → ${rcode}`, `grants on 'report:${rp}' but no such report exists`);
 			} else if (key.startsWith("folder:")) {
 				// folder existence lives in folders.json's tree — skip (soft)
-			} else if (!key.includes(".")) {
-				if (!(key in entities)) err(`roles → ${rcode}`, `grants on entity '${key}' but no such entity in this module`);
+			} else if (!isKnownEntity(key)) {
+				// An entity rights key: same-module, a system entity (user, document,
+				// …), or a declared cross-module dependency. Reuse the same resolver
+				// as FK targets so system/cross-module grants don't false-error.
+				err(`roles → ${rcode}`, `grants rights on '${key}', which is not a known entity (same-module, system, or a declared cross-module dependency)`);
 			}
-			// dotted key → cross-module entity; ownership is the other module's — skip
 		}
 	}
 

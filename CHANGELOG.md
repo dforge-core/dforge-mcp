@@ -98,13 +98,21 @@ and VS Code extension use.
   overrides — so the derivation is actually used, not bypassed.
 
 ### Fixed
+- **Phase 0 scaffold gate no longer greps Markdown.** `dforge_module_plan`
+  validate now writes a machine-readable `docs/phase.json` marker, and the gate
+  (`dforge_module_create` + the plan `check`) **parse** it instead of searching
+  `VALIDATION.md` for a `readyToScaffold: true` substring — so reformatting /
+  casing / duplicate text in the human report can't fool the gate. Falls back to
+  the legacy substring for modules validated before the marker existed.
 - **Field rename now updates *every* formula** that references the field, not
   just the first — replaced a reused global `RegExp` (`.test()` carries
   `lastIndex` across calls) with literal bracket-token string ops.
 - **Validator no longer rubber-stamps cross-module typos.** A dotted entity ref
   (`crm.product`) is validated against the manifest's declared `dependencies`
   (or this module's own code); an undeclared/typo'd module is now an error
-  instead of being accepted.
+  instead of being accepted. **Role-rights** entity keys use the same resolver,
+  so grants on a **system entity** (`user`, `document`, …) or a declared
+  cross-module entity no longer false-error, while unknown ones still do.
 - **xlsx extractor ignores styled-but-empty rows when sampling.** A bordered/
   formatted cell with no value no longer counts as data, so placeholder rows
   can't exhaust the row sample before the real data is reached. Headers-only
@@ -114,10 +122,11 @@ and VS Code extension use.
   loads **only the indices the sampled cells reference** — so a huge workbook
   never loads the whole table, and there's no cap that could silently return a
   raw index instead of the real string.
-- **`module pack` tarball-path resolution is robust.** It now collects every
+- **`module pack` tarball-path resolution is robust.** It collects every
   `*.dforge` candidate from stdout (quoted/spaced paths and Windows separators
-  included) and picks the one that **actually exists on disk** — pack just wrote
-  it — instead of trusting a single fragile regex token.
+  included), **normalizes wrapping punctuation** (quotes, parens, trailing
+  commas), and picks the one that **actually exists on disk** — pack just wrote
+  it — via a single `stat` per path instead of trusting a fragile regex token.
 
 ### Notes
 - Earlier `0.1.0-rc.*` releases predate this changelog.

@@ -83,12 +83,32 @@ export function packModule(
 	for (const m of r.stdout.matchAll(/(\S+\.dforge)\b/gi)) candidates.push(m[1]);
 	if (args.outPath) candidates.push(args.outPath); // dir fallback
 
-	const resolved = candidates.map((c) => path.resolve(c));
+	// Strip wrapping punctuation a freeform log line may add around the path
+	// (e.g. quotes, parens, a trailing comma/period) before resolving.
+	const clean = (s: string) => s.replace(/^[\s'"([{<]+/, "").replace(/[\s'"),.;:\]}>]+$/, "");
+	// One stat per path: file size if it's an existing regular file, else undefined.
+	const fileSize = (p: string): number | undefined => {
+		try {
+			const st = fs.statSync(p);
+			return st.isFile() ? st.size : undefined;
+		} catch {
+			return undefined;
+		}
+	};
+
+	let tarballPath = "";
 	let sizeBytes = 0;
-	let tarballPath = resolved.find((p) => fs.existsSync(p) && fs.statSync(p).isFile()) ?? resolved[0] ?? "";
-	if (tarballPath && fs.existsSync(tarballPath) && fs.statSync(tarballPath).isFile()) {
-		sizeBytes = fs.statSync(tarballPath).size;
+	for (const c of candidates) {
+		const resolved = path.resolve(clean(c));
+		const size = fileSize(resolved);
+		if (size !== undefined) {
+			tarballPath = resolved;
+			sizeBytes = size;
+			break;
+		}
 	}
+	// Nothing on disk matched — surface the best-guess path anyway.
+	if (!tarballPath && candidates.length) tarballPath = path.resolve(clean(candidates[0]));
 	const output = securityWarning ? `${securityWarning}\n\n${r.stdout}` : r.stdout;
 	return { tarballPath, sizeBytes, output };
 }

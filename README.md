@@ -84,12 +84,13 @@ Same `command + args` config shape; check their docs for the file location. Veri
 
 Grouped by typical phase in the wizard flow. All "return" tools emit `{ summary, files: { '<relPath>': '<contents>' } }`; the client decides whether to write — lets the AI preview diffs with the user before committing.
 
-Phase 0 (identity → requirements → design → validation) is driven by the `dforge-mcp-author` skill, which has the AI author the `docs/` artifacts directly — there are no Phase 0 tools.
+Phase 0 (identity → requirements → design → validation) is orchestrated by the **`dforge_module_plan`** tool together with the `dforge-mcp-author` skill: the tool tracks progress from the on-disk `docs/` artifacts and gates scaffolding, while the AI authors those artifacts under its direction.
 
 **Module-level**
 | Tool | Behavior |
 |---|---|
-| `dforge_module_create` | New module scaffold |
+| `dforge_module_plan` | **Phase 0 orchestrator** — drives identity → requirements → design → validation, returning the next step each call; gates `dforge_module_create` until `readyToScaffold: true`. Call first in any session (`action: "check"`) |
+| `dforge_module_create` | New module scaffold (blocked until Phase 0 passes) |
 | `dforge_module_import` | Import a normalized **table-spec** (tables → columns → relationships) into an existing module as entities. Infers `fieldTypeCd` from SQL type / sample values / name (metadata-validated, `dbDatatype` derived) and builds the FK+Reference pair per relationship. Fed by DBML/SQL, Excel/CSV, or a hand-authored spec |
 | `dforge_module_inspect` | Read current module state. Full structured data is in `files["_inspect.json"]`; `summary` is one-line stats |
 | `dforge_module_validate` | Offline cross-reference check (run before pack): dangling FK targets, missing hidden-FK columns, view/menu/role refs to non-existent things, uncovered entities. Errors + warnings in `files["_validate.json"]` |
@@ -113,6 +114,9 @@ The field/entity tools validate against the `@dforge-core/metadata` registry: an
 | Tool | Behavior |
 |---|---|
 | `dforge_action_add` | DSL script + `ui/actions.json` entry |
+| `dforge_trigger_add` | DB-event trigger in `logic/triggers.json` (entity event + optional condition → action) |
+| `dforge_job_add` | Scheduled job in `logic/jobs.json` (5-field cron + timeout + action) |
+| `dforge_webhook_add` | Outbound webhook in `logic/webhooks.json` (entity event → POST to endpoint) |
 
 **Views + reports (Phase 3)**
 | Tool | Behavior |

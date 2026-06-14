@@ -51,6 +51,33 @@ describe("module_validate — cross-module references", () => {
 	});
 });
 
+describe("module_validate — role rights key resolution", () => {
+	const make = (rights: Record<string, string>, dependencies: Record<string, unknown> = {}) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-roles-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "security"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", dependencies, entities: { thing: "./entities/thing.json" } }));
+		writeFileSync(join(dir, "entities", "thing.json"), JSON.stringify({ description: "Thing", traits: ["identity"], fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } }));
+		writeFileSync(join(dir, "security", "roles.json"), JSON.stringify({ admin: { rights } }));
+		const res = JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		rmSync(dir, { recursive: true, force: true });
+		return res;
+	};
+
+	it("allows rights on a system entity (user)", () => {
+		const res = make({ thing: "SIUDC", user: "S" });
+		expect(JSON.stringify(res.errors)).not.toContain("user");
+	});
+	it("allows rights on a declared cross-module entity", () => {
+		const res = make({ thing: "SIUDC", "crm.lead": "S" }, { crm: ">=0.0.1" });
+		expect(JSON.stringify(res.errors)).not.toContain("crm.lead");
+	});
+	it("flags rights on an unknown entity", () => {
+		const res = make({ thing: "SIUDC", phantom: "S" });
+		expect(JSON.stringify(res.errors)).toContain("phantom");
+	});
+});
+
 describe("module_validate — broken fixture", () => {
 	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-validate-"));
 	mkdirSync(join(dir, "entities"), { recursive: true });
