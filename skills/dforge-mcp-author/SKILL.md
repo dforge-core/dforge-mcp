@@ -190,6 +190,11 @@ Push back on verb-less answers ("admins and users" → "What does an admin do th
 
 ## Phase 1 — Domain (required)
 
+> **Fast on-ramp — importing from an existing schema or spreadsheet.** When the user already has the data model in a **DBML** diagram or a **spreadsheet** (Excel/CSV), use the import core instead of authoring entities one field at a time:
+> - **DBML/SQL** → `dforge_dbml_import` (deterministic parser). Pass the DBML text and, for a brand-new module, `module: { code, displayName }`.
+> - **Spreadsheet** → YOU parse it, then call `dforge_module_import`. Read the uploaded `.xlsx`/`.csv`; treat **each worksheet (or Excel table object) as one table**, the header row as column names (snake_case them), and a few data rows as `sampleValues`. Add a `sqlType` hint from the cell types when you can. Detect FKs (a `<table>_id` column, or values matching another sheet's keys) and put them in `references`. Build the table-spec and call `dforge_module_import({ moduleDir, tables, module? })`.
+> Both infer `fieldTypeCd` from the metadata registry and build the FK+Reference pair. **Always show the proposed table-spec / entity inventory to the user for sign-off first** (same gate as below), then **run `dforge_module_validate`** and refine the generated default grids. Import ADDS entities into an existing or greenfield module; it does not replace Phase 0 for a from-scratch design the user wants to think through.
+
 **Preconditions:** Phases 0a through 0d complete — `CLAUDE.md` written; `docs/REQUIREMENTS.md` confirmed; `docs/DESIGN.md` confirmed; `docs/VALIDATION.md` shows a clean pass with no open findings.
 
 > ⛔ **GATE — `dforge_module_create` is blocked at the tool level.** It throws if any of the four Phase 0 docs are missing or if `docs/VALIDATION.md` doesn't contain `readyToScaffold: true`. If you hit the gate error, call `dforge_module_plan({ action: "check", moduleDir })` to see what's needed.

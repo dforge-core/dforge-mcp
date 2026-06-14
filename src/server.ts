@@ -4,14 +4,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createModuleSchema, createModuleFiles } from "./tools/create-module";
 import { planModuleSchema, planModule } from "./tools/plan-module";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
-import { moduleImportSchema, moduleImport } from "./tools/import";
+import { moduleImportSchema, moduleImport, dbmlImportSchema, dbmlImport } from "./tools/import";
 import {
 	packModuleSchema,
 	packModule,
 	installModuleSchema,
 	installModule,
-	dbmlImportSchema,
-	dbmlImport,
 } from "./tools/native-shell";
 import {
 	entityFieldAddSchema,
@@ -335,15 +333,9 @@ server.tool(
 
 server.tool(
 	"dforge_dbml_import",
-	"Generate a module from DBML schema text. Currently a stub — underlying dforge-cli command is not implemented.",
+	"Generate entities from DBML schema text (a front-end to dforge_module_import). Parses Table blocks, typed columns with [settings], inline [ref: > t.c] and top-level Ref: lines; drops the source PK (the identity trait provides {entity}_id), infers field types via the metadata registry, and builds the FK+Reference pair per relationship. Pass `module` when the dir has no manifest (greenfield). Review inferred types + run dforge_module_validate after.",
 	dbmlImportSchema,
-	async (args) => {
-		const result = dbmlImport(args);
-		return {
-			content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-			isError: true,
-		};
-	},
+	envelope(dbmlImport),
 );
 
 // ── Resources ───────────────────────────────────────────────────────

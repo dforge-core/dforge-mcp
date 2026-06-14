@@ -130,25 +130,3 @@ export function installModule(
 	const output = (r.stdout ?? "") + (r.stderr ?? "");
 	return { ok, output };
 }
-
-// ─── dbml-import (stub) ──────────────────────────────────────────────
-
-export const dbmlImportSchema = {
-	dbmlText: z.string().describe("DBML source text."),
-	moduleCode: z
-		.string()
-		.regex(/^[a-z][a-z0-9_-]*$/)
-		.describe("Module code for the generated module."),
-};
-
-export function dbmlImport(
-	_args: z.infer<z.ZodObject<typeof dbmlImportSchema>>,
-): { ok: false; message: string } {
-	return {
-		ok: false,
-		message:
-			"dbml-import is not yet implemented in dforge-cli. The CLI command " +
-			"`dforge-cli dbml-import --from-dbml <file>` is a stub. When it lands, " +
-			"this tool will shell out to it and return the generated module file map.",
-	};
-}

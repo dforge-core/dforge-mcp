@@ -11,6 +11,15 @@ Single source of truth: the authoring tools now validate against
 and VS Code extension use.
 
 ### Added
+- **`dforge_dbml_import` — DBML front-end (was a stub).** Parses the common DBML
+  subset (Table blocks, typed columns with `[settings]`, inline `[ref: > t.c]`
+  and top-level `Ref:` lines) into the table-spec and runs the import core. Drops
+  the source PK column (the identity trait provides `{entity}_id`) and remaps FK
+  targets to it. Both import tools accept a `module` identity for **greenfield**
+  imports (no manifest yet). The **spreadsheet/Excel** front-end is the AI itself:
+  it reads the upload, builds a table-spec (sheet → table, header → columns,
+  rows → `sampleValues`), and calls `dforge_module_import` — documented in the
+  skill's Phase 1 on-ramp.
 - **`dforge_module_import` — table-spec → entities (import core).** Takes a
   normalized spec (tables → columns → relationships) and generates entities:
   each column's `fieldTypeCd` is inferred from an explicit code, a source SQL

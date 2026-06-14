@@ -133,7 +133,7 @@ The field/entity tools validate against the `@dforge-core/metadata` registry: an
 | Tool | Behavior |
 |---|---|
 | `dforge_dependency_add` | Add a dep on another dForge module |
-| `dforge_dbml_import` | Stub — a DBML front-end that will parse into the `dforge_module_import` table-spec |
+| `dforge_dbml_import` | **DBML front-end** to `module_import` — parses DBML (Table blocks, typed columns, inline + top-level refs) into the table-spec, drops the source PK (identity provides `{entity}_id`), and imports. Pass `module` for a greenfield import |
 
 ### Resources (13)
 
