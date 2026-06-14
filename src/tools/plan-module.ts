@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
+import { PHASE_STATE_FILE, phaseStateJson, isReadyToScaffold } from "./_helpers";
 
 // Phase 0 doc paths (relative to module root)
 const P0 = {
@@ -8,6 +9,7 @@ const P0 = {
 	requirements: "docs/REQUIREMENTS.md",
 	design: "docs/DESIGN.md",
 	validation: "docs/VALIDATION.md",
+	phaseState: PHASE_STATE_FILE,
 } as const;
 
 // docs/DESIGN.md template. Returned to the agent (as `designTemplate`) at the
@@ -157,7 +159,6 @@ function handleCheck(root: string): unknown {
 	const claudePath = path.join(root, P0.identity);
 	const reqPath = path.join(root, P0.requirements);
 	const designPath = path.join(root, P0.design);
-	const validationPath = path.join(root, P0.validation);
 
 	const has0a = fileExists(claudePath);
 	const claudeContent = has0a ? readFile(claudePath) : "";
@@ -165,10 +166,7 @@ function handleCheck(root: string): unknown {
 	// before the user confirms it, so the CLAUDE.md checklist tick is the source of truth.
 	const has0b = has0a && /- \[x\] \*\*0b\*\*/.test(claudeContent);
 	const has0c = has0b && /- \[x\] \*\*0c\*\*/.test(claudeContent);
-	const has0d =
-		has0c &&
-		fileExists(validationPath) &&
-		readFile(validationPath).includes("readyToScaffold: true");
+	const has0d = has0c && isReadyToScaffold(root);
 
 	const completed: string[] = [];
 	if (has0a) completed.push("0a");
@@ -697,6 +695,9 @@ readyToScaffold: true
 		files: {
 			[P0.identity]: updatedClaude,
 			[P0.validation]: validationMd,
+			// Machine-readable gate marker — the scaffold check parses this, not the
+			// Markdown report above.
+			[P0.phaseState]: phaseStateJson({ phase: "0d", readyToScaffold: true, validatedAt: today }),
 		},
 		nextStep:
 			"Write both files to disk. Phase 0 is complete. Now call dforge_module_create({ moduleDir, code, displayName, entities, preset }) to scaffold the module.",

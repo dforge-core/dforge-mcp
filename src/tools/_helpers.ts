@@ -7,6 +7,8 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { z } from "zod";
+import { traits as TRAIT_DEFS } from "@dforge-core/metadata";
 
 export type FileMap = Record<string, string>;
 
@@ -136,17 +138,68 @@ export interface ToolResult {
 	summary: string;
 	files: FileMap;
 	warning?: string;
+	/**
+	 * Module-root-relative paths the client should DELETE (used by rename/delete
+	 * refactors that move or drop a file). Distinct from `files`, which are
+	 * written. The client must apply both.
+	 */
+	deletes?: string[];
 }
 
-export function makeResult(summary: string, files: FileMap, warning?: string): ToolResult {
+export function makeResult(summary: string, files: FileMap, warning?: string, deletes?: string[]): ToolResult {
 	const out: ToolResult = { summary, files };
 	if (warning) out.warning = warning;
+	if (deletes && deletes.length) out.deletes = deletes;
 	return out;
 }
 
 /** Bump manifest.updated to today's YYYY-MM-DD. Call this on any patch. */
 export function withTodayStamp(manifest: Manifest): Manifest {
 	return { ...manifest, updated: new Date().toISOString().slice(0, 10) };
+}
+
+// ── Phase 0 readiness gate ───────────────────────────────────────────
+//
+// Machine-readable marker written by `dforge_module_plan` validate and read by
+// the scaffold gate, instead of grepping a human-edited Markdown file for a
+// magic substring. `docs/VALIDATION.md` stays the human report; this is the
+// source of truth for the gate.
+
+/** Relative path (from the module root) of the Phase 0 state marker. */
+export const PHASE_STATE_FILE = "docs/phase.json";
+
+export interface PhaseState {
+	phase?: string;
+	readyToScaffold?: boolean;
+	validatedAt?: string;
+}
+
+/** Serialize a phase-state marker (for the validate action's file map). */
+export function phaseStateJson(state: PhaseState): string {
+	return JSON.stringify(state, null, "\t") + "\n";
+}
+
+/** Read + parse the phase-state marker, or null if absent/unparsable. */
+export function readPhaseState(moduleDir: string): PhaseState | null {
+	const p = path.join(path.resolve(moduleDir), PHASE_STATE_FILE);
+	if (!fs.existsSync(p)) return null;
+	try {
+		return JSON.parse(fs.readFileSync(p, "utf8")) as PhaseState;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Whether Phase 0 design validation has passed. Prefers the parsed marker;
+ * falls back to the legacy `readyToScaffold: true` substring in VALIDATION.md
+ * for modules validated before the marker existed.
+ */
+export function isReadyToScaffold(moduleDir: string): boolean {
+	const state = readPhaseState(moduleDir);
+	if (state && typeof state.readyToScaffold === "boolean") return state.readyToScaffold;
+	const v = path.join(path.resolve(moduleDir), "docs", "VALIDATION.md");
+	return fs.existsSync(v) && fs.readFileSync(v, "utf8").includes("readyToScaffold: true");
 }
 
 // ── rights validation ────────────────────────────────────────────────
@@ -275,4 +328,48 @@ export function assertSecurityCoverage(moduleDir: string): string | undefined {
 		return `Security note — no role grants Execute (E) on: ${uncoveredObjects.join(", ")}. Add 'E' grants if a role should run these.`;
 	}
 	return undefined;
+}
+
+// ── Entity traits ────────────────────────────────────────────────────
+//
+// Trait codes are validated against the canonical registry in
+// @dforge-core/metadata (identity, audit, audit-full, soft-delete, sorting,
+// postable, accumulation, ledger, period). The platform expands them into
+// physical columns at install — the entity JSON only carries the codes — so
+// the authoring tools can accept the full set, not just the CLI scaffolder's
+// two presets. `withTraits` overwrites the codes array on a built entity.
+
+/** All valid trait codes, from the metadata registry. */
+export const TRAIT_CODES: readonly string[] = TRAIT_DEFS.map((t) => t.cd);
+/** O(1) membership set, built once, for validating trait codes. */
+const TRAIT_CODE_SET = new Set(TRAIT_CODES);
+
+/**
+ * Reusable input schema for an entity's trait list. Defaults to identity+audit
+ * (the common case). Rejects unknown codes with the valid list.
+ */
+export const traitsInput = z
+	.array(z.string())
+	.default(["identity", "audit"])
+	.superRefine((arr, ctx) => {
+		for (const cd of arr) {
+			if (!TRAIT_CODE_SET.has(cd)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `trait '${cd}' is not a valid trait. Valid: ${TRAIT_CODES.join(", ")}. (See dforge://reference/traits.)`,
+				});
+			}
+		}
+	})
+	.describe(
+		"Entity trait codes — identity, audit, audit-full, soft-delete, sorting, postable, accumulation, ledger, period. " +
+			"'identity' makes the PK '{entity}_id'. Traits expand into columns server-side at install; list only the codes.",
+	);
+
+/** Override a built entity's `traits` array with a validated code list. */
+export function withTraits<T extends object>(
+	entity: T,
+	traitCodes: readonly string[],
+): T & { traits: string[] } {
+	return { ...entity, traits: [...traitCodes] };
 }

@@ -4,22 +4,29 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createModuleSchema, createModuleFiles } from "./tools/create-module";
 import { planModuleSchema, planModule } from "./tools/plan-module";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
+import { moduleImportSchema, moduleImport, dbmlImportSchema, dbmlImport } from "./tools/import";
 import {
 	packModuleSchema,
 	packModule,
 	installModuleSchema,
 	installModule,
-	dbmlImportSchema,
-	dbmlImport,
 } from "./tools/native-shell";
 import {
 	entityFieldAddSchema,
 	entityFieldAdd,
 	entityFieldModifySchema,
 	entityFieldModify,
+} from "./tools/entity-field";
+import {
+	entityFieldRenameSchema,
+	entityFieldRename,
 	entityFieldRemoveSchema,
 	entityFieldRemove,
-} from "./tools/entity-field";
+	entityRenameSchema,
+	entityRename,
+	entityDeleteSchema,
+	entityDelete,
+} from "./tools/refactor";
 import { actionAddSchema, actionAdd } from "./tools/action-add";
 import { viewAddSchema, viewAdd, viewModifySchema, viewModify } from "./tools/view";
 import {
@@ -36,6 +43,7 @@ import {
 } from "./tools/adds";
 import { roleRightSetSchema, roleRightSet } from "./tools/role-right";
 import { moduleInspectSchema, moduleInspect } from "./tools/module-inspect";
+import { moduleValidateSchema, moduleValidate } from "./tools/module-validate";
 import {
 	triggerAddSchema,
 	triggerAdd,
@@ -126,6 +134,13 @@ server.tool(
 );
 
 server.tool(
+	"dforge_module_validate",
+	"Validate the whole module OFFLINE before packing/installing: checks cross-references the per-field tools can't see — dangling FK/reference targets, a missing hidden-FK column, view dataSources/columns pointing at unknown entities/fields, menu dataViewCode → missing view, role rights keyed on unknown entities/actions/reports, and entities with no Select grant. Returns errors + warnings in _validate.json. Run this after authoring and fix every error BEFORE dforge_module_pack — it saves a slow pack/install round trip.",
+	moduleValidateSchema,
+	envelope(moduleValidate),
+);
+
+server.tool(
 	"dforge_module_pack",
 	"Pack a module directory into a .dforge tarball. Requires the dforge-cli native binary on PATH (or set DFORGE_CLI_BINARY).",
 	packModuleSchema,
@@ -176,6 +191,27 @@ server.tool(
 );
 
 server.tool(
+	"dforge_module_import",
+	"Import a normalized table-spec (tables → columns → relationships) into an existing module as entities. Infers each column's fieldTypeCd from an explicit code, a source SQL type (sqlType), sample values, and name heuristics (validated against the metadata registry; dbDatatype derived), and generates the FK+Reference two-column pattern for each relationship. The front-end that produces the table-spec can be DBML/SQL, an Excel/CSV upload, or hand-authored. Scaffold a minimal module first; this ADDS entities and regenerates default views/menus/roles. Review inferred types and run dforge_module_validate after.",
+	moduleImportSchema,
+	envelope(moduleImport),
+);
+
+server.tool(
+	"dforge_entity_rename",
+	"Refactor-safe rename of an entity code. Moves the entity file (old is listed in the response's `deletes` — delete it), renames the manifest key, cascades the identity PK {old}_id → {new}_id wherever an FK targets it, and repoints every reference: other entities' link.entity / references.to, view entityCode, role rights keys, action entity, folder bindings, and seed-data entityCode + PK keys. Reports/translations/menu labels/DSL are NOT rewritten (warned). Apply `files` AND `deletes`, then run dforge_module_validate.",
+	entityRenameSchema,
+	envelope(entityRename),
+);
+
+server.tool(
+	"dforge_entity_delete",
+	"Refactor-safe deletion of an entity. Removes the entity file + its seed files (listed in `deletes`), drops the manifest entry, role rights key, folder binding, and data-view sources (deleting a view left with no source). Cross-entity FKs targeting it, actions on it, and menus pointing at removed views are surfaced as warnings — fix those by hand. Apply `files` AND `deletes`, then run dforge_module_validate.",
+	entityDeleteSchema,
+	envelope(entityDelete),
+);
+
+server.tool(
 	"dforge_entity_field_add",
 	"PHASE 2 / backtrack: Add a single new field to an existing entity. Use this (not entity_add) when refining an existing entity — preserves the rest of the entity definition.",
 	entityFieldAddSchema,
@@ -191,9 +227,16 @@ server.tool(
 
 server.tool(
 	"dforge_entity_field_remove",
-	"PHASE 2 / backtrack: Remove a field from an entity. WARNING: may break dependent views, role rights, formulas, action DSL, seed data — re-run dforge_module_inspect after.",
+	"Refactor-safe field removal. Removes the field AND cascade-cleans the safe dependents: the paired Reference column when you remove its hidden FK, the references entry, view columns + order, and seed-data keys. Formula references and other entities' FKs pointing at the field are surfaced as warnings (not auto-deleted). Run dforge_module_validate after.",
 	entityFieldRemoveSchema,
 	envelope(entityFieldRemove),
+);
+
+server.tool(
+	"dforge_entity_field_rename",
+	"Refactor-safe rename of a field. Unlike field_modify, this PROPAGATES the new name to every reference: the paired Reference column's link.thisKey + references block, same-entity formula columns ([oldName] → [newName]), data view columns + order arrays, seed-data records for the entity, and OTHER entities' FKs that target this field. Returns the full set of changed files; review then write, and run dforge_module_validate after to confirm nothing dangles.",
+	entityFieldRenameSchema,
+	envelope(entityFieldRename),
 );
 
 // ── Behavior (PHASE 3) ──────────────────────────────────────────────
@@ -290,15 +333,9 @@ server.tool(
 
 server.tool(
 	"dforge_dbml_import",
-	"Generate a module from DBML schema text. Currently a stub — underlying dforge-cli command is not implemented.",
+	"Generate entities from DBML schema text (a front-end to dforge_module_import). Parses Table blocks, typed columns with [settings], inline [ref: > t.c] and top-level Ref: lines; drops the source PK (the identity trait provides {entity}_id), infers field types via the metadata registry, and builds the FK+Reference pair per relationship. Pass `module` when the dir has no manifest (greenfield). Review inferred types + run dforge_module_validate after.",
 	dbmlImportSchema,
-	async (args) => {
-		const result = dbmlImport(args);
-		return {
-			content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-			isError: true,
-		};
-	},
+	envelope(dbmlImport),
 );
 
 // ── Resources ───────────────────────────────────────────────────────

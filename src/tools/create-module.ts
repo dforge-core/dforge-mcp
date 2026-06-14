@@ -22,6 +22,7 @@ import type {
 	Preset,
 	ScaffoldOpts,
 } from "@dforge-core/dforge-cli/templates";
+import { traitsInput, withTraits, isReadyToScaffold, PHASE_STATE_FILE } from "./_helpers";
 
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
@@ -29,7 +30,7 @@ export const createModuleSchema = {
 	moduleDir: z
 		.string()
 		.describe(
-			"Absolute path to the directory where the module will be written. Must contain docs/VALIDATION.md with readyToScaffold: true (written by dforge_module_plan validate).",
+			"Absolute path to the directory where the module will be written. Phase 0 must be validated first — dforge_module_plan validate writes a docs/phase.json marker that this gate reads (readyToScaffold: true).",
 		),
 	code: z
 		.string()
@@ -63,9 +64,7 @@ export const createModuleSchema = {
 					.regex(/^[a-z][a-z0-9_]*$/)
 					.describe("Entity code, e.g. 'customer'. Lowercase, digits, underscore; first char a letter."),
 				label: z.string().min(1),
-				traits: z
-					.enum(["identity", "identity+audit"])
-					.default("identity+audit"),
+				traits: traitsInput,
 			}),
 		)
 		.min(1)
@@ -89,11 +88,9 @@ function assertPhase0Complete(moduleDir: string): void {
 		);
 	}
 
-	const validationPath = path.join(root, "docs/VALIDATION.md");
-	const validationContent = fs.readFileSync(validationPath, "utf8");
-	if (!validationContent.includes("readyToScaffold: true")) {
+	if (!isReadyToScaffold(root)) {
 		throw new Error(
-			`Phase 0 incomplete — docs/VALIDATION.md exists but does not show a clean pass.\n\nRun dforge_module_plan({ action: "validate", moduleDir: "${moduleDir}" }) to complete Phase 0d.`,
+			`Phase 0 incomplete — design validation has not passed (no readyToScaffold marker in ${PHASE_STATE_FILE} or docs/VALIDATION.md).\n\nRun dforge_module_plan({ action: "validate", moduleDir: "${moduleDir}" }) to complete Phase 0d.`,
 		);
 	}
 }
@@ -111,6 +108,16 @@ export function createModuleFiles(
 	assertPhase0Complete(args.moduleDir);
 	const moduleId = randomUUID();
 
+	// The trait codes the author chose, kept per-entity. The builders take an
+	// EntitySpec whose `traits` is one of two presets and only use it to seed
+	// the codes array — so pass a placeholder preset to the builders and apply
+	// the real (metadata-validated) codes to each entity JSON below.
+	const traitsByName: Record<string, string[]> = {};
+	const specEntities: EntitySpec[] = args.entities.map((e) => {
+		traitsByName[e.name] = e.traits;
+		return { name: e.name, label: e.label, traits: "identity" };
+	});
+
 	const opts: ScaffoldOpts = {
 		path: "",  // unused: builders don't write paths into output
 		code: args.code,
@@ -122,7 +129,7 @@ export function createModuleFiles(
 		dbSchemaVersion: args.dbSchemaVersion,
 		dependencies: args.dependencies,
 		preset: args.preset as Preset,
-		entities: args.entities as EntitySpec[],
+		entities: specEntities,
 	};
 
 	const files: Record<string, string> = {};
@@ -136,7 +143,7 @@ export function createModuleFiles(
 	// Minimal set — every preset writes these.
 	write("manifest.json", buildManifest(opts, moduleId));
 	for (const e of opts.entities) {
-		write(`entities/${e.name}.json`, buildEntity(e));
+		write(`entities/${e.name}.json`, withTraits(buildEntity(e), traitsByName[e.name]));
 	}
 	write("ui/data_views.json", buildDataViews(opts.entities));
 	write("ui/folders.json", buildFolders(opts));
