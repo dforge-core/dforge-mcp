@@ -102,8 +102,8 @@
 		},
 		"auditHistory": {
 			"type": "string",
-			"enum": ["none", "minimal", "full"],
-			"description": "Default audit history mode for entities in this module ('full' captures every field change; 'minimal' captures only inserts/deletes; 'none' disables). Individual entities can override."
+			"enum": ["basic", "fields", "full"],
+			"description": "Default audit history mode for entities in this module: 'full' captures every field change; 'fields' captures field-level changes; 'basic' captures inserts/deletes only. Omit the key (null) to disable auditing. Individual entities can override via their own auditHistory."
 		},
 		"entities": {
 			"type": "object",

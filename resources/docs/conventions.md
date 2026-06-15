@@ -115,7 +115,8 @@ Extension entity files are referenced from the manifest's `entities` map using d
 {
 	"dependencies": {
 		"crm": ">=0.0.1",
-		"fin": ">=0.0.1"
+		"fin": ">=0.0.1",
+		"parties": ">=0.0.1"
 	},
 	"entities": {
 		"fin.invoice": "entities/fin.invoice.json",
@@ -147,9 +148,9 @@ The entity file uses the same `fields` schema as regular entities, plus an `exte
 			"orderNum": 35,
 			"description": "Customer",
 			"link": {
-				"entity": "crm.account",
+				"entity": "parties.party",
 				"thisKey": "customer_id",
-				"otherKey": "account_id"
+				"otherKey": "party_id"
 			}
 		}
 	}
@@ -358,7 +359,7 @@ relationships are derived from the JSON tree structure — there is no
 	"description": "Customer relationship management and sales pipeline",
 	"color": "#2196F3",
 	"entities": {
-		"account":  { "viewName": "default", "quickAdd": true },
+		"quote":    { "viewName": "default", "quickAdd": true },
 		"contact":  { "viewName": "default", "quickAdd": true },
 		"lead":     { "viewName": "default", "quickAdd": true },
 		"opportunity": { "viewName": "default", "quickAdd": true }

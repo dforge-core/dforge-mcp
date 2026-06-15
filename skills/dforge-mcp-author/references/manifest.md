@@ -39,13 +39,14 @@ Every dForge module has a `manifest.json` at its root. This file declares the mo
 | `version` | semver | Module version. Bump on every release. |
 | `dbSchemaVersion` | semver | Schema version. Bump when the DB schema changes (column add/remove, new entity, etc.). |
 | `displayName` | string | Human-readable name shown in the UI and marketplace. |
-| `description` | string | One-line summary of what the module does. |
 
 ## Optional but recommended
 
 | Field | Type | Description |
 |---|---|---|
-| `author` | object | `{name, email?, url?}` |
+| `description` | string | One-line summary of what the module does. |
+| `author` | object | `{ name, url? }` — `additionalProperties: false` (no `email`) |
+| `auditHistory` | string | Module-wide default audit mode: `"basic"`, `"fields"`, or `"full"`. Omit to disable. Per-entity `auditHistory` overrides it. |
 | `license` | string | SPDX identifier (e.g. `"MIT"`, `"Apache-2.0"`) |
 | `category` | string | Marketplace category slug (e.g. `"sales"`, `"hr"`, `"other"`) |
 | `tags` | string[] | Search tags |
@@ -55,22 +56,36 @@ Every dForge module has a `manifest.json` at its root. This file declares the mo
 
 ## Content declarations
 
-The manifest lists every file in the package by logical key. The installer reads each path relative to the manifest.
+The manifest declares **only `entities`**. Every other artifact (views, menus, actions, roles, folders, settings, seed data, …) is **auto-discovered** by the installer from its fixed conventional path — there is **no** manifest key for it. The manifest schema is `additionalProperties: false`, so adding a `dataViews` / `menus` / `actions` / `security` / `seedData` / `webhooks` / `printTemplates` key fails validation.
 
 | Key | Type | Shape |
 |---|---|---|
-| `entities` | object | `{ "entity_code": "./entities/entity.json" }` |
-| `entityViews` | object | `{ "view_name": "./ui/entity_views/view.json" }` (optional) |
-| `dataViews` | string | path to `./ui/data_views.json` (or object with per-view files) |
-| `menus` | string | path to `./ui/menus.json` |
-| `actions` | object | Actions defined in `./ui/actions.json`, DSL in `./logic/actions/*.dsl` |
-| `reports` | object | `{ "report_code": "./ui/reports/report.json" }` |
-| `settings` | string | path to `./settings.json` |
-| `security` | object | `{ "roles": "./security/roles.json", "folders": "./ui/folders.json" }` |
-| `seedData` | array | List of paths to seed files, in install order |
-| `supportedLocales` | string[] | IETF locale tags that the module ships translations for, e.g. `["de-DE", "uk-UA"]`. Files are **auto-discovered** at `./translations/{locale}.json` — there is no per-file manifest entry. English (`en`/`en-*`) is the default and must not be listed. |
-| `printTemplates` | object | `{ "template_code": "./print_templates/template.scriban" }` |
-| `webhooks` | string | path to `./webhooks.json` |
+| `entities` | object | `{ "entity_code": "./entities/entity.json" }`. Dotted keys (`"fin.invoice"`) declare an **extension** of another module's entity — the referenced file has `"extends": "fin.invoice"` inside. |
+| `supportedLocales` | string[] | Non-English IETF locale tags the module ships translations for, e.g. `["de-DE", "uk-UA"]`. Translation files are auto-discovered at `./translations/{locale}.json` (no per-file entry). English (`en`/`en-*`) is the default and must **not** be listed. |
+
+### Auto-discovered files (do NOT list these in the manifest)
+
+The installer reads each of these from its fixed path when present — none are referenced from `manifest.json`:
+
+| Artifact | Path |
+|---|---|
+| Security roles | `security/roles.json` |
+| Data views | `ui/data_views.json` |
+| Menus | `ui/menus.json` |
+| Folders | `ui/folders.json` |
+| Actions (metadata) | `ui/actions.json` (DSL bodies in `logic/actions/*.dsl`) |
+| Reports | `ui/reports.json` |
+| Print templates (metadata) | `ui/print_templates.json` (HTML/CSS under `print_templates/`) |
+| Saved queries | `ui/queries.json` |
+| Settings | `settings.json` |
+| Triggers | `logic/triggers.json` |
+| Scheduled jobs | `logic/jobs.json` |
+| Webhooks | `logic/webhooks.json` |
+| Stored procedures | `logic/stored_procedures.json` |
+| Traits | `traits.json` |
+| Seed data | `seed-data/*.json` (numbered for FK order) |
+| Translations | `translations/{locale}.json` |
+| Static files | `files/` |
 
 ## Dependencies
 
@@ -110,7 +125,7 @@ The extension file has `"extends": "fin.invoice"` inside. See MODULE_CONVENTIONS
 
 ## What NOT to put in the manifest
 
-- **Do not** add a `translations` key (e.g. `"translations": { "en-US": "..." }`). There is **no** such manifest field — translation files are auto-discovered at `./translations/{locale}.json`, and non-English locales are declared in `supportedLocales` (English is never listed). The manifest schema is `additionalProperties: false`, so a stray `translations` key fails install.
+- **Do not** add artifact-listing keys. There is **no** `dataViews`, `menus`, `actions`, `reports`, `settings`, `security`, `seedData`, `webhooks`, `printTemplates`, `entityViews`, or `translations` manifest field — every artifact is auto-discovered from its fixed path (see "Auto-discovered files" above). The manifest schema is `additionalProperties: false`, so any stray key fails validation. In particular, roles live in `security/roles.json` and folders in `ui/folders.json` (both auto-discovered), **not** in a manifest `security` block; and translation files are auto-discovered at `./translations/{locale}.json` with non-English locales declared in `supportedLocales` (English never listed).
 - **Do not** put entity definitions inline. Always reference external files.
 - **Do not** list sample or test files — only content that ships with the module.
 - **Do not** include `system: true` unless this is a dForge platform module (`admin`, `metadata`). Regular modules omit it (defaults to `false`).

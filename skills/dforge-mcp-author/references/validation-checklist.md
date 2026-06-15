@@ -23,8 +23,9 @@ These five have each caused a real install failure. Check them before the sectio
 - [ ] `dbSchemaVersion` is valid semver
 - [ ] `displayName` and `description` are present
 - [ ] `dependencies` includes `admin` (almost always required)
-- [ ] Every `entities` entry points to a file that exists
-- [ ] Every other content pointer (`dataViews`, `menus`, `security`, etc.) points to existing files
+- [ ] Every `entities` entry points to a file that exists (dotted keys = extensions)
+- [ ] No artifact keys in the manifest (`dataViews`, `menus`, `actions`, `security`, `seedData`, `webhooks`, etc.) — they are auto-discovered from fixed paths; the schema is `additionalProperties: false`
+- [ ] Artifact files live at their conventional paths (`ui/data_views.json`, `ui/menus.json`, `security/roles.json`, `seed-data/*.json`, …) so the installer discovers them
 
 ## Entities
 

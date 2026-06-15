@@ -19,14 +19,5 @@
 	"entities": {
 		"todo_list": "./entities/todo_list.json",
 		"todo_item": "./entities/todo_item.json"
-	},
-	"dataViews": "./ui/data_views.json",
-	"menus": "./ui/menus.json",
-	"actions": "./ui/actions.json",
-	"security": {
-		"roles": "./security/roles.json"
-	},
-	"seedData": [
-		"./seed-data/01-lists.json"
-	]
+	}
 }

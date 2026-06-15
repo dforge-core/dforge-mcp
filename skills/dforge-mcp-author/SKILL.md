@@ -114,7 +114,7 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **Action script** in `ui/actions.json` = bare filename (no path, no `.dsl`).
 - **Action DSL dates:** inside `execute:` use lowercase `now()`; `TODAY()`/`NOW()` are formula-only (`canExecute:`/formula columns) and are **undefined in `execute:`**. → `action-dsl.md`
 - **SQL placeholders** = `@paramName` (not `:paramName`).
-- **Manifest:** non-English locales go in `supportedLocales` (array of `ll-CC` tags; never `en`/`en-US`) — there is no `translations` manifest key; files are auto-discovered at `translations/<locale>.json`. `security` has both `roles` and `folders`. → `manifest.md`
+- **Manifest:** declares **only `entities`** + metadata. There are **no** artifact keys — no `dataViews`/`menus`/`actions`/`reports`/`settings`/`security`/`seedData`/`webhooks`/`translations` (schema is `additionalProperties:false`; the installer auto-discovers each artifact from its fixed path). Roles live in `security/roles.json`, folders in `ui/folders.json`. Non-English locales go in `supportedLocales` (array of `ll-CC` tags; never `en`/`en-US`); translation files are auto-discovered at `translations/<locale>.json`. → `manifest.md`
 - **Seed data:** explicit numeric PKs (`cuid` is `int8`, not a UUID); parents before children via numeric prefix (`01-`, `02-`).
 
 ## Tool failure protocol
@@ -264,7 +264,7 @@ Load the "scheduled job" row from the Loading policy table (`dforge://reference/
 Constraints baked into the tool:
 - Action MUST NOT use record-context (`[field]`) syntax — jobs run as system user with NO current record. Wrap any record-context action in a thin job-friendly action that uses `query()` to fetch the records it needs.
 - `timeout` is required, ≤ 3600s.
-- If `timeout > 300`, you MUST set `jobClass: 'long_running'`.
+- If `timeout > 300`, you MUST set `class: 'long_running'` (the manifest field is `class`, not `jobClass`).
 
 Use `dforge_job_add` per job.
 
@@ -372,7 +372,7 @@ Load `dforge://reference/validation-checklist`. Run through **every section** in
 
 Key areas (full checklist):
 
-- **Manifest**: `moduleId` is a valid UUID; `version` and `dbSchemaVersion` are set; `supportedLocales` lists every non-English locale that has a `translations/<locale>.json` file (and `en`/`en-US` is NOT listed); `security` block has both `roles` and `folders`.
+- **Manifest**: `moduleId` is a valid UUID; `version` and `dbSchemaVersion` are set; `supportedLocales` lists every non-English locale that has a `translations/<locale>.json` file (and `en`/`en-US` is NOT listed); no artifact keys present (no `dataViews`/`menus`/`actions`/`security`/`seedData` — roles are in `security/roles.json`, folders in `ui/folders.json`, all auto-discovered).
 - **Entities**: every entity has `identity` + `audit` traits, a `toString` template, and the FK+Reference pattern applied wherever a relation exists (hidden FK column `flags: "EM"` + visible Reference column `columnType: "R"` + entry in `references` block).
 - **Formula columns** (`columnType: "F"`): have `baseDatatypeCd`, no `dbDatatype`, `flags: "V"`.
 - **Flags**: only `V`, `I`, `E`, `M`, `H` used — no `U`, `S`, or `P`.

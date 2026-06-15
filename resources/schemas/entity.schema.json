@@ -44,6 +44,11 @@
 			},
 			"uniqueItems": true
 		},
+		"auditHistory": {
+			"type": "string",
+			"enum": ["basic", "fields", "full"],
+			"description": "Per-entity audit history override of the module-level manifest default: 'full' captures every field change; 'fields' field-level; 'basic' inserts/deletes only. Omit to inherit the manifest default (and omit at both levels to disable)."
+		},
 		"fields": {
 			"type": "object",
 			"description": "Column definitions keyed by column code. Column codes must start with a letter or underscore and contain only letters, digits, and underscores — a leading `-` is reserved for the sort descending prefix in `view_json.order`.",
@@ -106,8 +111,8 @@
 				},
 				"baseDatatypeCd": {
 					"type": "string",
-					"enum": ["binary", "bool", "cuid", "culture", "date", "guid", "link", "number", "project", "string", "time", "timestamp", "xml", "json"],
-					"description": "Base data type code from field_type table (e.g. string, number, boolean, date, time, timestamp, json, binary)"
+					"enum": ["binary", "bool", "culture", "date", "guid", "json", "link", "number", "project", "string", "time", "timestamp", "user", "xml"],
+					"description": "Base data type code an author may set explicitly (required on Formula 'F' columns). One of: binary, bool, culture, date, guid, json, link, number, project, string, time, timestamp, user, xml. (Reference/Set columns are auto-assigned 'ref'/'set' — don't set those by hand; 'cuid' is a dbDatatype, not a base type — it resolves to 'number'.)"
 				},
 				"columnType": {
 					"type": "string",
