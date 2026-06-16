@@ -5,6 +5,7 @@ import { createModuleSchema, createModuleFiles } from "./tools/create-module";
 import { planModuleSchema, planModule } from "./tools/plan-module";
 import { addEntitySchema, addEntityFiles } from "./tools/add-entity";
 import { moduleImportSchema, moduleImport, dbmlImportSchema, dbmlImport } from "./tools/import";
+import { xlsxExtractSchema, xlsxExtract } from "./tools/xlsx-extract";
 import {
 	packModuleSchema,
 	packModule,
@@ -336,6 +337,27 @@ server.tool(
 	"Generate entities from DBML schema text (a front-end to dforge_module_import). Parses Table blocks, typed columns with [settings], inline [ref: > t.c] and top-level Ref: lines; drops the source PK (the identity trait provides {entity}_id), infers field types via the metadata registry, and builds the FK+Reference pair per relationship. Pass `module` when the dir has no manifest (greenfield). Review inferred types + run dforge_module_validate after.",
 	dbmlImportSchema,
 	envelope(dbmlImport),
+);
+
+server.tool(
+	"dforge_xlsx_extract",
+	"Extract sheets, headers, and sample rows from an .xlsx file into a JSON model ready for dforge_module_import. " +
+		"Returns { sheets: [{ name, headers, rows }] }. Call this first when the user provides an Excel file — " +
+		"do NOT attempt to read the binary .xlsx directly. " +
+		"Falls back: if the file is a .csv, read it directly (plain text, no tool needed). " +
+		"See dforge://reference/excel-import for the full import flow.",
+	xlsxExtractSchema,
+	async (args) => {
+		try {
+			const result = xlsxExtract(args);
+			return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+		} catch (e) {
+			return {
+				content: [{ type: "text" as const, text: `Error: ${(e as Error).message}` }],
+				isError: true,
+			};
+		}
+	},
 );
 
 // ── Resources ───────────────────────────────────────────────────────
