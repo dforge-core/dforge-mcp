@@ -301,6 +301,10 @@
 					"type": "boolean",
 					"description": "COLUMN axis only — hide axis values that have no cell record in any row (e.g. periods with no posted activity), so a P&L doesn't trail off into empty months. Data-driven and reactive; ignored if it would hide every column."
 				},
+				"rangeControl": {
+					"type": "boolean",
+					"description": "COLUMN axis only — show a From/To range control above the matrix so the user can narrow the visible columns to a span (e.g. a quarter or a single year of periods). The chosen span persists in the view options and composes with hideEmpty."
+				},
 				"sort": {
 					"type": "array",
 					"items": { "$ref": "#/$defs/matrixAxisSort" },
@@ -318,6 +322,11 @@
 				"column": {
 					"type": "string",
 					"description": "'entity.column' reference to a dropdown/flags column whose options are the axis"
+				},
+				"values": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Optional subset + order of option values to render as columns (the option 'value' codes), the way kanban lanes are chosen. Omit to show every option in field order; values not matching an option are ignored."
 				}
 			},
 			"additionalProperties": false
