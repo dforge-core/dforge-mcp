@@ -10,12 +10,13 @@
 	"$defs": {
 		"dataView": {
 			"type": "object",
-			"required": ["viewType", "dataSources"],
+			"required": ["dataSources"],
 			"properties": {
 				"viewType": {
 					"type": "string",
-					"enum": ["grid", "list", "kanban", "calendar", "gallery", "tree-grid", "diagram", "master-detail", "library"],
-					"description": "View display type"
+					"enum": ["grid", "list", "kanban", "calendar", "gallery", "tree-grid", "diagram", "master-detail", "library", "matrix"],
+					"default": "grid",
+					"description": "View display type. Optional — omitted or unknown values fall back to 'grid' at runtime."
 				},
 				"label": {
 					"type": "string",
@@ -56,7 +57,8 @@
 				{ "$ref": "#/$defs/rules/tree-grid" },
 				{ "$ref": "#/$defs/rules/list" },
 				{ "$ref": "#/$defs/rules/diagram" },
-				{ "$ref": "#/$defs/rules/master-detail" }
+				{ "$ref": "#/$defs/rules/master-detail" },
+				{ "$ref": "#/$defs/rules/matrix" }
 			]
 		},
 
@@ -125,6 +127,18 @@
 					"properties": {
 						"dataSources": { "minItems": 2 }
 					}
+				}
+			},
+			"matrix": {
+				"if": {
+					"properties": { "viewType": { "const": "matrix" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/matrixViewConfig" }
+					},
+					"required": ["viewConfig"]
 				}
 			}
 		},
@@ -233,6 +247,154 @@
 			"additionalProperties": false
 		},
 
+		"matrixViewConfig": {
+			"type": "object",
+			"description": "Matrix (pivot) view: rowAxis × colAxis grid with a value-source cell entity holding one record per (rowKey, colKey).",
+			"required": ["rowAxis", "colAxis", "cell"],
+			"properties": {
+				"rowAxis": {
+					"description": "Row axis values: an entity's records ('dataset') or a column's dropdown options ('dropdown').",
+					"oneOf": [
+						{ "$ref": "#/$defs/matrixDatasetAxis" },
+						{ "$ref": "#/$defs/matrixDropdownAxis" }
+					]
+				},
+				"colAxis": {
+					"description": "Column axis values: 'dataset', 'dropdown', or a generated 'date' window.",
+					"oneOf": [
+						{ "$ref": "#/$defs/matrixDatasetAxis" },
+						{ "$ref": "#/$defs/matrixDropdownAxis" },
+						{ "$ref": "#/$defs/matrixDateAxis" }
+					]
+				},
+				"cell": { "$ref": "#/$defs/matrixCellConfig" }
+			},
+			"additionalProperties": false
+		},
+		"matrixDatasetAxis": {
+			"type": "object",
+			"description": "Dataset axis — axis values are the records of an entity.",
+			"required": ["kind", "entity", "labelField"],
+			"properties": {
+				"kind": { "const": "dataset" },
+				"entity": {
+					"type": "string",
+					"description": "Axis-source entity code (e.g. 'account', 'accounting_period')"
+				},
+				"labelField": {
+					"type": "string",
+					"description": "Column shown as the axis header label"
+				},
+				"keyField": {
+					"type": "string",
+					"description": "Column whose value is the match key. Defaults to the axis entity's PK."
+				},
+				"lockedField": {
+					"type": "string",
+					"description": "Boolean column; when true, that axis value's cells are read-only even in edit mode (e.g. a period's 'closed' flag)"
+				},
+				"filter": {
+					"$ref": "#/$defs/filter",
+					"description": "Optional filter scoping which axis records load (e.g. row axis scoped to 'statement == IncomeStatement')"
+				},
+				"hideEmpty": {
+					"type": "boolean",
+					"description": "COLUMN axis only — hide axis values that have no cell record in any row (e.g. periods with no posted activity), so a P&L doesn't trail off into empty months. Data-driven and reactive; ignored if it would hide every column."
+				},
+				"sort": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/matrixAxisSort" },
+					"description": "Sort applied to the axis records"
+				}
+			},
+			"additionalProperties": false
+		},
+		"matrixDropdownAxis": {
+			"type": "object",
+			"description": "Dropdown axis — axis values are the options of a dropdown/flags column, read from its params.options.",
+			"required": ["kind", "column"],
+			"properties": {
+				"kind": { "const": "dropdown" },
+				"column": {
+					"type": "string",
+					"description": "'entity.column' reference to a dropdown/flags column whose options are the axis"
+				}
+			},
+			"additionalProperties": false
+		},
+		"matrixDateAxis": {
+			"type": "object",
+			"description": "Date axis — axis values generated from a date window rather than entity records. Column axis only.",
+			"required": ["kind", "grain", "window"],
+			"properties": {
+				"kind": { "const": "date" },
+				"grain": {
+					"const": "day",
+					"description": "Column granularity. v1: 'day'."
+				},
+				"window": {
+					"const": "week",
+					"description": "How many columns are shown. v1: 'week' (7 days, Monday-start)."
+				}
+			},
+			"additionalProperties": false
+		},
+		"matrixAxisSort": {
+			"type": "object",
+			"required": ["col"],
+			"properties": {
+				"col": { "type": "string", "description": "Axis-entity column to sort by" },
+				"dir": { "type": "string", "enum": ["asc", "desc"], "description": "Sort direction (defaults to 'asc')" }
+			},
+			"additionalProperties": false
+		},
+		"matrixCellConfig": {
+			"type": "object",
+			"description": "The value-source cell of a matrix — one record per (rowKey, colKey).",
+			"required": ["entity", "rowKey", "colKey", "fields"],
+			"properties": {
+				"entity": {
+					"type": "string",
+					"description": "Cell entity code (the view's primary data source)"
+				},
+				"rowKey": {
+					"type": "string",
+					"description": "Cell column matching the row axis key"
+				},
+				"colKey": {
+					"type": "string",
+					"description": "Cell column matching the column axis key"
+				},
+				"fields": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Cell columns rendered inside each cell, in order"
+				},
+				"cardinality": {
+					"const": "one",
+					"description": "v1 supports a single record per cell"
+				},
+				"editable": {
+					"type": "boolean",
+					"description": "Whether cells edit in place"
+				},
+				"drill": {
+					"type": "boolean",
+					"description": "When true, read-only cell values become clickable and open the cell's record (where its child sets are shown)"
+				},
+				"seedFromRow": {
+					"type": "object",
+					"additionalProperties": { "type": "string" },
+					"description": "On empty-cell insert, copy values from the row axis record into the new cell record: { cellField: rowAxisField }"
+				},
+				"seedCurrentUser": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "On empty-cell insert, set these cell fields to the current user id"
+				}
+			},
+			"additionalProperties": false
+		},
 		"viewColumn": {
 			"oneOf": [
 				{

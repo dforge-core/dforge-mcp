@@ -38,6 +38,7 @@ const dataViewSchema = z
 			"diagram",
 			"master-detail",
 			"library",
+			"matrix",
 		]),
 		label: z.string().optional(),
 		description: z.string().optional(),

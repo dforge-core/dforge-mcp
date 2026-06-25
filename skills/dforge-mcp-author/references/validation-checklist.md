@@ -67,12 +67,13 @@ For each entity:
 
 ## Data views
 
-- [ ] Every data view has `label`, `viewType`, and `dataSources`
+- [ ] Every data view has `label` and `dataSources` (`viewType` is optional — omit for grid; it defaults to `grid` at runtime)
 - [ ] `dataSources` is an array, not an object
 - [ ] Each source has `entityCode` and `columns`
 - [ ] `entityCode` points to an entity that exists
 - [ ] Column codes in `columns` all exist on the entity
-- [ ] `viewType` is from the supported list (`grid`, `list`, `kanban`, `gallery`, `tree-grid`, `card`)
+- [ ] If set, `viewType` is from the supported list (`grid`, `list`, `kanban`, `calendar`, `gallery`, `tree-grid`, `diagram`, `master-detail`, `library`, `matrix`)
+- [ ] A `matrix` view has a `viewConfig` with `rowAxis`, `colAxis`, and `cell` (cell `entity` matches the primary `dataSources` entity; `rowKey`/`colKey` are real cell columns)
 - [ ] Sort uses the view-def-root `order` key — a `string[]` like `["-created_date", "name"]` (leading `-` = descending), NOT `sort` / `[{column_cd, direction}]` (that object shape belongs to queries & reports, not data views)
 
 ## Menus

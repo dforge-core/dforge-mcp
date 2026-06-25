@@ -1,0 +1,9 @@
+{
+	"matrix_budget.user": {
+		"description": "Can view categories and edit budget amounts in the matrix",
+		"rights": {
+			"budget_category": "S",
+			"budget_line": "SIUD"
+		}
+	}
+}

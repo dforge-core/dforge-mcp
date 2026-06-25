@@ -1,0 +1,56 @@
+{
+	"description": "Budget lines — the value-source CELL entity. One row per (category, quarter); the matrix edits the amount in place.",
+	"dbObject": "budget_line",
+	"toString": "{category} {quarter}",
+	"traits": ["identity", "audit"],
+	"fields": {
+		"category_id": {
+			"dbDatatype": "cuid",
+			"flags": "EM",
+			"orderNum": 10,
+			"description": "Category ID"
+		},
+		"category": {
+			"columnType": "R",
+			"fieldTypeCd": "lookup",
+			"flags": "VEM",
+			"orderNum": 15,
+			"description": "Category",
+			"link": {
+				"entity": "budget_category",
+				"thisKey": "category_id",
+				"otherKey": "budget_category_id"
+			}
+		},
+		"quarter": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "dropdown",
+			"flags": "VEM",
+			"maxLen": 2,
+			"orderNum": 20,
+			"description": "Quarter",
+			"params": {
+				"options": [
+					{ "value": "Q1", "label": "Q1" },
+					{ "value": "Q2", "label": "Q2" },
+					{ "value": "Q3", "label": "Q3" },
+					{ "value": "Q4", "label": "Q4" }
+				]
+			}
+		},
+		"amount": {
+			"dbDatatype": "numeric",
+			"fieldTypeCd": "number",
+			"flags": "VEM",
+			"orderNum": 30,
+			"description": "Amount",
+			"params": { "min": 0 }
+		}
+	},
+	"references": {
+		"FK_BudgetLine_Category": {
+			"from": { "field": "category_id" },
+			"to": { "entity": "budget_category", "field": "budget_category_id" }
+		}
+	}
+}

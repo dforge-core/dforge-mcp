@@ -1,6 +1,6 @@
 # Data Views Reference
 
-Data views define how users see and interact with entity data. One entity can have many data views (grid, kanban, gallery, tree-grid, list, card).
+Data views define how users see and interact with entity data. One entity can have many data views (grid, kanban, gallery, tree-grid, list, calendar, matrix, card).
 
 Lives in: `ui/data_views.json`
 
@@ -68,6 +68,7 @@ Lives in: `ui/data_views.json`
 | `gallery` | Image-forward card grid | — | Image-heavy entities (products, real estate) |
 | `tree-grid` | Hierarchical grid with expand/collapse | — | Tree structures (folders, categories, org charts) |
 | `calendar` | Calendar display of date-based records | `dateField`, `titleField` | Schedules, due dates, events |
+| `matrix` | Pivot grid: `rowAxis` × `colAxis`, one value-source record per cell | `rowAxis`, `colAxis`, `cell` | Cross-tab data: P&L (accounts × periods), timesheets (tasks × days), budgets (categories × months) |
 | `card` | Single-record detail view | — | Record detail pages (implicit — every entity has one) |
 
 ## View config (`viewConfig`)
@@ -115,6 +116,56 @@ Some view types need additional configuration via the `viewConfig` property:
 
 - `dateField` — the date column that determines where records appear on the calendar
 - `titleField` — the column whose value is shown as the calendar event title
+
+### Matrix
+
+A pivot grid. The view's primary `dataSources` entity is the **cell** entity (one record per row×column intersection). `viewConfig` declares the two axes and how the cell record maps onto them.
+
+```json
+{
+    "income_statement_matrix": {
+        "viewType": "matrix",
+        "label": "Income Statement (Matrix)",
+        "dataSources": [{
+            "entityCode": "balance_register",
+            "columns": ["account_id", "period_key", "pl_amount"]
+        }],
+        "viewConfig": {
+            "rowAxis": {
+                "kind": "dataset",
+                "entity": "account",
+                "labelField": "account_name",
+                "filter": { "c": "statement", "o": "eq", "v": "IncomeStatement" },
+                "sort": [{ "col": "account_code", "dir": "asc" }]
+            },
+            "colAxis": {
+                "kind": "dataset",
+                "entity": "accounting_period",
+                "labelField": "description",
+                "lockedField": "closed",
+                "hideEmpty": true,
+                "sort": [{ "col": "period_key", "dir": "asc" }]
+            },
+            "cell": {
+                "entity": "balance_register",
+                "rowKey": "account_id",
+                "colKey": "period_key",
+                "fields": ["pl_amount"],
+                "editable": false,
+                "drill": true
+            }
+        }
+    }
+}
+```
+
+**`rowAxis` / `colAxis`** — what the rows and columns are. Three `kind`s:
+
+- `"dataset"` — axis values are an entity's records. `entity` + `labelField` required; optional `keyField` (defaults to the axis entity PK — what the cell's `rowKey`/`colKey` matches), `lockedField` (boolean column → that axis value's cells are read-only), `filter` (same `{c,o,v}` grammar as everywhere — scopes which axis records load), `hideEmpty` (**column axis only** — drop columns with no cell record in any row, e.g. periods with no postings; ignored if it would blank the whole grid), `sort` (`[{ col, dir }]`).
+- `"dropdown"` — axis values are a dropdown/flags column's options. Just `kind` + `column` (an `"entity.column"` reference). Codes line up by construction.
+- `"date"` — generated date window, **column axis only** (not valid on `rowAxis`). `kind` + `grain: "day"` + `window: "week"` (v1).
+
+**`cell`** — the value-source record at each intersection. `entity` (must match the primary dataSource), `rowKey` / `colKey` (cell columns matching the row/column axis keys), `fields` (cell columns rendered in each cell). Optional: `cardinality: "one"` (v1 default), `editable`, `drill` (read-only cells become clickable → open the cell record and its child sets), `seedFromRow` (`{ cellField: rowAxisField }` copied into new cell records on insert), `seedCurrentUser` (cell fields set to the current user id on insert).
 
 ## Columns
 
@@ -188,5 +239,5 @@ Most views only have one source. Order is view-level and applies to the primary 
 - Using `viewCode` or `view_cd` — **wrong**. The code is the dictionary key.
 - Using `"sort"` for data view ordering — **wrong**. The field is `"order"` and it lives at view-def root (not inside `dataSources[]`).
 - Object-array order like `[{ column_cd: "...", direction: "asc" }]` — **wrong shape for data views**. Use `string[]` with leading `-` for descending.
-- Forgetting `viewType` — **required**, defaults don't apply.
+- `viewType` is **optional** — omitted or unknown values fall back to `grid` at runtime. Set it explicitly for any non-grid view (`kanban`, `calendar`, `matrix`, …); a `matrix` view also **requires** a `viewConfig` with `rowAxis`/`colAxis`/`cell`.
 - Inventing view types like `"spreadsheet"` or `"table"` — **wrong**. Use `grid`.

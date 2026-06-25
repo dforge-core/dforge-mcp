@@ -1,0 +1,42 @@
+{
+	"budget_matrix": {
+		"viewType": "matrix",
+		"label": "Budget (Category × Quarter)",
+		"description": "Editable budget: categories down the side, quarters across the top, the amount edited in each cell.",
+		"dataSources": [{
+			"entityCode": "budget_line",
+			"columns": ["category_id", "quarter", "amount"]
+		}],
+		"viewConfig": {
+			"rowAxis": {
+				"kind": "dataset",
+				"entity": "budget_category",
+				"labelField": "name",
+				"sort": [{ "col": "code", "dir": "asc" }]
+			},
+			"colAxis": {
+				"kind": "dropdown",
+				"column": "budget_line.quarter"
+			},
+			"cell": {
+				"entity": "budget_line",
+				"rowKey": "category_id",
+				"colKey": "quarter",
+				"fields": ["amount"],
+				"editable": true
+			}
+		}
+	},
+	"budget_categories_grid": {
+		"label": "Categories",
+		"icon": "bi-tags",
+		"dataSources": [{
+			"entityCode": "budget_category",
+			"columns": [
+				{ "column_cd": "code", "width": 100 },
+				{ "column_cd": "name", "width": 300 }
+			],
+			"order": ["code"]
+		}]
+	}
+}

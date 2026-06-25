@@ -67,6 +67,7 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 | Add a formula column | `dforge://reference/formulas` | — |
 | Add a trait | `dforge://reference/traits` | — |
 | Add a data view (grid / list) | `dforge://reference/data-views`, `dforge://example/ui/data_views.json` | — |
+| Add a matrix (pivot) view | `dforge://reference/data-views` (§Matrix), `dforge://example/matrix-budget/ui/data_views.json`, `dforge://example/matrix-budget/entities/budget_line.json` | — |
 | Add a specialized view (kanban / calendar / tree-grid / master-detail) | `dforge://reference/data-views` | `dforge://schema/data-views` (viewConfig shape) |
 | Add a menu | `dforge://reference/menus`, `dforge://example/ui/menus.json` | — |
 | Add an action (DSL body + `ui/actions.json` registration) | `dforge://reference/action-dsl` (grammar + §"Registering the action"), `dforge://example/logic/actions/mark_done.dsl`, `dforge://example/ui/actions.json` | `dforge://docs/dsl` (full grammar + built-ins) |

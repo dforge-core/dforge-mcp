@@ -66,6 +66,19 @@ function example(relPath: string, description: string): ResourceDef {
 	};
 }
 
+// A file from the matrix-budget example module — the worked example for the
+// `matrix` view type (todo has no cross-tab domain). URIs are namespaced under
+// `matrix-budget/` so they never collide with the simple-todo files above.
+function matrixExample(relPath: string, description: string): ResourceDef {
+	return {
+		uri: `dforge://example/matrix-budget/${relPath}`,
+		name: `Example: matrix-budget/${relPath}`,
+		description,
+		mimeType: relPath.endsWith(".json") ? "application/json" : "text/plain",
+		read: () => readSkill(`examples/matrix-budget/${relPath}`),
+	};
+}
+
 export const resources: ResourceDef[] = [
 	schema(
 		"manifest",
@@ -197,6 +210,14 @@ export const resources: ResourceDef[] = [
 	example("security/roles.json", "Canonical roles: rights with SIUDC / E."),
 	example("seed-data/01-lists.json", "Canonical seed data: PK key is '{entity}_id' (not 'id'), parent-before-child via numeric prefix."),
 	example("logic/actions/mark_done.dsl", "Canonical action DSL body (params/canExecute/execute)."),
+
+	// ── Matrix view example module (skills/.../examples/matrix-budget) ────
+	matrixExample("ui/data_views.json", "Canonical MATRIX data view: viewType 'matrix' + viewConfig with a dataset rowAxis (categories), a dropdown colAxis ('budget_line.quarter'), and an editable cell mapping rowKey/colKey/fields onto the budget_line entity."),
+	matrixExample("entities/budget_line.json", "Matrix CELL entity: one record per (category, quarter) — FK+Reference to the row-axis entity plus the dropdown column that is the col axis, with the editable 'amount' value column."),
+	matrixExample("entities/budget_category.json", "Matrix row-axis (dataset) entity."),
+	matrixExample("manifest.json", "Matrix example manifest (entities + dataViews + roles + seed)."),
+	matrixExample("security/roles.json", "Matrix example roles: S on the axis entity, SIUD on the editable cell entity."),
+	matrixExample("seed-data/01-categories.json", "Matrix example seed: row-axis category records."),
 ];
 
 function readVendored(rel: string): string {

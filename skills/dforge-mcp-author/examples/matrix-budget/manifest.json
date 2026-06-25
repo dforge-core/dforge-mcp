@@ -1,0 +1,30 @@
+{
+	"packageFormat": 1,
+	"moduleId": "20000000-0000-0000-0000-000000000002",
+	"code": "matrix_budget",
+	"version": "0.1.0",
+	"dbSchemaVersion": "0.0.1",
+	"displayName": "Matrix Budget",
+	"description": "Minimal example demonstrating a matrix (pivot) data view: dataset row axis × dropdown column axis with editable cells",
+	"author": { "name": "dForge Examples" },
+	"license": "MIT",
+	"category": "Examples",
+	"tags": ["example", "matrix", "budget"],
+	"icon": "bi-grid-3x3",
+	"dependencies": {
+		"admin": ">=0.0.1"
+	},
+	"created": "2026-06-25",
+	"updated": "2026-06-25",
+	"entities": {
+		"budget_category": "./entities/budget_category.json",
+		"budget_line": "./entities/budget_line.json"
+	},
+	"dataViews": "./ui/data_views.json",
+	"security": {
+		"roles": "./security/roles.json"
+	},
+	"seedData": [
+		"./seed-data/01-categories.json"
+	]
+}

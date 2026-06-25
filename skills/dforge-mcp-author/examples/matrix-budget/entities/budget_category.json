@@ -1,0 +1,24 @@
+{
+	"description": "Budget categories — the row axis of the budget matrix",
+	"dbObject": "budget_category",
+	"toString": "{name}",
+	"traits": ["identity", "audit"],
+	"fields": {
+		"code": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "text",
+			"flags": "VEM",
+			"maxLen": 20,
+			"orderNum": 10,
+			"description": "Code"
+		},
+		"name": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "text",
+			"flags": "VEM",
+			"maxLen": 100,
+			"orderNum": 20,
+			"description": "Name"
+		}
+	}
+}

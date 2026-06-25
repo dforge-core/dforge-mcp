@@ -1,0 +1,8 @@
+{
+	"entityCode": "budget_category",
+	"records": [
+		{ "budget_category_id": 2001, "code": "REV", "name": "Revenue" },
+		{ "budget_category_id": 2002, "code": "COGS", "name": "Cost of Goods Sold" },
+		{ "budget_category_id": 2003, "code": "OPEX", "name": "Operating Expenses" }
+	]
+}
