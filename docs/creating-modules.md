@@ -101,9 +101,10 @@ Settings (`dforge_setting_add`), translations, seed data — only if intake decl
 
 ### Phase 6 — Verify (required, non-skippable)
 
-1. `dforge_module_pack` → `.dforge` tarball.
-2. `dforge_module_install` against your tenant (uses `DFORGE_URL` / `DFORGE_TOKEN` env or arg fallbacks). Runs the full server-side validator — the only real validator.
-3. On failure, the AI follows the **backtrack protocol**: stops, names the issue, identifies the earliest broken phase, asks for sign-off, patches with the smallest tool that fits, re-inspects, resumes.
+1. `dforge_module_validate` → offline cross-reference validation. The AI fixes every error before packing.
+2. `dforge_module_pack` → `.dforge` tarball.
+3. `dforge_module_install` against your tenant (uses `DFORGE_URL` / `DFORGE_TOKEN` env or arg fallbacks). Runs the full server-side validator — the only real validator.
+4. On module-defect failure, the AI reads the returned raw CLI `output`, fixes the referenced module files, and repeats validate → pack → install. It asks the user only for environment/tooling problems such as missing CLI, expired credentials, unreachable tenant/API, permissions, or a path outside the workspace.
 
 ---
 
