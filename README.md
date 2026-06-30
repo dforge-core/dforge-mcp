@@ -35,6 +35,8 @@ DFORGE_CLI_BINARY=/Users/me/projects/dForge-core/cli/bin/dForge.Cli
 
 (macOS / Linux: no extension. Windows: `dForge.Cli.exe`.) If the path doesn't exist or isn't executable the server reports an error at the first pack/install call.
 
+For AI-assisted module repair, Phase 6 is intentionally tool-driven: the skill runs `dforge_module_validate`, `dforge_module_pack`, and `dforge_module_install` itself. If install fails because the module is invalid, the install tool returns the raw CLI/server output plus `exitCode` and `command`; the AI reads that output, fixes the referenced module files, and repeats validate → pack → install. User action is needed only for environment failures such as missing CLI, missing/expired credentials, an unreachable tenant/API, permissions, or an invalid path.
+
 ## Install + wire into Claude Code
 
 ### Recommended — via `claude mcp add` (writes ~/.claude.json for you)
@@ -94,8 +96,8 @@ Phase 0 (identity → requirements → design → validation) is orchestrated by
 | `dforge_module_import` | Import a normalized **table-spec** (tables → columns → relationships) into an existing module as entities. Infers `fieldTypeCd` from SQL type / sample values / name (metadata-validated, `dbDatatype` derived) and builds the FK+Reference pair per relationship. Fed by DBML/SQL, Excel/CSV, or a hand-authored spec |
 | `dforge_module_inspect` | Read current module state. Full structured data is in `files["_inspect.json"]`; `summary` is one-line stats |
 | `dforge_module_validate` | Offline cross-reference check (run before pack): dangling FK targets, missing hidden-FK columns, view/menu/role refs to non-existent things, uncovered entities. Errors + warnings in `files["_validate.json"]` |
-| `dforge_module_pack` | Shells to `dforge-cli module pack`. Returns tarball path + size |
-| `dforge_module_install` | Shells to `dforge-cli module install`. Args: `pathOrTarball`, optional `tenantUrl` / `token` / `tenantCode` — fall back to `DFORGE_URL` / `DFORGE_TOKEN` env. `tenantCode` is an optional `--code` sanity check the server cross-references against the JWT |
+| `dforge_module_pack` | Shells to `dforge-cli module pack` via bundled CLI, PATH fallback, or `DFORGE_CLI_BINARY`. Returns tarball path + size |
+| `dforge_module_install` | Shells to `dforge-cli module install`. Args: `pathOrTarball`, optional `tenantUrl` / `token` / `tenantCode` — fall back to `DFORGE_URL` / `DFORGE_TOKEN` env. Returns `ok`, `exitCode`, `command`, and raw CLI `output` so the AI can fix install-time module defects and retry |
 
 **Entities (Phase 1)**
 | Tool | Behavior |

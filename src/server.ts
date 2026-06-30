@@ -142,7 +142,7 @@ server.tool(
 
 server.tool(
 	"dforge_module_pack",
-	"Pack a module directory into a .dforge tarball. Requires the dforge-cli native binary on PATH (or set DFORGE_CLI_BINARY).",
+	"Pack a module directory into a .dforge tarball. Uses the bundled dforge-cli package, PATH fallback, or DFORGE_CLI_BINARY override.",
 	packModuleSchema,
 	async (args) => {
 		const result = packModule(args);
@@ -152,7 +152,7 @@ server.tool(
 
 server.tool(
 	"dforge_module_install",
-	"PHASE 6: Install a module (directory or .dforge tarball) to a running tenant. Runs the FULL server-side validator — the only real validator. Reads DFORGE_URL / DFORGE_TOKEN env if not passed as args.",
+	"PHASE 6: Install a module (directory or .dforge tarball) to a running tenant. Runs the FULL server-side validator — the only real validator. Reads DFORGE_URL / DFORGE_TOKEN env if not passed as args. Always returns raw CLI output, exitCode, and command so the agent can fix module defects and retry.",
 	installModuleSchema,
 	async (args) => {
 		const result = installModule(args);

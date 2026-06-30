@@ -1,16 +1,73 @@
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
 import { assertSecurityCoverage } from "./_helpers";
 
-// All three tools below shell out to the native C# dforge-cli binary. They
-// resolve the binary via DFORGE_CLI_BINARY env var or by trying the
-// `dforge-cli` command on PATH. We deliberately don't try to require()
-// @dforge-core/dforge-cli's sidecar packages — those have native binaries
-// per platform that may not be installed alongside dforge-mcp.
+// All three tools below shell out to dforge-cli. Prefer an explicit native
+// binary override, then the dforge-cli package bundled with this MCP package,
+// then PATH lookup for globally installed CLIs.
 
-function resolveDforgeCli(): string {
+type CliCommand = { bin: string; argsPrefix: string[]; display: string };
+
+const require = createRequire(__filename);
+
+function needsWindowsCommandShell(bin: string): boolean {
+	if (process.platform !== "win32") return false;
+	// `.cmd` / `.bat` shims can only be launched through cmd.exe. A bare command
+	// name (no path separator) also needs the shell so PATHEXT resolves the
+	// `.cmd` / `.exe` that `npm install -g` drops on PATH — spawnSync without a
+	// shell only matches an exact file and would ENOENT on the shim.
+	if (/\.(?:cmd|bat)$/i.test(bin)) return true;
+	return !bin.includes("\\") && !bin.includes("/");
+}
+
+// Quote one token for a Windows command line. shell:true performs NO escaping,
+// so a path with spaces would split into multiple args and a metacharacter
+// (`&`, `|`, `>`, …) would inject a second command. Wrapping in double quotes
+// makes those literal to cmd.exe; backslash/quote runs are doubled per the
+// CommandLineToArgvW rules so the target program parses the value intact.
+function quoteWinArg(arg: string): string {
+	if (arg.length > 0 && !/[\s"&|<>^()%!]/.test(arg)) {
+		return arg;
+	}
+	let quoted = '"';
+	let backslashes = 0;
+	for (const ch of arg) {
+		if (ch === "\\") {
+			backslashes++;
+			continue;
+		}
+		if (ch === '"') {
+			quoted += "\\".repeat(backslashes * 2 + 1) + '"';
+		} else {
+			quoted += "\\".repeat(backslashes) + ch;
+		}
+		backslashes = 0;
+	}
+	quoted += "\\".repeat(backslashes * 2) + '"';
+	return quoted;
+}
+
+// Single entry point for invoking the resolved CLI. On Windows shim/PATH cases
+// it builds a fully-quoted command line and runs it through the shell; every
+// other case (bundled `node <cli>`, a native binary, macOS/Linux) spawns
+// directly with shell:false.
+function spawnCli(
+	cli: CliCommand,
+	args: string[],
+	options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
+	const fullArgs = [...cli.argsPrefix, ...args];
+	if (needsWindowsCommandShell(cli.bin)) {
+		const commandLine = [cli.bin, ...fullArgs].map(quoteWinArg).join(" ");
+		return spawnSync(commandLine, { encoding: "utf8", shell: true, ...options });
+	}
+	return spawnSync(cli.bin, fullArgs, { encoding: "utf8", shell: false, ...options });
+}
+
+function resolveDforgeCli(): CliCommand {
 	const override = process.env.DFORGE_CLI_BINARY;
 	if (override) {
 		if (!fs.existsSync(override)) {
@@ -18,23 +75,27 @@ function resolveDforgeCli(): string {
 				`DFORGE_CLI_BINARY points at non-existent path: ${override}`,
 			);
 		}
-		return override;
+		return { bin: override, argsPrefix: [], display: override };
 	}
-	// Trust PATH lookup. dforge-cli installed via `npm install -g
-	// @dforge-core/dforge-cli` exposes itself there.
-	return "dforge-cli";
+	try {
+		const cliEntry = require.resolve("@dforge-core/dforge-cli");
+		return {
+			bin: process.execPath,
+			argsPrefix: [cliEntry],
+			display: `node ${cliEntry}`,
+		};
+	} catch {
+		// Fall through to PATH lookup below.
+	}
+	return { bin: "dforge-cli", argsPrefix: [], display: "dforge-cli" };
 }
 
-function run(args: string[], cwd?: string): { stdout: string; stderr: string; code: number } {
-	const bin = resolveDforgeCli();
-	const r = spawnSync(bin, args, {
-		encoding: "utf8",
-		cwd,
-		shell: false,
-	});
+function run(args: string[], cwd?: string): { stdout: string; stderr: string; code: number; command: string } {
+	const cli = resolveDforgeCli();
+	const r = spawnCli(cli, args, { cwd });
 	if (r.error) {
 		throw new Error(
-			`Failed to exec ${bin}: ${r.error.message}. ` +
+			`Failed to exec ${cli.display}: ${r.error.message}. ` +
 				`Install with: npm install -g @dforge-core/dforge-cli (or set DFORGE_CLI_BINARY=/path/to/binary).`,
 		);
 	}
@@ -42,6 +103,7 @@ function run(args: string[], cwd?: string): { stdout: string; stderr: string; co
 		stdout: r.stdout ?? "",
 		stderr: r.stderr ?? "",
 		code: r.status ?? 1,
+		command: [cli.display, ...args].join(" "),
 	};
 }
 
@@ -136,7 +198,7 @@ export const installModuleSchema = {
 
 export function installModule(
 	args: z.infer<z.ZodObject<typeof installModuleSchema>>,
-): { ok: boolean; output: string } {
+): { ok: boolean; exitCode: number; command: string; output: string } {
 	const argList = ["module", "install", "--path", args.pathOrTarball];
 	if (args.tenantCode) {
 		argList.push("--code", args.tenantCode);
@@ -145,16 +207,17 @@ export function installModule(
 	if (args.tenantUrl) env.DFORGE_URL = args.tenantUrl;
 	if (args.token) env.DFORGE_TOKEN = args.token;
 
-	const bin = resolveDforgeCli();
-	const r = spawnSync(bin, argList, {
-		encoding: "utf8",
-		env: { ...process.env, ...env },
-		shell: false,
-	});
+	const cli = resolveDforgeCli();
+	const r = spawnCli(cli, argList, { env: { ...process.env, ...env } });
 	if (r.error) {
-		throw new Error(`Failed to exec ${bin}: ${r.error.message}`);
+		throw new Error(`Failed to exec ${cli.display}: ${r.error.message}`);
 	}
 	const ok = r.status === 0;
 	const output = (r.stdout ?? "") + (r.stderr ?? "");
-	return { ok, output };
+	return {
+		ok,
+		exitCode: r.status ?? 1,
+		command: [cli.display, ...argList].join(" "),
+		output,
+	};
 }

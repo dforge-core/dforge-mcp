@@ -45,8 +45,8 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 | `dforge_role_right_set` | 5 | Grant / revoke one right on one object |
 | `dforge_folder_add` | 5 | Security folder (optional) |
 | `dforge_dependency_add` | any | Add a dep on another module |
-| `dforge_module_pack` | 6 | Produce .dforge tarball (needs dforge-cli on PATH) |
-| `dforge_module_install` | 6 | Install to tenant — the real validator |
+| `dforge_module_pack` | 6 | Produce .dforge tarball via bundled dforge-cli, PATH fallback, or `DFORGE_CLI_BINARY` |
+| `dforge_module_install` | 6 | Install to tenant — the real validator; returns raw CLI output for the install-fix loop |
 
 **Phase 0 (0a–0d) is owned by `dforge_module_plan`.** Call `dforge_module_plan({ action: "check", moduleDir })` to start or resume Phase 0. The tool returns the current state and exact next steps. Do not call `dforge_module_create` until the tool reports `readyToScaffold: true` — the tool enforces this gate programmatically.
 
@@ -128,14 +128,15 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 If any MCP tool returns an error at any time:
 
 1. **Surface the raw error verbatim** to the user. Do not paraphrase.
-2. **Do not attempt a workaround** with a different tool or hand-crafted JSON.
-3. **Ask the user to resolve the tool-level issue** (missing dep, bad path, schema validation, etc.) before continuing.
+2. **Classify the error before asking the user for help.** If the raw output names a module/package defect, fix the module yourself using the smallest appropriate tool or direct file edit allowed by the host agent, then re-run the required validation loop. Do not ask the user to paste the error back to you — it is already in the tool result.
+3. **Ask the user to resolve only environment/tooling issues** you cannot fix from module files: missing CLI, missing/expired credentials, unreachable tenant/API, permissions, or a bad module path outside the workspace.
 4. **Do not advance the phase** until the failing tool succeeds.
 
 Two specific tool errors have known causes worth distinguishing:
 
 - **`dforge_module_pack` / `_install` reports "command not found" or PATH error**: dforge-cli isn't installed. Tell the user: "dforge-cli is not on your PATH. Install with `npm install -g @dforge-core/dforge-cli`, then re-run. Do not continue Phase 6 until resolved."
 - **`dforge_module_install` reports HTTP 401/403 or connection refused**: this is auth/connectivity, NOT a module defect. Tell the user: "This appears to be a credentials or connectivity issue, not a module defect. Verify `DFORGE_URL` and `DFORGE_TOKEN` before re-running install." Do not backtrack to earlier phases.
+- **`dforge_module_install` returns `ok: false` with validation/import/compile/schema output**: this is a module defect. Treat `output` as the source of truth, fix the referenced files, and run Phase 6 again from automated validation. Keep repeating until install succeeds or the remaining error is clearly environment/tooling.
 
 ## Resume-from-partial-state
 
@@ -416,7 +417,15 @@ Get user confirmation on both version strings before packing.
 1. `dforge_module_pack` → produces `.dforge` tarball. (Blocked if any entity lacks a role granting Select — the Phase 5a gate; fix security coverage and re-run.)
 2. `dforge_module_install` with `DFORGE_URL` / `DFORGE_TOKEN`. Runs the full server-side validator.
 
-**If install fails on a module defect**, use this table to identify which phase to backtrack to, then apply the backtrack protocol, fix, re-run Steps 1–2 (validate + self-review), and re-pack:
+**Install-fix loop (mandatory):**
+
+1. Call `dforge_module_install` yourself. Do not ask the user to run the install command for you.
+2. If the result has `ok: false`, read the returned `output` in full. It is the raw CLI/server validator output and is the input for the next fix.
+3. If the failure is a module defect, fix it yourself. Use this table to identify which phase to backtrack to, then apply the backtrack protocol with the smallest suitable tool or file edit.
+4. Re-run Step 1 (`dforge_module_validate`), Step 2 (self-review for the touched area), Step 5 pack, and Step 5 install.
+5. Repeat this loop until install succeeds or the remaining failure is clearly an environment/tooling issue from the Tool failure protocol.
+
+Common module-defect patterns:
 
 | Install error pattern | Backtrack to |
 |---|---|
@@ -437,6 +446,8 @@ Get user confirmation on both version strings before packing.
 When a later phase exposes a problem in an earlier phase, follow steps 1–6 IN ORDER:
 
 **Multi-trigger rule (deterministic):** If multiple phases simultaneously expose gaps in earlier phases (e.g. Phase 3 needs a field; Phase 5 needs an action), resolve the **earliest-phase gap first**, complete its full backtrack, run `dforge_module_inspect`, then evaluate remaining gaps.
+
+**Phase 6 install exception:** when `dforge_module_install` fails with a clear module defect (schema validation, missing file/key, translation completeness, DSL compile error, dependency contract, FK/seed/import error), do not ask the user for sign-off before the corrective patch. The server validator has already rejected the package, so fix the referenced files, report what changed, and immediately re-run validate → pack → install. Keep user sign-off for product/design choices or ambiguous fixes.
 
 1. **Stop the current phase.** Don't paper over or improvise.
 2. **Name the issue precisely.** "Phase 3 wants a kanban grouped by `lead_status`, but Phase 1 didn't define `lead_status` on entity `lead`."

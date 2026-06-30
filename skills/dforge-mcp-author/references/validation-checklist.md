@@ -1,6 +1,6 @@
 # Validation Checklist
 
-Run through this checklist **before** declaring a module complete. Do it mentally if there's no validate CLI available; run `dforge validate .` if there is.
+Run through this checklist **before** declaring a module complete. Always start with `dforge_module_validate` when the MCP server is connected; if you are outside MCP, use the current CLI equivalent: `dforge-cli module validate <moduleDir>`.
 
 ## Top install-blockers (scan first)
 
@@ -154,10 +154,11 @@ For each action:
 
 ## After validation
 
-- [ ] If a local `dforge validate .` CLI is available, run it and fix any errors
-- [ ] Try to `dforge package .` to build the `.dforge` file — it should succeed
-- [ ] If MCP is connected, run `dry_run_install` to see the generated SQL
-- [ ] Only after dry-run looks clean, `install_module` or `install-to-dev`
+- [ ] Run `dforge_module_validate` and fix every `error` in `files["_validate.json"]`
+- [ ] Run `dforge_module_pack` to build the `.dforge` file — it should succeed
+- [ ] Run `dforge_module_install` against a real test tenant — this is the full server-side validator
+- [ ] If `dforge_module_install` returns `ok: false`, read the returned `output`, fix the module defect it reports, then repeat validate → pack → install
+- [ ] Stop and ask the user only for environment/tooling failures: missing CLI, missing/expired token, unreachable tenant/API, permissions, or a path outside the workspace
 
 ## Red flags during review
 
@@ -180,4 +181,4 @@ If you see any of these, stop and investigate:
 
 ## When the checklist passes
 
-Tell the user what you built, summarize the entity model (e.g. "7 entities: contact, account, opportunity with its line items, quote with lines, activity, product"), list the data views and actions, and describe the security roles. Then ask if they want to install it.
+Tell the user what you built, summarize the entity model (e.g. "7 entities: contact, account, opportunity with its line items, quote with lines, activity, product"), list the data views and actions, describe the security roles, and run the Phase 6 install loop. The module is not complete until `dforge_module_install` succeeds against a real tenant.
