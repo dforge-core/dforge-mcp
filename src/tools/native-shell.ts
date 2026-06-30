@@ -14,7 +14,57 @@ type CliCommand = { bin: string; argsPrefix: string[]; display: string };
 const require = createRequire(__filename);
 
 function needsWindowsCommandShell(bin: string): boolean {
-	return process.platform === "win32" && /\.(?:cmd|bat)$/i.test(bin);
+	if (process.platform !== "win32") return false;
+	// `.cmd` / `.bat` shims can only be launched through cmd.exe. A bare command
+	// name (no path separator) also needs the shell so PATHEXT resolves the
+	// `.cmd` / `.exe` that `npm install -g` drops on PATH — spawnSync without a
+	// shell only matches an exact file and would ENOENT on the shim.
+	if (/\.(?:cmd|bat)$/i.test(bin)) return true;
+	return !bin.includes("\\") && !bin.includes("/");
+}
+
+// Quote one token for a Windows command line. shell:true performs NO escaping,
+// so a path with spaces would split into multiple args and a metacharacter
+// (`&`, `|`, `>`, …) would inject a second command. Wrapping in double quotes
+// makes those literal to cmd.exe; backslash/quote runs are doubled per the
+// CommandLineToArgvW rules so the target program parses the value intact.
+function quoteWinArg(arg: string): string {
+	if (arg.length > 0 && !/[\s"&|<>^()%!]/.test(arg)) {
+		return arg;
+	}
+	let quoted = '"';
+	let backslashes = 0;
+	for (const ch of arg) {
+		if (ch === "\\") {
+			backslashes++;
+			continue;
+		}
+		if (ch === '"') {
+			quoted += "\\".repeat(backslashes * 2 + 1) + '"';
+		} else {
+			quoted += "\\".repeat(backslashes) + ch;
+		}
+		backslashes = 0;
+	}
+	quoted += "\\".repeat(backslashes * 2) + '"';
+	return quoted;
+}
+
+// Single entry point for invoking the resolved CLI. On Windows shim/PATH cases
+// it builds a fully-quoted command line and runs it through the shell; every
+// other case (bundled `node <cli>`, a native binary, macOS/Linux) spawns
+// directly with shell:false.
+function spawnCli(
+	cli: CliCommand,
+	args: string[],
+	options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
+	const fullArgs = [...cli.argsPrefix, ...args];
+	if (needsWindowsCommandShell(cli.bin)) {
+		const commandLine = [cli.bin, ...fullArgs].map(quoteWinArg).join(" ");
+		return spawnSync(commandLine, { encoding: "utf8", shell: true, ...options });
+	}
+	return spawnSync(cli.bin, fullArgs, { encoding: "utf8", shell: false, ...options });
 }
 
 function resolveDforgeCli(): CliCommand {
@@ -42,12 +92,7 @@ function resolveDforgeCli(): CliCommand {
 
 function run(args: string[], cwd?: string): { stdout: string; stderr: string; code: number; command: string } {
 	const cli = resolveDforgeCli();
-	const fullArgs = [...cli.argsPrefix, ...args];
-	const r = spawnSync(cli.bin, fullArgs, {
-		encoding: "utf8",
-		cwd,
-		shell: needsWindowsCommandShell(cli.bin),
-	});
+	const r = spawnCli(cli, args, { cwd });
 	if (r.error) {
 		throw new Error(
 			`Failed to exec ${cli.display}: ${r.error.message}. ` +
@@ -163,12 +208,7 @@ export function installModule(
 	if (args.token) env.DFORGE_TOKEN = args.token;
 
 	const cli = resolveDforgeCli();
-	const fullArgs = [...cli.argsPrefix, ...argList];
-	const r = spawnSync(cli.bin, fullArgs, {
-		encoding: "utf8",
-		env: { ...process.env, ...env },
-		shell: needsWindowsCommandShell(cli.bin),
-	});
+	const r = spawnCli(cli, argList, { env: { ...process.env, ...env } });
 	if (r.error) {
 		throw new Error(`Failed to exec ${cli.display}: ${r.error.message}`);
 	}
