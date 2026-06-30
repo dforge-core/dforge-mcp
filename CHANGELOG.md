@@ -4,6 +4,40 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.2
+
+### Fixed
+- **Windows CLI resolution & argument quoting (`native-shell`).** The PATH
+  fallback now routes a bare command name through `cmd.exe` so `PATHEXT`
+  resolves the `dforge-cli.cmd` shim that `npm install -g` drops on PATH —
+  previously `spawnSync` without a shell matched only an exact file and
+  `ENOENT`'d. Arguments are now quoted before the shell sees them (`shell:true`
+  performs no escaping), so a path with spaces no longer splits into multiple
+  args and a metacharacter (`&`, `|`, `>`, …) can't inject a second command;
+  `quoteWinArg` follows the `CommandLineToArgvW` rules. Spawn logic is
+  centralized in a single `spawnCli` helper shared by `run()` and
+  `installModule()`, with coverage in `test/native-shell.test.ts`.
+
+### Changed
+- **`dforge_module_install` always returns raw CLI output.** The tool now
+  surfaces the raw CLI output, `exitCode`, and `command` on every call so the
+  agent can read a server-side validation failure and fix-and-retry instead of
+  getting a swallowed error.
+- **`dforge_module_pack` description.** Clarified that it uses the bundled
+  `dforge-cli` package, then the PATH fallback, then the `DFORGE_CLI_BINARY`
+  override (was "Requires the dforge-cli native binary on PATH").
+
+### Added
+- **Matrix data-view support.** Data-view guidance and schemas document matrix
+  views with `rangeControl` and per-column select values, alongside the
+  register/budgeting examples.
+
+### Skill
+- `dforge-mcp-author`: reworked the Phase 6 flow into an explicit
+  **validate → pack → install → fix** retry loop (SKILL.md,
+  `validation-checklist.md`, `docs/creating-modules.md`), and refreshed the
+  module naming conventions in the manifest schema.
+
 ## 0.1.0-rc.13
 
 Single source of truth: the authoring tools now validate against
