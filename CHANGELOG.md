@@ -4,6 +4,16 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.5
+
+### Changed
+- Bumped `@dforge-core/metadata` to `^0.0.5`. The re-vendored `reports.schema.json`
+  now **structurally validates** KPI and chart panel `config` (previously an
+  unvalidated object, so `dforge_module_validate` only checked `vizType`):
+  aggregation-vs-formula KPI metrics are mutually exclusive and non-empty; formula
+  inputs and chart overlay `series` are shape-checked; charts require
+  `chartType`/`categoryCol`/`valueCol`.
+
 ## 0.1.3
 
 ### Changed
