@@ -18,10 +18,8 @@
 		},
 		"code": {
 			"type": "string",
-			"minLength": 2,
-			"maxLength": 64,
-			"pattern": "^[a-z][a-z0-9]*([._-][a-z0-9]+)*$",
-			"description": "Module code — becomes the schema name and module_cd in DB, and the public marketplace slug. Lowercase letters and digits, with single '.', '-', or '_' separators (no consecutive, leading, or trailing separator); 2–64 chars, must start with a letter and end alphanumeric. Mirrors the marketplace publish validator (ModulePublishService.ModuleCodePattern)."
+			"pattern": "^[a-z][a-z0-9_-]*$",
+			"description": "Human-readable module code (becomes schema name and module_cd in DB)"
 		},
 		"kind": {
 			"type": "string",

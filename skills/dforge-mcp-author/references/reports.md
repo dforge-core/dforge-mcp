@@ -1,152 +1,114 @@
 # Reports Reference
 
-Reports are **query-driven visualizations** — charts, KPIs, pivot tables, grids — backed by datasets. Unlike data views (which target one entity), reports can combine multiple datasets and render any layout.
+Reports are **query-driven visualizations** — charts, KPI cards, pivot tables, tables — backed by datasets. Unlike data views (which target one entity), a report can combine **multiple datasets** and lay out several panels.
 
-Lives in: `ui/reports.json` or `ui/reports/<report_code>.json`
+Lives in: `ui/reports.json` (map of `report_code` → report). Not listed in `manifest.json` — the install pipeline picks up `ui/reports.json` automatically.
 SP files: `logic/reports/rpt_*.sql`
 
 ## Structure
+
+A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...] }`), and optional `parameters`. Panels reference datasets by code via `datasetCd`.
 
 ```json
 {
     "sales_pipeline": {
         "description": "Open opportunities by stage",
         "datasets": {
-            "ds_pipeline": {
+            "pipeline": {
                 "caption": "Pipeline Data",
-                "entityCode": "opportunity",
-                "columns": ["stage", "total_amount", "account"],
-                "filter": {
-                    "g": "and",
-                    "i": [
-                        { "c": "stage", "o": "!in", "v": ["Closed Won", "Closed Lost"] }
-                    ]
-                },
-                "groupBy": ["stage"],
-                "aggregations": {
-                    "opp_count": { "func": "count", "column": "*" },
-                    "total_value": { "func": "sum", "column": "total_amount" }
+                "datasetType": "Q",
+                "query": {
+                    "entityCd": "opportunity",
+                    "columns": ["stage", "amount", "lead_source", "customer.name"],
+                    "filter": {
+                        "g": "and",
+                        "i": [ { "c": "stage", "o": "nIn", "v": ["Closed Won", "Closed Lost"] } ]
+                    },
+                    "sort": [ { "c": "amount", "d": "desc" } ]
                 }
             }
         },
-        "layout": [
-            {
-                "vizType": "bar",
-                "datasetCd": "ds_pipeline",
-                "title": "Pipeline Value by Stage",
-                "config": {
-                    "categoryCol": "stage",
-                    "valueCol": "total_value",
-                    "agg": "sum"
-                }
-            },
-            {
-                "vizType": "grid",
-                "datasetCd": "ds_pipeline",
-                "title": "Pipeline Detail"
-            }
-        ],
-        "params": {
-            "owner_filter": {
-                "fieldTypeCd": "user",
-                "label": "Filter by Owner",
-                "required": false
-            },
-            "start_date": {
-                "fieldTypeCd": "date",
-                "label": "Start Date",
-                "required": false,
-                "default": "=STARTMONTH()"
-            }
+        "layout": {
+            "panels": [
+                {
+                    "vizType": "chart",
+                    "datasetCd": "pipeline",
+                    "title": "Pipeline Value by Stage",
+                    "config": { "chartType": "bar", "categoryCol": "stage", "valueCol": "amount", "agg": "sum", "chartSize": "l" }
+                },
+                { "vizType": "table", "datasetCd": "pipeline", "title": "Pipeline Detail" }
+            ]
+        },
+        "parameters": {
+            "min_amount": { "fieldTypeCd": "number", "label": "Min Amount", "required": false, "default": 0 }
         }
     }
 }
 ```
+
+**Aggregation happens in the viz, not the dataset.** A dataset selects raw columns; the chart/KPI config aggregates them (`agg`, `metrics`). There is no dataset-level `groupBy`/`aggregations` — do not use them.
 
 ## Dataset types
 
 ### Entity query dataset (most common)
 
-Queries an entity's data using the platform's query builder. Filters use the standard JSON filter format (see `references/filters.md`).
+`datasetType: "Q"` (the default) with a `query` object using the platform query builder. Filters use the standard JSON filter format (see `references/filters.md`).
 
 ```json
-"ds_sales": {
+"sales": {
     "caption": "Sales Data",
-    "entityCode": "opportunity",
-    "columns": ["stage", "total_amount", "close_date", "account"],
-    "filter": { "c": "stage", "o": "!=", "v": "Closed Lost" },
-    "sort": [{ "column_cd": "close_date", "direction": "desc" }],
-    "groupBy": ["stage"],
-    "aggregations": {
-        "deal_count": { "func": "count", "column": "*" },
-        "total_value": { "func": "sum", "column": "total_amount" },
-        "avg_value": { "func": "avg", "column": "total_amount" }
-    }
+    "datasetType": "Q",
+    "query": {
+        "entityCd": "opportunity",
+        "columns": ["stage", "amount", "close_date", "customer.name"],
+        "filter": { "c": "stage", "o": "ne", "v": "Closed Lost" },
+        "sort": [ { "c": "close_date", "d": "desc" } ]
+    },
+    "columnsDef": { "amount": { "label": "Deal Value" }, "customer.name": { "label": "Account" } }
 }
 ```
 
-Aggregation functions: `count`, `sum`, `avg`, `min`, `max`.
+- `query.entityCd` — source entity code (**not** `entityCode`).
+- `query.columns` — column codes; supports dot navigation (`customer.name`).
+- `query.filter` — canonical filter (`{c,o,v}` or `{g,i:[...]}`); use `@param_code` to reference a parameter.
+- `query.sort` — `[{ c, d }]` where `d` ∈ `asc | desc`.
+- `columnsDef` — optional per-column display overrides (`{ label, visible, width }`).
 
 ### Stored procedure dataset (developer path)
 
-For complex SQL that the entity query can't express — window functions, CTEs, cross-schema joins, conditional aggregation, multi-result sets.
+For SQL the query builder can't express — window functions, CTEs, cross-schema joins, conditional aggregation, multi-result sets.
 
 ```json
-"aging_data": {
+"aging": {
     "caption": "AR Aging",
     "datasetType": "S",
-    "sp": "rpt_ar_aging",
+    "spCd": "rpt_ar_aging",
     "params": {
-        "as_of_date": {
-            "fieldTypeCd": "date",
-            "label": "As of Date",
-            "required": true,
-            "default": "=NOW()"
-        },
-        "customer_id": {
-            "fieldTypeCd": "lookup",
-            "label": "Customer",
-            "required": false,
-            "params": { "entityCd": "customer" }
-        }
+        "as_of_date": { "fieldTypeCd": "date", "label": "As of Date", "required": true, "default": "=NOW()" },
+        "customer_id": { "fieldTypeCd": "lookup", "label": "Customer", "required": false, "params": { "entityCd": "account" } }
     },
     "columnsDef": {
-        "customer_name": {
-            "label": "Customer",
-            "fieldTypeCd": "text",
-            "baseDatatypeCd": "string",
-            "width": 200
-        },
-        "current_amount": {
-            "label": "Current",
-            "fieldTypeCd": "number",
-            "baseDatatypeCd": "number",
-            "format": "#,##0.00",
-            "width": 120
-        },
-        "days_30": {
-            "label": "1-30 Days",
-            "fieldTypeCd": "number",
-            "baseDatatypeCd": "number",
-            "format": "#,##0.00",
-            "width": 120
-        },
-        "total": {
-            "label": "Total",
-            "fieldTypeCd": "number",
-            "baseDatatypeCd": "number",
-            "format": "#,##0.00",
-            "width": 130
-        }
+        "customer_name": { "label": "Customer", "fieldTypeCd": "text", "baseDatatypeCd": "string", "width": 200 },
+        "current_amount": { "label": "Current", "fieldTypeCd": "number", "baseDatatypeCd": "number", "width": 120 },
+        "total": { "label": "Total", "fieldTypeCd": "number", "baseDatatypeCd": "number", "width": 130 }
     }
 }
 ```
 
 Key differences from entity datasets:
-- `datasetType: "S"` (instead of default entity query)
-- `sp` — the stored procedure function name (without schema — uses the module's schema)
-- `columnsDef` — **required** — explicitly defines columns since the platform can't infer them from entity metadata
-- Params can be defined per-dataset (dataset-level) or per-report (report-level)
+- `datasetType: "S"`.
+- `spCd` — the stored-procedure code (the function name **without** the schema prefix; resolved to `sp_id` at install). (**Not** `sp` or `procedureName`.)
+- `columnsDef` — **required** — the platform can't infer columns from a function.
+- Params can be per-dataset or per-report.
+
+**Multi-result-set SPs** map extra datasets to the same function via `parentDatasetCd` (the dataset that owns the SP call) + `parentRef` (the named refcursor):
+
+```json
+"datasets": {
+    "summary":  { "caption": "Summary", "datasetType": "S", "spCd": "rpt_department_overview", "columnsDef": { } },
+    "by_role":  { "caption": "By Role", "datasetType": "S", "parentDatasetCd": "summary", "parentRef": "employee_breakdown", "columnsDef": { } }
+}
+```
 
 ### The PostgreSQL function
 
@@ -159,240 +121,154 @@ CREATE OR REPLACE FUNCTION crm.rpt_ar_aging(
     p_as_of_date date DEFAULT NULL,    -- User parameter
     p_customer_id bigint DEFAULT NULL  -- User parameter (optional)
 )
-RETURNS TABLE (
-    customer_name text,
-    current_amount numeric,
-    days_30 numeric,
-    days_60 numeric,
-    days_90 numeric,
-    over_90 numeric,
-    total numeric
-)
+RETURNS TABLE ( customer_name text, current_amount numeric, total numeric )
 LANGUAGE sql STABLE
 AS $$
-    SELECT
-        c.account_name AS customer_name,
-        SUM(CASE WHEN age <= 30 THEN i.amount_due ELSE 0 END) AS current_amount,
-        SUM(CASE WHEN age BETWEEN 31 AND 60 THEN i.amount_due ELSE 0 END) AS days_30,
-        -- ... more columns ...
-        SUM(i.amount_due) AS total
-    FROM fin.invoice i
-    JOIN crm.account c ON c.account_id = i.customer_id
-    WHERE i.status != 'Paid'
-      AND (p_customer_id IS NULL OR i.customer_id = p_customer_id)
-    GROUP BY c.account_name
-    ORDER BY total DESC;
+    SELECT c.account_name, SUM(...) , SUM(i.amount_due)
+    FROM fin.invoice i JOIN crm.account c ON c.account_id = i.customer_id
+    WHERE i.status <> 'Paid' AND (p_customer_id IS NULL OR i.customer_id = p_customer_id)
+    GROUP BY c.account_name ORDER BY 3 DESC;
 $$;
 ```
 
 **Rules for SP functions:**
-- First two params are **always** `p_folder_uid uuid` and `p_user_id bigint` — injected by the platform
-- User params come after, with `DEFAULT NULL` for optional ones
-- Use `RETURNS TABLE (...)` for single result sets
-- Use `RETURNS SETOF refcursor` for multiple result sets (advanced)
-- Use the module's schema prefix: `crm.rpt_*`, `fin.rpt_*`, etc.
-- Use `STABLE` volatility (read-only, enables PostgreSQL optimization)
-- **Security is your responsibility** — filter by `p_folder_uid` and `p_user_id` where needed
-
-### Multi-result-set SPs
-
-For reports with multiple related datasets from one query:
-
-```json
-"datasets": {
-    "summary": {
-        "caption": "Department Summary",
-        "datasetType": "S",
-        "sp": "rpt_department_overview",
-        "spCursor": "department_summary",
-        "columnsDef": { /* ... */ }
-    },
-    "by_role": {
-        "caption": "By Role",
-        "datasetType": "S",
-        "sp": "rpt_department_overview",
-        "spCursor": "employee_breakdown",
-        "columnsDef": { /* ... */ }
-    }
-}
-```
-
-Multiple datasets share the same `sp` (function called once). `spCursor` maps each dataset to a named refcursor returned by the function.
+- First two params are **always** `p_folder_uid uuid` and `p_user_id bigint` — injected by the platform.
+- User params come after, `DEFAULT NULL` for optional ones (order matches `params` declaration order).
+- `RETURNS TABLE (...)` for a single set; `RETURNS SETOF refcursor` for multi-set (mapped via `parentRef`).
+- Use the module's schema prefix (`crm.rpt_*`), `STABLE` volatility, and filter by `p_folder_uid` / `p_user_id` where needed — **security is your responsibility**.
 
 ## Parameters
 
-Parameters prompt the user for input before running the report (or action). Both reports and actions use the same parameter system.
-
-### Report-level parameters
-
-Defined in the report's `params` object:
+Parameters prompt the user before running the report. Declare them per-report (`parameters`) or per-dataset (`params`).
 
 ```json
-"params": {
-    "start_date": {
-        "fieldTypeCd": "date",
-        "label": "Start Date",
-        "required": true,
-        "default": "=STARTMONTH()"
-    },
-    "end_date": {
-        "fieldTypeCd": "date",
-        "label": "End Date",
-        "required": true,
-        "default": "=NOW()"
-    },
-    "region": {
-        "fieldTypeCd": "dropdown",
-        "label": "Region",
-        "required": false,
-        "params": {
-            "options": ["All", "North", "South", "East", "West"]
-        }
-    },
-    "customer": {
-        "fieldTypeCd": "lookup",
-        "label": "Customer",
-        "required": false,
-        "params": { "entityCd": "account" }
-    }
+"parameters": {
+    "start_date": { "fieldTypeCd": "date", "label": "Start Date", "required": true, "default": "=STARTMONTH()" },
+    "region": { "fieldTypeCd": "dropdown", "label": "Region", "params": { "options": ["All", "North", "South"] } },
+    "customer": { "fieldTypeCd": "lookup", "label": "Customer", "params": { "entityCd": "account" } }
 }
 ```
 
-### Parameter properties
-
 | Property | Description |
 |---|---|
-| `fieldTypeCd` | UI control type: `date`, `datetime`, `text`, `number`, `dropdown`, `lookup`, `user`, `checkbox` |
+| `fieldTypeCd` | Control type: `date`, `datetime`, `text`, `number`, `dropdown`, `lookup`, `user`, `checkbox` |
 | `label` | Display label in the parameter dialog |
 | `required` | Whether the user must fill this before running |
-| `default` | Default value — plain value or formula with `=` prefix (e.g. `"=NOW()"`, `"=STARTMONTH()"`, `"=TODAY()"`) |
-| `params` | Additional config — `options` for dropdowns, `entityCd` for lookups |
+| `default` | Plain value or `=`-prefixed formula (`"=NOW()"`, `"=STARTMONTH()"`, `"=TODAY()"`) |
+| `params` | Extra config — `options` for dropdowns, `entityCd` for lookups |
+| `orderNum` | Display order in the parameter form (falls back to declaration order) |
 
-### Using parameters in entity query filters
-
-Reference parameters with `@param_code` in filter values:
+Reference a parameter with `@param_code` inside a query filter value:
 
 ```json
-"filter": {
-    "g": "and",
-    "i": [
-        { "c": "created_date", "o": ">=", "v": "@start_date" },
-        { "c": "created_date", "o": "<=", "v": "@end_date" }
+"filter": { "g": "and", "i": [ { "c": "created_date", "o": "grEq", "v": "@start_date" } ] }
+```
+
+SP params are passed positionally after the two required system params, in `params` declaration order.
+
+## Layout
+
+`layout` is an **object** — `{ "panels": [ ... ] }` (not a bare array). Each panel binds a `vizType` to a `datasetCd`:
+
+```json
+"layout": {
+    "panels": [
+        { "vizType": "chart", "datasetCd": "pipeline", "title": "By Stage", "config": { "chartType": "bar", "categoryCol": "stage", "valueCol": "amount", "agg": "sum", "chartSize": "l" } },
+        { "vizType": "kpi", "datasetCd": "pipeline", "title": "Pipeline KPIs", "config": { "metrics": [ { "column": "amount", "agg": "sum", "label": "Open Pipeline" } ] } },
+        { "vizType": "table", "datasetCd": "pipeline", "title": "Detail" }
     ]
 }
 ```
 
-### Using parameters in SP datasets
-
-Parameters are passed to the PostgreSQL function as positional arguments (after the two required system params). The order matches `params` declaration order in the dataset definition.
-
-### Action parameters (DSL)
-
-Actions declare parameters in the `params:` block of the DSL file:
-
-```
-params:
-    new_stage: dropdown required "New Stage"
-    note: textarea "Note"
-    amount: number required "Amount"
-```
-
-Access in execute block: `params[param_name]`
-
-See `references/action-dsl.md` for full syntax.
-
-### Named parameter sets (saved combos)
-
-Users can save frequently-used parameter combinations for quick reuse. These are stored per-report or per-action and appear in a dropdown at the top of the parameter dialog. Defined at runtime (not in the module package).
-
-### Cross-parameter validation
-
-Parameters can have cross-validation rules (e.g. `end_date >= start_date`). This is configured via a `validate` formula on the parameter set. For module packages, validation is typically handled by sensible defaults rather than explicit cross-validation formulas.
-
-## Layout
-
-The `layout` array defines how datasets are visualized:
-
-```json
-"layout": [
-    {
-        "vizType": "bar",
-        "datasetCd": "ds_pipeline",
-        "title": "Pipeline by Stage",
-        "config": {
-            "categoryCol": "stage",
-            "valueCol": "total_value",
-            "agg": "sum",
-            "chartSize": "l"
-        }
-    },
-    {
-        "vizType": "grid",
-        "datasetCd": "ds_pipeline",
-        "title": "Detail"
-    },
-    {
-        "vizType": "kpi",
-        "datasetCd": "ds_pipeline",
-        "title": "Total Value",
-        "config": {
-            "valueCol": "total_value",
-            "format": "currency"
-        }
-    },
-    {
-        "vizType": "pie",
-        "datasetCd": "ds_pipeline",
-        "title": "Distribution",
-        "config": {
-            "categoryCol": "stage",
-            "valueCol": "opp_count"
-        }
-    }
-]
-```
-
 ### Visualization types
+
+The panel `vizType` is one of `table` / `chart` / `kpi` / `pivot` (also `tree`, `markdown`). **Chart type is set via `config.chartType`** — the panel `vizType` is always `"chart"` for any chart.
 
 | `vizType` | Description | Config |
 |---|---|---|
-| `grid` | Tabular data with sort/filter | — |
-| `bar` | Vertical bar chart | `categoryCol`, `valueCol`, `agg` |
-| `bar-stacked` | Stacked vertical bar | `categoryCol`, `valueCol`, `stackCol`, `agg` |
-| `h-bar` | Horizontal bar | Same as `bar` |
-| `line` | Line chart | `categoryCol`, `valueCol`, `agg` |
-| `area` | Area chart | Same as `line` |
-| `pie` | Pie chart | `categoryCol`, `valueCol` |
-| `doughnut` | Doughnut chart | Same as `pie` |
-| `scatter` | Scatter plot | `xCol`, `yCol` |
-| `combo` | Combined bar + line | `categoryCol`, `barCol`, `lineCol` |
-| `kpi` | Single value card | `valueCol`, `format` (optional: gauge, progress, sparkline, icon variants) |
-| `pivot` | Pivot table | `rowCols`, `colCols`, `valueCols`, `aggFunc` |
+| `table` | Tabular data with sort/filter | optional `groupRules`, `aggregations`, `colorRules` |
+| `chart` | Any chart — kind chosen by `config.chartType` | see below |
+| `kpi` | One or more metric cards | `{ metrics: [ ... ] }` — see below |
+| `pivot` | Pivot table | `rowFields`, `columnFields`, `values` |
+
+**`config.chartType`** ∈ `bar` · `horizontalBar` · `stackedBar` · `combo` · `line` · `area` · `pie` · `doughnut` · `scatter` · `bubble` · `funnel` · `heatmap`.
+
+Chart config: `{ chartType, categoryCol, valueCol, agg, seriesCol?, sizeCol?, chartSize? ('sm'|'m'|'l'|'xl'), clickAction?, showTrend?, series? }`. `agg` ∈ `sum|avg|min|max|count`.
+
+### KPI config (metrics)
+
+`config.metrics` is an array; each metric is one of two modes:
+
+**Aggregation metric** — one column reduced by one aggregation:
+
+```json
+{ "column": "amount", "agg": "sum", "display": "value", "label": "Open Pipeline" }
+```
+
+Optional: `display` (`value|gauge|progress|sparkline|icon`), `label`, `target`/`min`/`max`, `icon`, `sparklineDimension`.
+
+**Formula metric** — an expression over named aggregation *inputs* (ratios, derived numbers):
+
+```json
+{
+    "label": "Avg Deal Size",
+    "formula": "[total] / [n]",
+    "inputs": [
+        { "alias": "total", "column": "amount", "agg": "sum" },
+        { "alias": "n",     "column": "amount", "agg": "count" }
+    ],
+    "format": { "style": "number", "decimals": 0 }
+}
+```
+
+- `formula` references each input by `[alias]`. Missing alias → `0`; non-finite (÷0, NaN) → blank.
+- `format.style` ∈ `number|percent`; `decimals` sets fraction digits. **Omit `format` (Auto)** to inherit the *first input column's own formatter* — a money formula then reads as money.
+
+### Cross-source metrics & overlay series
+
+A report already loads **multiple datasets**, so a KPI formula input or a chart overlay series can aggregate over a **sibling** dataset — reference it by its dataset code via `source` (omit = the panel's own `datasetCd`).
+
+**Cross-dataset KPI** (pipeline vs leads):
+
+```json
+{ "vizType": "kpi", "datasetCd": "deals", "config": { "metrics": [
+    { "label": "Total Funnel Value", "formula": "[pipeline] + [leadval]", "inputs": [
+        { "alias": "pipeline", "column": "amount", "agg": "sum" },
+        { "alias": "leadval", "column": "estimated_value", "agg": "sum", "source": "leads" }
+    ] }
+] } }
+```
+
+**Cross-source chart overlay** — `config.series` (a single object **or** an array) adds series aggregated from other datasets, aligned on a shared category axis. Supported on `bar`/`horizontalBar`/`line`/`area`. Categories are outer-joined; a missing bucket fills `0` (bar) or gaps with `null` (line/area). Keep each series' `categoryCol` matching the primary axis unless a different axis is intended.
+
+```json
+{ "vizType": "chart", "datasetCd": "deals", "config": {
+    "chartType": "bar", "categoryCol": "lead_source", "valueCol": "amount", "agg": "sum",
+    "series": { "source": "leads", "categoryCol": "lead_source", "valueCol": "estimated_value", "agg": "sum", "label": "Lead Value" }
+} }
+```
+
+Dashboard KPI/chart *tiles* get the same support via a `sources` map in the tile config (authored with "Add source" in the tile dialog) — not part of a module's `ui/reports.json`.
 
 ### Chart size
 
-Chart visualizations support an optional `config.chartSize` property to control the default display height.
-
-| Field | Type | Allowed values | Description |
-|---|---|---|---|
-| `config.chartSize` | string | `sm`, `m`, `l`, `xl` | Optional size preset for chart height. When omitted, the default is `m`. |
+`config.chartSize` ∈ `sm | m | l | xl` controls the default chart height (`m` when omitted).
 
 ## Grants
 
-Report access is granted via the `E` right:
+Grant report access with the `E` right:
 
 ```json
-"rights": {
-    "report.sales_pipeline": "E"
-}
+"rights": { "report.sales_pipeline": "E" }
 ```
 
 ## Common mistakes
 
-- Mixing `entityCode` + SP fields (`datasetType`, `sp`, `columnsDef`) in the same dataset — pick one source type.
-- Forgetting `columnsDef` on SP datasets — **required** (platform can't infer columns from a function).
-- Forgetting to grant `E` access in at least one role — report becomes invisible.
-- Forgetting `p_folder_uid` and `p_user_id` as first two SP function params — call will fail.
-- Using `panels` instead of `layout` for the visualization array — use `layout`.
-- Using `widget` instead of `vizType` — use `vizType`.
+- Using a bare `"layout": [ ... ]` array — `layout` is an **object**: `"layout": { "panels": [ ... ] }`.
+- Setting the chart kind as `vizType` (`"vizType": "bar"`) — the panel `vizType` is `"chart"`; the kind goes in `config.chartType`.
+- Using `entityCode` / `groupBy` / `aggregations` on a dataset — use `query.entityCd` + `query.columns`, and aggregate in the viz (`agg`, `metrics`).
+- Using `sp` / `procedureName` for an SP dataset — the field is `spCd`.
+- Forgetting `columnsDef` on an SP dataset — **required**.
+- Forgetting to grant `E` on the report in at least one role — it becomes invisible.
+- Forgetting `p_folder_uid` / `p_user_id` as the first two SP function params — the call fails.
 - Referencing a parameter as `$param` — use `@param_code` in filters.

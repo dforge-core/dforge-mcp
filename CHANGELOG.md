@@ -4,6 +4,33 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.3
+
+### Added
+- **Cross-source report metrics & charts (schema).** `reports.schema.json` now
+  lists `kpi` as a `vizType` (was `metric`) and documents the two config shapes
+  module authors can now write:
+  - **Formula KPI metrics** — a metric can be `{ formula, inputs: [{ alias, column,
+    agg, source? }], format? }` instead of a single `{ column, agg }`, for ratios /
+    derived numbers / win-rate percentages. `format` Auto (omit `style`) inherits the
+    first input column's own formatter.
+  - **Cross-source inputs & overlay series** — a formula input (`inputs[].source`) or
+    a chart overlay series (`config.series`, a single object or array of `{ source?,
+    categoryCol, valueCol, agg, label? }`) can aggregate over a **sibling dataset** by
+    its code (omit = the panel's own). Chart overlays share one category axis
+    (outer-joined; bar fills 0, line/area gaps with null).
+
+### Skill
+- `dforge-mcp-author`: **reconciled `references/reports.md` to the real report
+  format.** Corrected long-standing drift — `layout` is `{ panels: [...] }` (not a
+  bare array); chart panels are `vizType: "chart"` with the kind in
+  `config.chartType` (not `vizType: "bar"`); datasets use `datasetType` + nested
+  `query.entityCd`/`columns` (not top-level `entityCode`/`groupBy`/`aggregations`,
+  which don't exist — aggregation is viz-side); SP datasets use `spCd` (+ multi-set
+  via `parentDatasetCd`/`parentRef`), not `sp`/`spCursor`; KPI is
+  `config.metrics: [...]` (not `{ valueCol, format }`). Added the formula-KPI,
+  cross-dataset-KPI, and chart-overlay sections.
+
 ## 0.1.2
 
 ### Fixed
