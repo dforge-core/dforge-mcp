@@ -52,7 +52,7 @@
 				"vizType": {
 					"type": "string",
 					"enum": ["table", "chart", "kpi", "pivot", "tree", "markdown"],
-					"description": "Visualization type. (Older packages may use `metric` for `kpi`.)"
+					"description": "Visualization type. For any chart the vizType is `chart`; the chart kind goes in `config.chartType`."
 				},
 				"datasetCd": {
 					"type": "string",
@@ -61,8 +61,141 @@
 				"title": { "type": "string" },
 				"config": {
 					"type": "object",
-					"description": "Viz-type-specific configuration.\n- chart: { chartType ('bar'|'horizontalBar'|'stackedBar'|'combo'|'line'|'area'|'pie'|'doughnut'|'scatter'|'bubble'|'funnel'|'heatmap'), categoryCol, valueCol, agg, seriesCol?, sizeCol?, chartSize? ('sm'|'m'|'l'|'xl'), clickAction?, showTrend?, series? }. `series` (a single object OR an array) declares CROSS-SOURCE overlay series on bar/horizontalBar/line/area, each { source?, categoryCol, valueCol, agg, label? }; `source` names a sibling dataset code (omit = the panel's own dataset). Overlays share one category axis (union of category values; bar gaps fill 0, line/area gap with null).\n- kpi: { metrics: [ metric, ... ] }. Each metric is EITHER an aggregation metric { column, agg ('sum'|'avg'|'min'|'max'|'count'), display?, label?, target?, min?, max?, icon?, sparklineDimension? } OR a FORMULA metric { formula (e.g. '[won] / [all] * 100'), inputs: [ { alias, column, agg, source? } ], format?: { style?: 'number'|'percent', decimals? }, display?, label? }. A formula input's `source` names a sibling dataset code for CROSS-DATASET metrics (omit = the panel's own dataset). Auto format (omit `format.style`) inherits the first input column's own formatter (currency/grouping).\n- table: { groupRules, aggregations, colorRules }."
+					"description": "Viz-type-specific configuration. `kpi` and `chart` are structurally validated (see kpiConfig / chartConfig below); `table`/`pivot`/`tree`/`markdown` accept any object."
 				}
+			},
+			"additionalProperties": false,
+			"allOf": [
+				{
+					"if": { "required": ["vizType"], "properties": { "vizType": { "const": "kpi" } } },
+					"then": { "properties": { "config": { "$ref": "#/$defs/kpiConfig" } } }
+				},
+				{
+					"if": { "required": ["vizType"], "properties": { "vizType": { "const": "chart" } } },
+					"then": { "properties": { "config": { "$ref": "#/$defs/chartConfig" } } }
+				}
+			]
+		},
+
+		"aggFunc": {
+			"type": "string",
+			"enum": ["sum", "avg", "min", "max", "count"],
+			"description": "Aggregation function."
+		},
+
+		"kpiConfig": {
+			"type": "object",
+			"description": "KPI panel config: one or more metric cards.",
+			"required": ["metrics"],
+			"properties": {
+				"metrics": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "$ref": "#/$defs/kpiMetric" }
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"kpiMetric": {
+			"type": "object",
+			"description": "A KPI metric — EITHER an aggregation metric (`column` + `agg`, and no formula/inputs) OR a formula metric (`formula` + `inputs`, and no column/agg).",
+			"properties": {
+				"column": { "type": "string", "description": "Column to aggregate (aggregation metric)." },
+				"agg": { "$ref": "#/$defs/aggFunc" },
+				"formula": { "type": "string", "description": "Expression over `[alias]` inputs, e.g. '[won] / [all] * 100' (formula metric)." },
+				"inputs": {
+					"type": "array",
+					"minItems": 1,
+					"description": "Named aggregation inputs the formula references by `[alias]`.",
+					"items": { "$ref": "#/$defs/kpiInput" }
+				},
+				"format": { "$ref": "#/$defs/metricFormat" },
+				"display": { "type": "string", "enum": ["value", "gauge", "progress", "sparkline", "icon"] },
+				"label": { "type": "string" },
+				"target": { "type": "number" },
+				"min": { "type": "number" },
+				"max": { "type": "number" },
+				"icon": { "type": "string" },
+				"sparklineDimension": { "type": "string" }
+			},
+			"additionalProperties": false,
+			"allOf": [
+				{
+					"if": { "required": ["formula"] },
+					"then": {
+						"required": ["formula", "inputs"],
+						"not": { "anyOf": [ { "required": ["column"] }, { "required": ["agg"] } ] }
+					},
+					"else": {
+						"required": ["column", "agg"],
+						"not": { "anyOf": [ { "required": ["formula"] }, { "required": ["inputs"] } ] }
+					}
+				}
+			]
+		},
+
+		"kpiInput": {
+			"type": "object",
+			"description": "One named aggregation a formula metric references by `[alias]`.",
+			"required": ["alias", "column", "agg"],
+			"properties": {
+				"alias": { "type": "string", "description": "Token used in the formula as `[alias]`." },
+				"column": { "type": "string" },
+				"agg": { "$ref": "#/$defs/aggFunc" },
+				"source": { "type": "string", "description": "Sibling dataset code to aggregate over (CROSS-DATASET); omit = the panel's own dataset." }
+			},
+			"additionalProperties": false
+		},
+
+		"metricFormat": {
+			"type": "object",
+			"description": "Formula-result format. OMIT for Auto — inherits the first input column's own formatter (currency/grouping).",
+			"properties": {
+				"style": { "type": "string", "enum": ["number", "percent"] },
+				"decimals": { "type": "integer", "minimum": 0 }
+			},
+			"additionalProperties": false
+		},
+
+		"chartConfig": {
+			"type": "object",
+			"description": "Chart panel config. The chart kind is `chartType`; the panel `vizType` is always `chart`.",
+			"required": ["chartType", "categoryCol", "valueCol"],
+			"properties": {
+				"chartType": {
+					"type": "string",
+					"enum": ["bar", "horizontalBar", "stackedBar", "combo", "line", "area", "pie", "doughnut", "scatter", "bubble", "funnel", "heatmap"]
+				},
+				"categoryCol": { "type": "string" },
+				"valueCol": { "type": "string" },
+				"agg": { "$ref": "#/$defs/aggFunc" },
+				"seriesCol": { "type": "string", "description": "Split-by dimension (same dataset)." },
+				"sizeCol": { "type": "string", "description": "Bubble radius column." },
+				"chartSize": { "type": "string", "enum": ["sm", "m", "l", "xl"] },
+				"clickAction": { "type": "string", "enum": ["crossFilter", "drillThrough", "none"] },
+				"showTrend": { "type": "boolean" },
+				"series": {
+					"description": "CROSS-SOURCE overlay series (bar/horizontalBar/line/area) — a single series OR an array. Each aligns on the shared category axis.",
+					"oneOf": [
+						{ "$ref": "#/$defs/chartSeries" },
+						{ "type": "array", "items": { "$ref": "#/$defs/chartSeries" } }
+					]
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"chartSeries": {
+			"type": "object",
+			"description": "One cross-source overlay series.",
+			"required": ["categoryCol", "valueCol", "agg"],
+			"properties": {
+				"source": { "type": "string", "description": "Sibling dataset code; omit = the panel's own dataset." },
+				"categoryCol": { "type": "string" },
+				"valueCol": { "type": "string" },
+				"agg": { "$ref": "#/$defs/aggFunc" },
+				"label": { "type": "string" }
 			},
 			"additionalProperties": false
 		},
@@ -140,11 +273,13 @@
 				"leafKey": { "type": "string", "description": "Column on the query entity identifying the tree node a row belongs to (e.g. 'account_id' on balance_register)." },
 				"measures": {
 					"type": "array",
+					"minItems": 1,
 					"items": { "type": "string" },
 					"description": "Value column codes (on the query entity) to SUM into ancestors. Must be additively-rollable."
 				},
 				"labels": {
 					"type": "array",
+					"minItems": 1,
 					"items": { "type": "string" },
 					"description": "Node-describing columns, expressed as the report column keys ('account.account_code'). Sourced from the tree entity's physical column (the segment after the dot); emitted under the same key so the report layout is unchanged."
 				},
