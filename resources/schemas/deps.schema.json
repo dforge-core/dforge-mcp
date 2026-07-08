@@ -1,0 +1,84 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/deps.schema.json",
+	"title": "dForge Module Dependency Contract",
+	"description": "Declares everything a consumer module consumes from one dependency: the entities, columns (with base datatype), and the provenance of each usage. One file per dependency at modules/<consumer>/deps/<provider>.json. The dependency is the source of truth; this file is the consumer's import list. See docs/modules/dependency-contracts.md.",
+	"type": "object",
+	"required": ["module", "version", "entities"],
+	"additionalProperties": false,
+	"properties": {
+		"module": {
+			"type": "string",
+			"description": "Code of the dependency (provider) module this contract is against (e.g. 'parties'). Matches a key in the consumer manifest's 'dependencies'."
+		},
+		"version": {
+			"type": "string",
+			"minLength": 1,
+			"description": "Semver range the consumer requires of the provider (e.g. '>=0.1.0'). Should agree with the consumer manifest's dependency range for this module."
+		},
+		"entities": {
+			"type": "object",
+			"description": "Consumed provider entities, keyed by entity code (e.g. 'party').",
+			"minProperties": 1,
+			"additionalProperties": { "$ref": "#/definitions/entityContract" }
+		}
+	},
+	"definitions": {
+		"entityContract": {
+			"type": "object",
+			"required": ["pk", "use"],
+			"additionalProperties": false,
+			"description": "What the consumer needs from one provider entity.",
+			"properties": {
+				"pk": {
+					"type": "string",
+					"description": "The provider entity's primary-key column — the structural anchor every reference into the entity joins on. Note: the label/display column is NOT declared (display is the provider's concern, resolved from its toString)."
+				},
+				"use": {
+					"$ref": "#/definitions/provenanceList",
+					"description": "Entity-level provenance: why this entity is consumed (a ref targets it, the consumer extends it, a role grants on it, a view/report/print/action touches it)."
+				},
+				"columns": {
+					"type": "object",
+					"description": "Provider columns the consumer actually reads, writes, or joins on. Omit entirely for extension-only targets that touch no existing provider column.",
+					"additionalProperties": { "$ref": "#/definitions/columnContract" }
+				}
+			}
+		},
+		"columnContract": {
+			"type": "object",
+			"required": ["type", "use"],
+			"additionalProperties": false,
+			"description": "A single consumed provider column.",
+			"properties": {
+				"type": {
+					"type": "string",
+					"enum": ["int2", "int4", "int8", "smallint", "integer", "bigint", "numeric", "decimal", "float4", "float8", "real", "money", "varchar", "text", "char", "bpchar", "bool", "boolean", "date", "time", "timetz", "timestamp", "timestamptz", "uuid", "json", "jsonb", "bytea"],
+					"description": "The provider column's STORAGE CLASS — its physical Postgres type with any length/scale stripped (int8, varchar, numeric, bool, date, timestamptz, jsonb, ...). Mirrors DdlService.ResolveDbType: dForge's 'cuid' Snowflake PK normalizes to int8 (use 'int8', not 'cuid'); varchar(n) -> varchar; fieldTypeCd 'currency'/'percent' -> numeric; 'number' -> int4. Pin the storage class (not a coarse base type) so an FK/lookup is meaningful: an int8 key is satisfiable by int8, not by any 'number'. The satisfaction check compares via EntityValidator.AreTypesCompatible (varchar==text, int8==bigint). This enum is a closed allowlist to catch typos at author time; extend it (and DependencyContractValidator.ValidColumnTypes, kept in lockstep) if a provider column legitimately uses a type not listed."
+				},
+				"use": {
+					"$ref": "#/definitions/provenanceList",
+					"description": "Per-column provenance: which symbols read/write/join on this column."
+				},
+				"mode": {
+					"type": "string",
+					"enum": ["read", "write"],
+					"default": "read",
+					"description": "Whether the consumer reads or writes this column. 'write' (e.g. an action that inserts/updates the provider row) additionally implies an insert/update right and a settable column. Default 'read'; omit for reads."
+				}
+			}
+		},
+		"provenanceList": {
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"description": "One or more usage tokens. Each names the consuming symbol so the completeness lint can reconcile declared usage against actual usage.",
+			"items": { "$ref": "#/definitions/provenance" }
+		},
+		"provenance": {
+			"type": "string",
+			"pattern": "^(extends:[^.]+\\.[^.]+|(ref|formula|action|view|report|print|role):.+)$",
+			"description": "A usage token of the form '<kind>:<symbol>'. Kinds: ref:<entity.column> (a link column joins to the dependency; the entity is qualified <module>.<entity> when it's an extension host), extends:<module.entity> (the consumer extends the provider entity — MUST be fully qualified, e.g. extends:parties.party, never bare extends:party), formula:<entity.column> (a formula nav path reads it), action:<action_cd> (DSL reads/writes it, incl. raw query() SQL), view:<view_cd> (a data view's dataSource targets it), report:<report_cd> (a report queries it), print:<template_cd> (a print template navigates into it), role:<role_cd> (a security role grants rights on the entity). Note: 'display' is intentionally NOT a kind — the label is the provider's concern."
+		}
+	}
+}
