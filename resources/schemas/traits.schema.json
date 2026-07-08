@@ -66,6 +66,38 @@
 					},
 					"required": ["entity", "thisKey", "otherKey"],
 					"additionalProperties": false
+				},
+				"params": {
+					"type": "object",
+					"description": "Field-type-specific configuration; same shape as entity field params (e.g. serverDefault).",
+					"properties": {
+						"serverDefault": { "$ref": "#/$defs/serverDefault" }
+					},
+					"additionalProperties": true
+				}
+			},
+			"additionalProperties": false
+		},
+		"serverDefault": {
+			"type": "object",
+			"description": "Platform-computed value filled server-side on write (used by the audit / audit-full traits). Resolved by the write pipeline — not a formula.",
+			"required": ["value"],
+			"properties": {
+				"value": {
+					"type": "string",
+					"enum": ["now()", "currentUser()"],
+					"description": "Whitelisted server-context expression: now() → transaction clock, currentUser() → caller's user id."
+				},
+				"on": {
+					"type": "string",
+					"enum": ["insert", "update", "save"],
+					"default": "insert",
+					"description": "Phase(s) in which the value is applied. 'save' = both insert and update."
+				},
+				"ifEmpty": {
+					"type": "boolean",
+					"default": false,
+					"description": "When true, only fill if the caller did not provide a value; when false (default), always override."
 				}
 			},
 			"additionalProperties": false

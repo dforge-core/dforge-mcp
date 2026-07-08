@@ -4,12 +4,15 @@
 	"title": "dForge Entity Definition",
 	"description": "Defines an entity (table/view mapping) for a dForge module",
 	"type": "object",
-	"required": ["fields"],
+	"anyOf": [
+		{ "required": ["fields"] },
+		{ "required": ["traits"] }
+	],
 	"properties": {
 		"extends": {
 			"type": "string",
-			"pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
-			"description": "Qualified entity code of the target entity to extend (e.g. 'fin.invoice'). When set, this entity definition adds columns to an existing entity owned by another module instead of creating a new entity. Physical columns are stored in a 1:1 extension table."
+			"pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_]*$",
+			"description": "Qualified entity code of the target entity to extend, as '<module>.<entity>' (e.g. 'fin.invoice' or 'cdy-tax.tax_invoice_issued_line'). The module part may contain hyphens (module codes are hyphenated, e.g. 'crm-fin'); the entity part is snake_case. When set, this entity definition adds columns to an existing entity owned by another module instead of creating a new entity. Physical columns are stored in a 1:1 extension table."
 		},
 		"description": {
 			"type": "string",
@@ -180,10 +183,10 @@
 									{ "type": "string" },
 									{
 										"type": "object",
-										"required": ["value", "label"],
+										"required": ["value"],
 										"properties": {
 											"value": { "type": "string" },
-											"label": { "type": "string" },
+											"label": { "type": "string", "description": "Display text. Optional — the runtime falls back to `value` when omitted (column.ts: label = o.label ?? value)." },
 											"icon": { "type": "string" },
 											"color": { "type": "string" }
 										},
@@ -192,6 +195,9 @@
 								]
 							},
 							"description": "Options for dropdown/flags field types"
+						},
+						"serverDefault": {
+							"$ref": "#/$defs/serverDefault"
 						}
 					}
 				},
@@ -305,6 +311,30 @@
 				"otherKey": {
 					"type": "string",
 					"description": "Column(s) in the target entity (comma-separated for compound keys)"
+				}
+			},
+			"additionalProperties": false
+		},
+		"serverDefault": {
+			"type": "object",
+			"description": "Platform-computed value filled server-side on write (used by the audit / audit-full traits). Resolved by the write pipeline (data.insert/update and DSL insert/update) — not a formula.",
+			"required": ["value"],
+			"properties": {
+				"value": {
+					"type": "string",
+					"enum": ["now()", "currentUser()"],
+					"description": "Whitelisted server-context expression: now() → transaction clock, currentUser() → caller's user id."
+				},
+				"on": {
+					"type": "string",
+					"enum": ["insert", "update", "save"],
+					"default": "insert",
+					"description": "Phase(s) in which the value is applied. 'save' = both insert and update."
+				},
+				"ifEmpty": {
+					"type": "boolean",
+					"default": false,
+					"description": "When true, only fill if the caller did not provide a value; when false (default), always override."
 				}
 			},
 			"additionalProperties": false

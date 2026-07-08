@@ -51,8 +51,8 @@
 			"properties": {
 				"vizType": {
 					"type": "string",
-					"enum": ["table", "chart", "metric", "pivot"],
-					"description": "Visualization type"
+					"enum": ["table", "chart", "kpi", "pivot", "tree", "markdown"],
+					"description": "Visualization type. (Older packages may use `metric` for `kpi`.)"
 				},
 				"datasetCd": {
 					"type": "string",
@@ -61,7 +61,7 @@
 				"title": { "type": "string" },
 				"config": {
 					"type": "object",
-					"description": "Viz-type-specific configuration. For chart: { chartType, categoryCol, valueCol, agg, chartSize }. For table: { groupRules, aggregations }."
+					"description": "Viz-type-specific configuration.\n- chart: { chartType ('bar'|'horizontalBar'|'stackedBar'|'combo'|'line'|'area'|'pie'|'doughnut'|'scatter'|'bubble'|'funnel'|'heatmap'), categoryCol, valueCol, agg, seriesCol?, sizeCol?, chartSize? ('sm'|'m'|'l'|'xl'), clickAction?, showTrend?, series? }. `series` (a single object OR an array) declares CROSS-SOURCE overlay series on bar/horizontalBar/line/area, each { source?, categoryCol, valueCol, agg, label? }; `source` names a sibling dataset code (omit = the panel's own dataset). Overlays share one category axis (union of category values; bar gaps fill 0, line/area gap with null).\n- kpi: { metrics: [ metric, ... ] }. Each metric is EITHER an aggregation metric { column, agg ('sum'|'avg'|'min'|'max'|'count'), display?, label?, target?, min?, max?, icon?, sparklineDimension? } OR a FORMULA metric { formula (e.g. '[won] / [all] * 100'), inputs: [ { alias, column, agg, source? } ], format?: { style?: 'number'|'percent', decimals? }, display?, label? }. A formula input's `source` names a sibling dataset code for CROSS-DATASET metrics (omit = the panel's own dataset). Auto format (omit `format.style`) inherits the first input column's own formatter (currency/grouping).\n- table: { groupRules, aggregations, colorRules }."
 				}
 			},
 			"additionalProperties": false
@@ -121,7 +121,34 @@
 				"sort": {
 					"type": "array",
 					"items": { "$ref": "#/$defs/sortClause" }
+				},
+				"rollup": {
+					"$ref": "#/$defs/rollup"
 				}
+			},
+			"additionalProperties": false
+		},
+
+		"rollup": {
+			"type": "object",
+			"description": "Hierarchy rollup: roll the flat leaf result up a self-referencing tree so parent rows carry the SUM of their descendants. Emits one row per tree node (leaf + ancestor), plus '_level' (depth from root) and '_isLeaf'. Measures must be additively-rollable (physical additive columns or LINEAR formulas of them, e.g. closing = opening + turnover); non-linear measures (ratios, products) are not valid and need a computed-row feature instead.",
+			"required": ["tree", "treeKey", "parentField", "leafKey", "measures", "labels"],
+			"properties": {
+				"tree": { "type": "string", "description": "Entity code that owns the hierarchy (e.g. 'account')." },
+				"treeKey": { "type": "string", "description": "Primary-key column of the tree entity (e.g. 'account_id')." },
+				"parentField": { "type": "string", "description": "Self-referencing parent FK on the tree entity; roots have it NULL (e.g. 'parent_account_id')." },
+				"leafKey": { "type": "string", "description": "Column on the query entity identifying the tree node a row belongs to (e.g. 'account_id' on balance_register)." },
+				"measures": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Value column codes (on the query entity) to SUM into ancestors. Must be additively-rollable."
+				},
+				"labels": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Node-describing columns, expressed as the report column keys ('account.account_code'). Sourced from the tree entity's physical column (the segment after the dot); emitted under the same key so the report layout is unchanged."
+				},
+				"order": { "type": "string", "description": "Tree-entity column code for pre-order sort (e.g. 'account_code'), resolved through metadata to its physical column. Assumes hierarchy-sortable codes; defaults to treeKey." }
 			},
 			"additionalProperties": false
 		},

@@ -6,6 +6,13 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## 0.1.3
 
+### Changed
+- Bumped the `@dforge-core/metadata` dependency to `^0.0.4` so the publish-time
+  schema vendoring (`prepublishOnly` → `vendor-schemas`) picks up the refreshed
+  `reports.schema.json` (`vizType: "kpi"` + KPI formula / cross-source config).
+  The vendored copy under `resources/schemas/` is regenerated on publish — it is
+  not hand-edited.
+
 ### Added
 - **Cross-source report metrics & charts (schema).** `reports.schema.json` now
   lists `kpi` as a `vizType` (was `metric`) and documents the two config shapes
