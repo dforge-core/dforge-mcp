@@ -32,7 +32,7 @@
 	},
 	"dependencies": {
 		"@dforge-core/dforge-cli": "^0.2.2",
-		"@dforge-core/metadata": "^0.0.2",
+		"@dforge-core/metadata": "^0.0.4",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"zod": "^4.4.3"
 	},
