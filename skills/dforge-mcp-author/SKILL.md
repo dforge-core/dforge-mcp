@@ -116,7 +116,7 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **`toString`:** every entity needs one, `{column}` braces, e.g. `"{first_name} {last_name}"`.
 - **Data views:** `dataSources` array at root — never root-level `entityCode` + `columns`. → `data-views.md`
 - **Menus:** leaf items use `dataViewCode` (not `viewCode`); section nodes omit `itemType`; icons are Bootstrap names sans `bi-`. → `menus.md`
-- **Security roles:** `rights` (not `entityRights`); entities `SIUDC`, actions/reports/folders `E`. Rights keys: same-module entity bare (`product`), cross-module entity dotted (`fin.invoice`), and actions/reports/folders use a **colon** prefix — `action:approve`, `report:summary`, `folder:east` (never a dot). Omit a key to deny; never map to `""`. → `security.md`
+- **Security roles:** `rights` (not `entityRights`); entities `SIUDC`, actions/reports/folders `E`. Rights keys: same-module entity bare (`product`), cross-module entity dotted (`fin.invoice`), and actions/reports/folders use a **colon** prefix — `action:approve`, `report:summary`, `folder:east` (never a dot). Omit a key to deny; never map to `""`. `roles.json` carries `description` (English fallback) + `rights` only — **no `label`**; the localized role display name lives in the translation files as `roles.<code>.label` and is completeness-enforced. → `security.md`, `translations.md`
 - **Action script** in `ui/actions.json` = bare filename (no path, no `.dsl`).
 - **Action DSL dates:** inside `execute:` use lowercase `now()`; `TODAY()`/`NOW()` are formula-only (`canExecute:`/formula columns) and are **undefined in `execute:`**. → `action-dsl.md`
 - **SQL placeholders** = `@paramName` (not `:paramName`).
@@ -397,7 +397,7 @@ Key areas (full checklist):
 - **Security**: every entity code in the manifest appears in at least one role's rights map; `rights` key used (not `entityRights`); entity rights use `SIUDC` letters; actions/reports use `E`.
 - **Actions**: every `script` value in `ui/actions.json` is a bare filename (no path, no `.dsl` extension); every action referenced by a trigger or job exists in `ui/actions.json`.
 - **Seed data**: numeric PKs; parent entities loaded before children; no circular references.
-- **Translations**: a `translations/<locale>.json` file exists for every locale in `supportedLocales`; every trait-provided field (`created_at`, `updated_at`, etc.) has a translation entry in each file.
+- **Translations**: a `translations/<locale>.json` file exists for every locale in `supportedLocales` **plus the `en-US` base**; every trait-provided field (`created_at`, `updated_at`, etc.) has a translation entry in each file; a `roles` section carries a `label` for **every** role in `security/roles.json` (completeness-enforced in every locale incl. en-US — keys are module-qualified role codes like `crm.admin`).
 
 ### Step 3 — Translation deferral check
 

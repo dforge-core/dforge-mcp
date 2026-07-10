@@ -67,6 +67,26 @@ Plus declare the FK constraint in the entity's `references` block:
 }
 ```
 
+### Referential actions — `onDelete` / `onUpdate` (optional)
+
+A reference entry may declare `onDelete` and/or `onUpdate` to emit an `ON DELETE` / `ON UPDATE` clause on the FK. Both accept: `"cascade"`, `"setNull"`, `"restrict"`, `"noAction"`. **Omitted = `noAction`** (plain FK — the default and correct choice for most references).
+
+```json
+"references": {
+    "FK_OpportunityLine_Opportunity": {
+        "from": { "field": "opportunity_id" },
+        "to":   { "entity": "opportunity", "field": "opportunity_id" },
+        "onDelete": "cascade"
+    }
+}
+```
+
+- **`cascade`** — deleting the parent deletes its children. Use for owned child collections (line items under their header) so the parent delete isn't blocked by a FK violation.
+- **`setNull`** — nulls the FK column when the parent is deleted; the FK column **must be nullable**.
+- **`restrict` / `noAction`** — block the parent delete while children exist (the safe default; leave the keys off to get this).
+- **`onUpdate`** — fires when the parent's key value changes. A **no-op for immutable `cuid` PKs** (identity-trait entities), so only meaningful for entities keyed on a natural/mutable PK.
+- **Self-healing on reinstall:** the DDL generator reads the live FK's current rule and drops+recreates the FK only when it changed, so changing `onDelete` and reinstalling applies to already-provisioned tenants (and is a no-op otherwise). An unknown value fails install fast.
+
 > **FK column `dbDatatype` must exactly match the referenced entity's PK `dbDatatype`.** Never guess.
 > - Entities using the `identity` trait → PK is `dbDatatype: "cuid"` → FK column must also be `"cuid"`
 > - Cross-module or legacy entities → call `dforge_module_inspect` on the referenced module and read the PK column's `dbDatatype` before declaring the FK

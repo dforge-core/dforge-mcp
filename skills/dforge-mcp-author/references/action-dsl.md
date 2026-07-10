@@ -144,6 +144,7 @@ var note = params[note]             // no quotes around param name in this DSL
 | `addDays(date, n)` | Date | Add `n` days to a date, e.g. `addDays(now(), 30)`. |
 | `nextNumber('entity')` | String | Generate next value from a number sequence. Usually not needed — platform auto-fills on `insert()`. Use for pre-generating numbers. |
 | `callProc('proc_name', { args })` | Result | Call a stored procedure. Args are passed as named parameters. |
+| `entityLink('entityCd', record, description?)` | Link value | Build a clickable link to any entity record, for storing in an `entitylink` (jsonb) column. `record` is a row object (e.g. the result of `insert()` or `getRecord()`); its PK columns are read and stored as **strings**, so snowflake/cuid ids (> 2^53) stay exact. Optional `description` sets the link's display text. |
 
 > **Dates: `now()` in `execute:`, `TODAY()`/`NOW()` in formulas.** The `execute:` block runs as
 > JavaScript (Jint) and exposes **lowercase `now()`** only — `TODAY()` and `NOW()` (uppercase) are

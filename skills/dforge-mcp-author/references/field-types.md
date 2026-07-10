@@ -65,7 +65,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `lookup` | `guid` | `R` | Reference to another entity (always paired with a hidden FK column — see SKILL.md "FK+Reference pattern") |
 | `user` | `cuid` | `D` | User picker. Writes a user ID directly, no paired FK needed. |
 | `grid` | `set` | `S` | Detail grid of related records (1:N backwards reference). Used with `link` declaring the relation. |
-| `entitylink` | `json` | `D` | Polymorphic link to any entity (stores `{entity, id}` pair). |
+| `entitylink` | `json` | `D` | Polymorphic link to any entity (stores `{entity, id}` pair). Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in (see `action-dsl.md`). |
 
 ## JSON
 

@@ -90,7 +90,7 @@ For each entity:
 ## Security
 
 - [ ] `security/roles.json` exists (at least one role)
-- [ ] Every role has `description` and `rights` (both required; no `label` field — display name comes from `description`). The `roles.schema.json` sets `additionalProperties: false`, so any extra field (including `label`) is rejected at install time.
+- [ ] Every role has `description` and `rights` (both required; no `label` field in `roles.json` — the `roles.schema.json` sets `additionalProperties: false`, so any extra field including `label` is rejected here). `description` is the English display-name fallback; **localized role labels live in the translation files** (`roles.<code>.label`) and are completeness-enforced — see Translations below.
 - [ ] The field name is `rights`, NOT `entityRights`
 - [ ] Rights strings use only valid letters: `SIUDC` for entities, `E` for actions/reports/folders
 - [ ] Entity codes in `rights` all reference real entities (in this module or dependencies)
@@ -132,7 +132,7 @@ For each action:
 - [ ] Has `views` section with labels for every data view
 - [ ] Has `menus` section matching the `ui/menus.json` structure
 - [ ] Has `actions` section with labels for every action
-- [ ] Has `roles` section with labels for every role
+- [ ] Has `roles` section with a `label` for **every** role in `security/roles.json` (completeness-enforced — a missing role label fails install; keys are the module-qualified role codes, e.g. `crm.admin`)
 - [ ] Has `settings` section with labels for every setting (if settings exist)
 - [ ] Has `folders` section with label for the root folder
 - [ ] Additional language files (if any) have the same structure as `en-US.json`
