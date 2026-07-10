@@ -4,6 +4,30 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.6
+
+### Skill
+- `dforge-mcp-author`: documentation updates to the authoring references (no
+  tool/behavior changes).
+  - **`entityLink()` action-DSL built-in.** Documented
+    `entityLink('entityCd', record, description?)` for populating an
+    `entitylink` (jsonb) column from an action's `execute:` block — reads the
+    record's PK columns and stores them as **strings** so snowflake/cuid ids
+    (> 2^53) stay exact, with an optional display `description`
+    (`action-dsl.md`, `field-types.md`).
+  - **Referential actions on FK references.** Documented the optional
+    `onDelete` / `onUpdate` keys on a `references` entry (`cascade`, `setNull`,
+    `restrict`, `noAction`; omitted = `noAction`), including nullable-column
+    requirements for `setNull`, the `cuid`-PK no-op note for `onUpdate`, and
+    the self-healing drop/recreate-on-change behavior (`column-types.md`).
+  - **Role labels are translated and completeness-enforced.** Corrected the
+    docs: `security/roles.json` carries `description` + `rights` only (**no
+    `label`** — `additionalProperties: false`); the localized role display name
+    lives in the translation files as `roles.<code>.label`, module-qualified,
+    and is required in **every** locale including the `en-US` base or install
+    fails (`security.md`, `translations.md`, `SKILL.md`,
+    `validation-checklist.md`).
+
 ## 0.1.5
 
 ### Changed
