@@ -72,6 +72,7 @@ For each entity:
 - [ ] Each source has `entityCode` and `columns`
 - [ ] `entityCode` points to an entity that exists
 - [ ] Column codes in `columns` all exist on the entity
+- [ ] The rendered entity has **at least one visible scalar column** (a field with `V` in `flags`, `columnType` not `S`) — a grid/list/kanban/etc. view over an entity whose fields are all hidden (or only sets) is **rejected** at validate/pack and would render "No visible columns configured for this entity." `diagram`/`matrix`/`library` are exempt
 - [ ] If set, `viewType` is from the supported list (`grid`, `list`, `kanban`, `calendar`, `gallery`, `tree-grid`, `diagram`, `master-detail`, `library`, `matrix`)
 - [ ] A `matrix` view has a `viewConfig` with `rowAxis`, `colAxis`, and `cell` (cell `entity` matches the primary `dataSources` entity; `rowKey`/`colKey` are real cell columns)
 - [ ] Sort uses the view-def-root `order` key — a `string[]` like `["-created_date", "name"]` (leading `-` = descending), NOT `sort` / `[{column_cd, direction}]` (that object shape belongs to queries & reports, not data views)
@@ -172,6 +173,7 @@ If you see any of these, stop and investigate:
 - Menus with `children: [...]` (array, not dict)
 - Roles with `entityRights` (wrong key)
 - Data views with root-level `entityCode` (should be inside `dataSources`)
+- A grid/list/kanban/etc. view over an entity with no field flagged `V` (or only set columns visible) — rejected at validate/pack
 - Formula columns without `baseDatatypeCd`
 - DSL actions with JavaScript/Python syntax
 - Seed data files without numbered prefixes

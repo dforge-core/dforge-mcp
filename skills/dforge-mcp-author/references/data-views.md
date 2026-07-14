@@ -58,6 +58,28 @@ Lives in: `ui/data_views.json`
 }
 ```
 
+## Critical rule — the entity needs a visible column
+
+A grid-style view can only render an entity that has at least one **visible scalar column** — a field whose `flags` include `V` and whose `columnType` is **not** a set (`S`). Column visibility is entity-driven (the field's flags), **not** view-driven: the `columns` array inside `dataSources[]` is layout-only (reorder/pin/width among already-visible fields) — it can't make a non-`V` field appear.
+
+If none of an entity's fields are visible (or only its set/child-collection columns are), the view renders the runtime empty state *"No visible columns configured for this entity."* — a broken screen the user only hits when they open the menu item. `dforge_module_validate` and `dforge_module_pack` now **reject** this before install.
+
+```jsonc
+// WRONG — grid over an entity whose fields are all hidden (no "V")
+"fields": {
+    "code": { "fieldTypeCd": "text", "flags": "EM" },   // E=editable, M=… but no V
+    "lines": { "columnType": "S", "flags": "VEM" }        // visible, but a SET — doesn't count for a grid
+}
+// RIGHT — at least one visible scalar field
+"fields": {
+    "code": { "fieldTypeCd": "text", "flags": "VEM" }     // V present, not a set → satisfies the grid
+}
+```
+
+This applies to every column-rendering view type (grid, list, kanban, calendar, gallery, tree-grid, master-detail, and the default). The column-agnostic types — `diagram`, `matrix`, `library` — draw from `viewConfig`/relationships instead, so they're **exempt** from this rule.
+
+See [flags.md](flags.md) for the flag string, [column-types.md](column-types.md) for `columnType` (`R`/`S`/`F`).
+
 ## View types
 
 | `viewType` | Description | `viewConfig` | When to use |
@@ -243,3 +265,4 @@ Most views only have one source. Order is view-level and applies to the primary 
 - Object-array order like `[{ column_cd: "...", direction: "asc" }]` — **wrong shape for data views**. Use `string[]` with leading `-` for descending.
 - `viewType` is **optional** — omitted or unknown values fall back to `grid` at runtime. Set it explicitly for any non-grid view (`kanban`, `calendar`, `matrix`, …); a `matrix` view also **requires** a `viewConfig` with `rowAxis`/`colAxis`/`cell`.
 - Inventing view types like `"spreadsheet"` or `"table"` — **wrong**. Use `grid`.
+- A grid-style view over an entity with **no visible scalar column** (no field flagged `V`, or only set columns) — **rejected** at validate/pack. Mark at least one non-set field visible. See the [critical rule above](#critical-rule--the-entity-needs-a-visible-column). `diagram`/`matrix`/`library` are exempt.

@@ -4,6 +4,28 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.8
+
+### Added
+- **`dforge_module_validate` now flags a grid-style data view over an entity
+  with no visible column.** Errors when a column-rendering view (grid, list,
+  kanban, calendar, gallery, tree-grid, master-detail, or the default) draws an
+  own-module entity that has no *visible scalar column* — a field whose `flags`
+  include `V` and whose `columnType` isn't a set (`S`). Without one the view
+  renders the runtime empty state *"No visible columns configured for this
+  entity."* This mirrors the server's install-time `DataViewVisibleColumnValidator`,
+  so authors catch it pre-flight instead of at pack/install. Column-agnostic view
+  types (`diagram`, `matrix`, `library`) are exempt; cross-module entities are
+  skipped; the check runs after trait expansion so a trait-contributed `V` field
+  counts.
+
+### Skill
+- `dforge-mcp-author`: documented the **visible-column requirement** for
+  column-rendering data views. `references/data-views.md` gains a "the entity
+  needs a visible column" rule (visibility is entity-driven via the `V` flag, not
+  the view's `columns` array) plus common-mistake bullets, and
+  `references/validation-checklist.md` gains matching checklist/red-flag entries.
+
 ## 0.1.7
 
 ### Changed

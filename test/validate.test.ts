@@ -36,9 +36,11 @@ describe("module_validate — cross-module references", () => {
 				},
 			}),
 		);
-		const res = JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
-		rmSync(dir, { recursive: true, force: true });
-		return res;
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	};
 
 	it("flags a dotted ref whose module is NOT a declared dependency", () => {
@@ -59,9 +61,11 @@ describe("module_validate — role rights key resolution", () => {
 		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", dependencies, entities: { thing: "./entities/thing.json" } }));
 		writeFileSync(join(dir, "entities", "thing.json"), JSON.stringify({ description: "Thing", traits: ["identity"], fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } }));
 		writeFileSync(join(dir, "security", "roles.json"), JSON.stringify({ admin: { rights } }));
-		const res = JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
-		rmSync(dir, { recursive: true, force: true });
-		return res;
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	};
 
 	it("allows rights on a system entity (user)", () => {
@@ -104,9 +108,11 @@ describe("module_validate — untranslated constraint messages", () => {
 		for (const [locale, content] of Object.entries(opts.localeFiles ?? {})) {
 			writeFileSync(join(dir, "translations", `${locale}.json`), JSON.stringify(content));
 		}
-		const res = JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
-		rmSync(dir, { recursive: true, force: true });
-		return res;
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	};
 
 	it("no supportedLocales → no constraint-translation warning (opt-in)", () => {
@@ -138,6 +144,56 @@ describe("module_validate — untranslated constraint messages", () => {
 	it("skips extension entities (foreign module owns the translation)", () => {
 		const res = make({ supportedLocales: ["de-DE"], message: "Qty must be positive", extends: "fin.invoice" });
 		expect(JSON.stringify(res.warnings)).not.toContain("chk_qty_positive");
+	});
+});
+
+describe("module_validate — data-view visible column", () => {
+	// One entity + one view; the entity's fields and the view's viewType vary.
+	const make = (opts: {
+		fields: Record<string, unknown>;
+		viewType?: string;
+		traits?: string[];
+	}) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-viscol-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { thing: "./entities/thing.json" } }));
+		writeFileSync(
+			join(dir, "entities", "thing.json"),
+			JSON.stringify({ description: "Thing", traits: opts.traits ?? ["identity"], fields: opts.fields }),
+		);
+		const view: Record<string, unknown> = { dataSources: [{ entityCode: "thing" }] };
+		if (opts.viewType) view.viewType = opts.viewType;
+		writeFileSync(join(dir, "ui", "data_views.json"), JSON.stringify({ thing_view: view }));
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	it("errors when a grid view's entity has no visible scalar column", () => {
+		const res = make({ fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "EM" } } });
+		expect(res.ok).toBe(false);
+		expect(JSON.stringify(res.errors)).toContain("no visible column");
+	});
+
+	it("passes when at least one field is visible", () => {
+		const res = make({ fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } });
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+		expect(res.ok).toBe(true);
+	});
+
+	it("a visible SET column ('S') does not satisfy a grid", () => {
+		const res = make({ fields: { lines: { columnType: "S", fieldTypeCd: "grid", flags: "VEM" } } });
+		expect(JSON.stringify(res.errors)).toContain("no visible column");
+	});
+
+	it("column-agnostic view types (matrix/diagram/library) are exempt", () => {
+		for (const viewType of ["matrix", "diagram", "library"]) {
+			const res = make({ fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "EM" } }, viewType });
+			expect(JSON.stringify(res.errors), viewType).not.toContain("no visible column");
+		}
 	});
 });
 
