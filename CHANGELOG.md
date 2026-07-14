@@ -6,6 +6,13 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## 0.1.7
 
+### Changed
+- Bumped `@dforge-core/dforge-cli` to `^0.2.7`. Picks up the corrected module
+  scaffolder (`buildTranslations` now emits the nested runtime format with the
+  completeness-required `roles` block and opt-in constraint-message localization,
+  replacing the non-functional flat shape) and the native CLI's install-time
+  untranslated-constraint warning.
+
 ### Added
 - **`dforge_module_validate` now flags untranslated check/unique constraint
   messages.** When the manifest declares `supportedLocales`, the validator
