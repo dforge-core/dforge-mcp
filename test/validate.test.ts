@@ -78,6 +78,69 @@ describe("module_validate — role rights key resolution", () => {
 	});
 });
 
+describe("module_validate — untranslated constraint messages", () => {
+	// Builds a module with one entity carrying a check constraint that declares a
+	// `message`, plus optional supportedLocales and translation files.
+	const make = (opts: {
+		supportedLocales?: string[];
+		localeFiles?: Record<string, unknown>;
+		message?: string;
+		extends?: string;
+	}) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-ckmsg-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "translations"), { recursive: true });
+		const manifest: Record<string, unknown> = { code: "t", entities: { thing: "./entities/thing.json" } };
+		if (opts.supportedLocales) manifest.supportedLocales = opts.supportedLocales;
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
+		const entity: Record<string, unknown> = {
+			description: "Thing",
+			traits: ["identity"],
+			fields: { qty: { fieldTypeCd: "number", dbDatatype: "int4", flags: "VEM" } },
+			constraints: { chk_qty_positive: { type: "check", expression: "qty > 0", ...(opts.message !== undefined ? { message: opts.message } : {}) } },
+		};
+		if (opts.extends) entity.extends = opts.extends;
+		writeFileSync(join(dir, "entities", "thing.json"), JSON.stringify(entity));
+		for (const [locale, content] of Object.entries(opts.localeFiles ?? {})) {
+			writeFileSync(join(dir, "translations", `${locale}.json`), JSON.stringify(content));
+		}
+		const res = JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		rmSync(dir, { recursive: true, force: true });
+		return res;
+	};
+
+	it("no supportedLocales → no constraint-translation warning (opt-in)", () => {
+		const res = make({ message: "Qty must be positive" });
+		expect(JSON.stringify(res.warnings)).not.toContain("chk_qty_positive");
+	});
+
+	it("warns when a declared locale lacks the constraint override", () => {
+		const res = make({ supportedLocales: ["de-DE"], message: "Qty must be positive" });
+		expect(res.ok).toBe(true); // never an error
+		expect(JSON.stringify(res.warnings)).toContain("chk_qty_positive");
+		expect(JSON.stringify(res.warnings)).toContain("de-DE");
+	});
+
+	it("no warning when the override is present (case-insensitive file match)", () => {
+		const res = make({
+			supportedLocales: ["de-DE"],
+			message: "Qty must be positive",
+			localeFiles: { "de-de": { entities: { thing: { constraints: { chk_qty_positive: { message: "Menge muss positiv sein" } } } } } },
+		});
+		expect(JSON.stringify(res.warnings)).not.toContain("chk_qty_positive");
+	});
+
+	it("does not warn for English locales or constraints without a message", () => {
+		expect(JSON.stringify(make({ supportedLocales: ["en-US"], message: "Qty must be positive" }).warnings)).not.toContain("chk_qty_positive");
+		expect(JSON.stringify(make({ supportedLocales: ["de-DE"] }).warnings)).not.toContain("chk_qty_positive");
+	});
+
+	it("skips extension entities (foreign module owns the translation)", () => {
+		const res = make({ supportedLocales: ["de-DE"], message: "Qty must be positive", extends: "fin.invoice" });
+		expect(JSON.stringify(res.warnings)).not.toContain("chk_qty_positive");
+	});
+});
+
 describe("module_validate — broken fixture", () => {
 	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-validate-"));
 	mkdirSync(join(dir, "entities"), { recursive: true });

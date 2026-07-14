@@ -133,6 +133,7 @@ For each action:
 - [ ] Has `menus` section matching the `ui/menus.json` structure
 - [ ] Has `actions` section with labels for every action
 - [ ] Has `roles` section with a `label` for **every** role in `security/roles.json` (completeness-enforced — a missing role label fails install; keys are the module-qualified role codes, e.g. `crm.admin`)
+- [ ] (Optional) Constraint messages localized under `entities.<e>.constraints.<c>.message` — opt-in; a missing override for a declared `supportedLocales` entry warns (surfaced by `dforge_module_validate` and at install) but does not fail install
 - [ ] Has `settings` section with labels for every setting (if settings exist)
 - [ ] Has `folders` section with label for the root folder
 - [ ] Additional language files (if any) have the same structure as `en-US.json`

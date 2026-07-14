@@ -39,6 +39,44 @@ const SYSTEM_ENTITY_PK: Record<string, string> = {
 	resource: "resource_id",
 };
 
+/**
+ * Case-insensitively resolve `translations/<locale>.json` — a `de-de.json` file
+ * satisfies a `de-DE` supported locale (matching the server's case-insensitive
+ * translation lookup). Returns the absolute path, or undefined if none exists.
+ */
+function resolveTranslationFile(translationsDir: string, locale: string): string | undefined {
+	const exact = path.join(translationsDir, `${locale}.json`);
+	if (fs.existsSync(exact)) return exact;
+	if (!fs.existsSync(translationsDir)) return undefined;
+	const want = `${locale}.json`.toLowerCase();
+	for (const f of fs.readdirSync(translationsDir)) {
+		if (f.toLowerCase() === want) return path.join(translationsDir, f);
+	}
+	return undefined;
+}
+
+/**
+ * True when the locale JSON carries a non-empty
+ * `entities.<entityCd>.constraints.<constraintCd>.message`.
+ */
+function hasConstraintOverride(
+	root: Record<string, unknown> | null,
+	entityCd: string,
+	constraintCd: string,
+): boolean {
+	if (!root || typeof root !== "object") return false;
+	const entities = (root as { entities?: unknown }).entities;
+	if (!entities || typeof entities !== "object") return false;
+	const entity = (entities as Record<string, unknown>)[entityCd];
+	if (!entity || typeof entity !== "object") return false;
+	const constraints = (entity as { constraints?: unknown }).constraints;
+	if (!constraints || typeof constraints !== "object") return false;
+	const ck = (constraints as Record<string, unknown>)[constraintCd];
+	if (!ck || typeof ck !== "object") return false;
+	const msg = (ck as { message?: unknown }).message;
+	return typeof msg === "string" && msg.trim() !== "";
+}
+
 export function moduleValidate(
 	args: z.infer<z.ZodObject<typeof moduleValidateSchema>>,
 ): ToolResult {
@@ -201,6 +239,68 @@ export function moduleValidate(
 		}
 	} catch {
 		/* roles file unreadable — already covered above */
+	}
+
+	// ── 6. Constraint messages lacking a translation for a declared locale ──
+	// Mirrors the server's install-time UntranslatedConstraint scan (opt-in on
+	// supportedLocales; the base message is always the fallback, so this is a
+	// warning, never an error). English is authoritative and never warned;
+	// extension entities are skipped (their translations belong with the foreign
+	// module). Surfacing it here catches the gap before the slow install round trip.
+	const supportedLocales = Array.isArray(manifest.supportedLocales)
+		? (manifest.supportedLocales as unknown[]).filter((l): l is string => typeof l === "string")
+		: [];
+	if (supportedLocales.length > 0) {
+		// (entity, constraint, base message) for every constraint that declares one.
+		const declared: Array<{ entity: string; constraint: string; message: string }> = [];
+		for (const [name, e] of Object.entries(entities)) {
+			// Extension entities add constraints to another module's entity; the
+			// translation for those lives with the foreign module's files.
+			if (typeof e.extends === "string" && e.extends) continue;
+			const constraints = e.constraints as Record<string, unknown> | undefined;
+			if (!constraints || typeof constraints !== "object") continue;
+			for (const [cname, c] of Object.entries(constraints)) {
+				if (!c || typeof c !== "object") continue;
+				const msg = (c as Record<string, unknown>).message;
+				if (typeof msg === "string" && msg.trim() !== "") {
+					declared.push({ entity: name, constraint: cname, message: msg });
+				}
+			}
+		}
+
+		if (declared.length > 0) {
+			const seen = new Set<string>();
+			for (const raw of supportedLocales) {
+				const locale = raw.trim();
+				if (!locale) continue;
+				// English is the base/fallback — translation files are non-English only.
+				const lc = locale.toLowerCase();
+				if (lc === "en" || lc.startsWith("en-")) continue;
+				if (seen.has(lc)) continue;
+				seen.add(lc);
+
+				// Resolve the locale file case-insensitively (a de-de.json satisfies
+				// a de-DE locale). Absent or malformed → every override is missing.
+				let tx: Record<string, unknown> | null = null;
+				const abs = resolveTranslationFile(paths.translationsDir, locale);
+				if (abs) {
+					try {
+						tx = JSON.parse(fs.readFileSync(abs, "utf8")) as Record<string, unknown>;
+					} catch {
+						tx = null;
+					}
+				}
+
+				for (const d of declared) {
+					if (!hasConstraintOverride(tx, d.entity, d.constraint)) {
+						warn(
+							`translations/${locale}.json`,
+							`constraint message '${d.entity}.constraints.${d.constraint}.message' has no ${locale} override — the base message ("${d.message}") will be used as the fallback. Add entities.${d.entity}.constraints.${d.constraint}.message to localize it.`,
+						);
+					}
+				}
+			}
+		}
 	}
 
 	// ── Result ──

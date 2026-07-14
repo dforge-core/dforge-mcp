@@ -4,6 +4,36 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.7
+
+### Changed
+- Bumped `@dforge-core/dforge-cli` to `^0.2.7`. Picks up the corrected module
+  scaffolder (`buildTranslations` now emits the nested runtime format with the
+  completeness-required `roles` block and opt-in constraint-message localization,
+  replacing the non-functional flat shape) and the native CLI's install-time
+  untranslated-constraint warning.
+
+### Added
+- **`dforge_module_validate` now flags untranslated check/unique constraint
+  messages.** When the manifest declares `supportedLocales`, the validator
+  warns (never errors) for every constraint that declares a `message` but has no
+  `entities.<e>.constraints.<c>.message` override in a declared non-English
+  locale file. This mirrors the server's install-time `UntranslatedConstraint`
+  scan, so authors catch the gap pre-flight instead of at install. English
+  locales and extension entities (`extends`) are skipped; the locale file is
+  matched case-insensitively (`de-de.json` satisfies `de-DE`). Opt-in — modules
+  without `supportedLocales` are not scanned.
+
+### Skill
+- `dforge-mcp-author`: documented **localizable constraint violation messages**.
+  A constraint's `message` in the entity JSON is the base/fallback text; a
+  per-locale override under `entities.<e>.constraints.<c>.message` in
+  `translations/<locale>.json` localizes it (culture fallback: per-locale →
+  base), surfacing identically on the client pre-save validator and the server
+  DB-violation path. Localization is opt-in (warned, not completeness-enforced)
+  (`translations.md`, `formulas.md`, `validation-checklist.md`,
+  `resources/docs/conventions.md`).
+
 ## 0.1.6
 
 ### Skill

@@ -581,6 +581,11 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 				"department_id": { "label": "Department ID" },
 				"department_name": { "label": "Department Name" }
 			}
+		},
+		"employee": {
+			"constraints": {
+				"chk_salary_positive": { "message": "Salary must be positive" }
+			}
 		}
 	},
 	"folders": {
@@ -599,7 +604,9 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 }
 ```
 
-**Translatable sections (consumed by the installer):** `entities` (+ nested `fields`), `folders`, `views`, `menus` (+ nested `items`), `actions` (+ `params`), `reports` (+ `datasets.caption`, `params`).
+**Translatable sections (consumed by the installer):** `entities` (+ nested `fields` and `constraints`), `folders`, `views`, `menus` (+ nested `items`), `actions` (+ `params`), `reports` (+ `datasets.caption`, `params`).
+
+**Constraint violation messages are localizable (opt-in).** The `message` on a check/unique constraint in the entity JSON is the base (fallback) text. To localize it, add a per-locale override under `entities.<entityCd>.constraints.<constraintName>.message` in each `translations/<locale>.json`. The server resolves it with culture fallback (per-locale → base) and it surfaces identically on the client pre-save validator and the server DB-violation path. Unlike labels, constraint overrides are **not** completeness-enforced: a missing override for a declared `supportedLocales` entry emits a **non-fatal warning** (from `dforge_module_validate` pre-flight and at install) and the base message is used as the fallback.
 
 **Silently ignored at runtime:** `roles` and `print_templates` — the resource rows have no `res_id`, so translations are reserved for future use. `settings` is validated for completeness (when listed in `supportedLocales`) but the registrar does not display the translated labels, so don't expect localized output. Display names for these come from the source manifest (`description` for roles, `label` for print templates and settings).
 

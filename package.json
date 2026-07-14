@@ -1,6 +1,6 @@
 {
 	"name": "@dforge-core/dforge-mcp",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"description": "MCP server for dForge module authoring. Exposes scaffold/pack/install tools and schema resources so AI agents (Claude Code, Cursor, Zed) can create and ship dForge modules.",
 	"license": "MIT",
 	"homepage": "https://github.com/iash44/dForge-core",
@@ -31,7 +31,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@dforge-core/dforge-cli": "^0.2.2",
+		"@dforge-core/dforge-cli": "^0.2.7",
 		"@dforge-core/metadata": "^0.0.5",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"zod": "^4.4.3"
