@@ -3,10 +3,11 @@
 // otherwise only surface at pack/install (a slow, tenant-bound round trip).
 //
 // Catches: dangling FK/reference targets, the hidden-FK column missing for a
-// Reference, view dataSources/columns pointing at unknown entities/fields, menu
-// dataViewCode → missing view, role rights keyed on unknown entities/actions/
-// reports, and entities with no Select grant. Returns a structured issue list
-// in `_validate.json` plus a one-line summary; never writes anything.
+// Reference, view dataSources/columns pointing at unknown entities/fields, a
+// grid-style view over an entity with no visible column, menu dataViewCode →
+// missing view, role rights keyed on unknown entities/actions/reports, and
+// entities with no Select grant. Returns a structured issue list in
+// `_validate.json` plus a one-line summary; never writes anything.
 
 import { z } from "zod";
 import * as fs from "node:fs";
@@ -38,6 +39,27 @@ const SYSTEM_ENTITY_PK: Record<string, string> = {
 	menu_item: "menu_item_id",
 	resource: "resource_id",
 };
+
+// View types whose rendering doesn't consume the entity's visible scalar columns,
+// so an empty visible-column set is not an error for them. Mirrors the server's
+// DataViewVisibleColumnValidator.ColumnAgnosticViewTypes and the frontend view
+// registrations that set hasFieldsPanel:false.
+const COLUMN_AGNOSTIC_VIEW_TYPES = new Set(["diagram", "matrix", "library"]);
+
+/**
+ * True when a merged field-def map has at least one VISIBLE SCALAR column — a
+ * field whose `flags` string includes `'V'` and whose `columnType` is not a set
+ * (`'S'`). Mirrors the frontend's `visibleScalarColumns` empty-state check that
+ * the server's DataViewVisibleColumnValidator enforces.
+ */
+function hasVisibleScalarColumn(fields: Record<string, Record<string, unknown>>): boolean {
+	for (const f of Object.values(fields)) {
+		if (!f || typeof f !== "object") continue;
+		const flags = typeof f.flags === "string" ? f.flags : "";
+		if (flags.includes("V") && f.columnType !== "S") return true;
+	}
+	return false;
+}
 
 /**
  * Case-insensitively resolve `translations/<locale>.json` — a `de-de.json` file
@@ -89,6 +111,10 @@ export function moduleValidate(
 	const entityMap = (manifest.entities ?? {}) as Record<string, string>;
 	const entities: Record<string, Record<string, unknown>> = {};
 	const columnsOf: Record<string, Set<string>> = {};
+	// Merged field defs per entity (authored fields override trait-contributed
+	// ones on key collision) — mirrors the server running the visible-column
+	// check AFTER trait expansion, so a trait's 'V' field counts.
+	const fieldDefsOf: Record<string, Record<string, Record<string, unknown>>> = {};
 
 	for (const [name, relPath] of Object.entries(entityMap)) {
 		if (name.includes(".")) continue; // cross-module extension key — not authored here
@@ -105,15 +131,19 @@ export function moduleValidate(
 			continue;
 		}
 		entities[name] = e;
-		const fields = (e.fields as Record<string, unknown> | undefined) ?? {};
+		const fields = (e.fields as Record<string, Record<string, unknown>> | undefined) ?? {};
 		const cols = new Set<string>(Object.keys(fields));
+		let traitFields: Record<string, Record<string, unknown>> = {};
 		const traits = (e.traits as string[] | undefined) ?? [];
 		try {
-			for (const c of Object.keys(expandTraits(traits, name))) cols.add(c);
+			traitFields = expandTraits(traits, name) as Record<string, Record<string, unknown>>;
+			for (const c of Object.keys(traitFields)) cols.add(c);
 		} catch {
 			/* unknown trait — surfaced separately by add-time validation */
 		}
 		columnsOf[name] = cols;
+		// Trait fields first, authored fields last so an authored override wins.
+		fieldDefsOf[name] = { ...traitFields, ...fields };
 	}
 
 	// A dotted code (cross-module entity, e.g. 'fin.invoice') is only valid if its
@@ -189,6 +219,37 @@ export function moduleValidate(
 					err(`data_views → ${vcode}`, `column '${cc}' is not a field on entity '${ent}'`);
 				}
 			}
+		}
+	}
+
+	// ── 2b. Data view renders a field grid over an entity with no visible column ──
+	// Mirrors the server's DataViewVisibleColumnValidator: a grid-style view over
+	// an own-module entity that has no VISIBLE SCALAR column (a field whose flags
+	// include 'V' and whose columnType isn't a set 'S') renders the runtime empty
+	// state "No visible columns configured for this entity." Column-agnostic view
+	// types (diagram/matrix/library — hasFieldsPanel:false) are exempt. Cross-module
+	// entities can't be inspected offline, so they're skipped. Erroring here catches
+	// it before the slow pack/install round trip.
+	const vcSeen = new Set<string>();
+	for (const [vcode, v] of Object.entries(views)) {
+		const sources = (v.dataSources as Array<Record<string, unknown>> | undefined) ?? [];
+		if (sources.length === 0) continue;
+		// viewType defaults to grid (a checked type) when unset.
+		const viewType = (v.viewType as string | undefined) ?? "grid";
+		if (COLUMN_AGNOSTIC_VIEW_TYPES.has(viewType)) continue;
+		for (const s of sources) {
+			const ent = s.entityCode as string | undefined;
+			if (!ent) continue;
+			const defs = fieldDefsOf[ent]; // undefined for system/cross-module entities — skip
+			if (!defs) continue;
+			if (hasVisibleScalarColumn(defs)) continue;
+			const key = `${vcode}\u0000${ent}`;
+			if (vcSeen.has(key)) continue;
+			vcSeen.add(key);
+			err(
+				`data_views → ${vcode}`,
+				`view (${viewType}) renders entity '${ent}', which has no visible column — mark at least one of its fields visible with the 'V' flag (set columns / columnType 'S' don't count for a grid)`,
+			);
 		}
 	}
 
