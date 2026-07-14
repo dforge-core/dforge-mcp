@@ -134,6 +134,8 @@ Check constraints use a subset of the formula grammar. The server parses them to
 [email] LIKE '%@%'
 ```
 
+The constraint's `message` (the violation text shown to users) is **localizable** — add a per-locale override at `entities.<entityCd>.constraints.<constraintName>.message` in each `translations/<locale>.json`. The base `message` in the entity JSON is the fallback. See `translations.md` → "Constraint violation messages ARE translatable".
+
 ## Examples — full formula columns
 
 ### Full name

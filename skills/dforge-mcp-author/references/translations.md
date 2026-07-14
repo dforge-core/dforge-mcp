@@ -84,6 +84,26 @@ Translation files mirror the module's content structure. Each translatable objec
 | `menus` | Menu node labels (root + nested items) | Menu root key → `{ label, items: { item_code: { label } } }` matching `ui/menus.json` structure |
 | `actions` | Action labels, descriptions, and param labels | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label } } }` |
 | `reports` | Report dataset captions and param labels | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label } } }` |
+| `entities.<e>.constraints` | Check/unique constraint violation messages (opt-in — warned, not enforced) | Constraint codes → `{ message }` under the owning entity |
+
+### Constraint violation messages ARE translatable (opt-in)
+
+A check/unique constraint declares a user-facing `message` in the entity JSON (`constraints.<name>.message`). That message is the **base/fallback text**. To localize it, add a per-locale override under `entities.<entityCd>.constraints.<constraintName>.message`:
+
+```json
+"entities": {
+    "employee": {
+        "constraints": {
+            "chk_salary_positive": { "message": "Gehalt muss positiv sein" },
+            "UQ_employee_code":    { "message": "Mitarbeiter-Code muss eindeutig sein" }
+        }
+    }
+}
+```
+
+- The server resolves the message with culture fallback — **per-locale override → base message from the entity JSON**. `EntityMetadataLoader` reads `COALESCE(culture_res.label, resource.label, entity_constrains.description)`, so the same override surfaces on the client pre-save `CheckConstraints` validator and the server DB-violation (23514) path.
+- **Opt-in, never mandatory** (unlike roles/labels, which completeness *enforces*). If the manifest lists `supportedLocales` and a constraint `message` has no override for one of those (non-English) locales, install emits a **non-fatal warning** naming the missing `entities.<e>.constraints.<c>.message` keys (printed by the CLI, returned in the marketplace install response). Install still commits with the base message as the fallback. `dforge_module_validate` surfaces the same gap pre-flight as a warning.
+- Only constraints that declare a `message` are scanned; English (`en`/`en-*`) is the base and is never warned; extension entities (`"extends": "..."`) are skipped — their constraint translations belong with the foreign module's files.
 
 ### Roles ARE translated — and completeness is enforced
 
@@ -173,6 +193,7 @@ Every listed locale MUST have a matching `translations/<locale>.json` with a lab
 6. **Missing keys fall back** to the `en-US` value, then to the raw code name. So it's safe to ship partial translations — untranslated items show in English rather than breaking.
 7. **Don't translate column codes** — only the `label` values. Codes stay as-is in all languages.
 8. **File naming**: `translations/<locale>.json` (e.g. `de-DE.json`) — each non-English file must match a locale listed in `supportedLocales`.
+9. **Constraint messages are opt-in** — localize them under `entities.<e>.constraints.<c>.message` when you want a per-locale violation message; otherwise the base `message` from the entity JSON is used. Missing overrides warn (non-fatal), they don't fail install. See "Constraint violation messages ARE translatable" above.
 
 ## When to create translations
 
