@@ -107,7 +107,8 @@ var note = params[note]             // no quotes around param name in this DSL
 |---|---|---|
 | `insert('entity', { field: value, … })` | Inserted row object | Insert a new record. Returns the full row including auto-filled columns (PK, audit, number sequences). Access returned fields with `result.field_name`. |
 | `query('SQL', { arg: value })` | Array of row objects | Execute parameterized SQL. Use `@argName` placeholders. Schema-qualified table names (`crm.contact`). Access row fields with `row.field_name` or `row['field_name']`. |
-| `getRecord('entity', id)` | Row object | Fetch a single record by primary key. |
+| `getRecord('entity', key)` | Row object | Fetch a single record by key (qualified `module.entity` supported). `key` is a scalar PK or an object for a compound key (`{ col_a: 1, col_b: 'x' }`). Access fields with `rec.field_name` (or `rec.get('field_name')`). **Throws** a localized "not found" error if absent. |
+| `getRecordOrNull('entity', key)` | Row object or `null` | Like `getRecord`, but returns `null` instead of throwing when the row is absent — use for an expected-absence lookup, guarded with `if (rec == null)`. |
 | `preloadRef('fk_column')` | Row object | Load the referenced record for a FK column. Access its fields with `ref.get('field')`. |
 
 ### Messaging

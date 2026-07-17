@@ -53,10 +53,12 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 
 ## Binary / file
 
-| `fieldTypeCd` | `baseDatatypeCd` | Description | Params |
-|---|---|---|---|
-| `file` | `binary` | Arbitrary file upload. | `accept`, `maxSize` |
-| `image` | `binary` | Image upload with preview. | `maxSize`, `dimensions` |
+> **Stored as `jsonb`, not `bytea`.** Despite the `binary` base datatype, a `file`/`image` column holds a JSON metadata reference (`{ storagePath, fileName, … }`) — the bytes live in file storage. The field tools derive `jsonb`; do **not** set `dbDatatype: "bytea"`.
+
+| `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |
+|---|---|---|---|---|
+| `file` | `binary` | Arbitrary file upload. | `jsonb` | `accept`, `maxSize` |
+| `image` | `binary` | Image upload with preview. | `jsonb` | `maxSize`, `dimensions` |
 
 ## Reference / lookup / set
 

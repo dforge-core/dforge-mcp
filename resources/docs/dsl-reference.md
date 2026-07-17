@@ -168,13 +168,26 @@ var po = insert('purchase_order', { supplier_id: params[supplier].supplier_id })
 insert('po_line', { po_id: po.purchase_order_id, product_id: [product_id], qty: 1 })
 ```
 
-#### `getRecord(entityCd, id) → record | null`
-Fetch a single record by PK. Returns null if not found.
+#### `getRecord(entityCd, key) → record`
+Fetch a single record by key. **Throws** a localized "not found" error if no row
+matches — the safe default for a lookup that should always resolve (e.g. an FK you
+just read). Fields are readable by dot notation (`rec.name`) or `rec.get('name')`.
+`key` is a scalar PK, or an object for a compound key: `getRecord('gl.tag', { tag_group: 'REGION', tag_code: 'EU' })`.
+The result is a **read-only** snapshot — writing to it (`rec.set(...)`) throws; use
+`update()` to persist. A null key value can't match, so it counts as not-found.
 
 ```dsl
 var rec = getRecord('crm.customer', [customer_id])
-if (rec == null) { error('Customer not found') }
 info('Customer: ' + rec.name + ' — credit limit $' + rec.credit_limit)
+```
+
+#### `getRecordOrNull(entityCd, key) → record | null`
+Same as `getRecord`, but returns `null` instead of throwing when the row is absent —
+use it when a missing record is an expected outcome (optional lookup, upsert probe).
+
+```dsl
+var existing = getRecordOrNull('crm.customer', [customer_id])
+if (existing == null) { insert('crm.customer', { customer_id: [customer_id], name: [name] }) }
 ```
 
 #### `callProc(name, args?) → record`
