@@ -472,6 +472,16 @@
 						"field": { "type": "string" }
 					},
 					"additionalProperties": false
+				},
+				"onDelete": {
+					"type": "string",
+					"enum": ["cascade", "setNull", "restrict", "noAction"],
+					"description": "FK ON DELETE behaviour. Default (omitted) = noAction (plain FK). 'cascade' deletes children with the parent; 'setNull' nulls the FK column (must be nullable)."
+				},
+				"onUpdate": {
+					"type": "string",
+					"enum": ["cascade", "setNull", "restrict", "noAction"],
+					"description": "FK ON UPDATE behaviour. Default (omitted) = noAction. Fires when a parent's key value changes — a no-op for immutable cuid PKs, but useful for entities keyed on a natural/mutable PK."
 				}
 			},
 			"additionalProperties": false

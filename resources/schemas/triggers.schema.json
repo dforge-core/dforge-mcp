@@ -50,7 +50,7 @@
 				"async": {
 					"type": "boolean",
 					"default": false,
-					"description": "When true, the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls). When false, the action runs in the same transaction; failures roll back the original DB change."
+					"description": "When true, the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls); background failures are logged, not surfaced to the caller. When false, the action runs synchronously inside the same transaction as the triggering insert/update/delete: if the action fails (e.g. calls error()), the whole mutation rolls back and the error is returned to the caller. Keep async:false actions fast — they run on the request's transaction."
 				}
 			},
 			"additionalProperties": false
