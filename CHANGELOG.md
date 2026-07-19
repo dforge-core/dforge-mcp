@@ -4,6 +4,60 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.10
+
+### Schema
+- **`entity.schema.json`: `references` gains `onDelete` / `onUpdate`.** Both
+  accept `cascade` | `setNull` | `restrict` | `noAction` (omitted = `noAction`,
+  a plain FK). `setNull` requires a nullable FK column; `onUpdate` is a no-op for
+  immutable `cuid` PKs but matters for entities keyed on a natural/mutable PK.
+  The keys were already documented in the skill (0.1.6) but rejected by the
+  vendored schema — `dforge_module_validate` now accepts them.
+- **`triggers.schema.json`: clarified `async` semantics.** The description now
+  spells out that `async: false` runs the action *synchronously inside the
+  triggering transaction* (an `error()` rolls the whole mutation back and
+  surfaces to the caller), while `async: true` commits first and only logs
+  failures — so `async: false` actions must stay fast.
+
+### Skill
+- `dforge-mcp-author`: **corrected roll-up totals — use a Generated (`G`) column,
+  not a Formula (`F`) column.** Previous guidance (0.1.x) told authors to put
+  `SUM([set].[field])` in an `F` column; the formula runtime has no
+  `SUM`/`COUNT`/`AVG` and its nav resolution only walks single-hop N:1
+  references, so an `F` set-aggregate **silently renders empty** with no error.
+  The correct shape is a `G` column with `dbDatatype` + `formula` (no `link` /
+  `baseDatatypeCd`), which the installer maintains with a DB trigger on the child
+  table — stored, so it is filterable and sortable. The pre-existing rule still
+  holds: aggregate only a **physical** child column (`D`, or a same-row `G`);
+  a virtual `F`/`R`/`S` child fails install with
+  `db_error: column old.<field> does not exist`. Also documents the supported
+  aggregates (`SUM`/`COUNT`/`AVG`/`MIN`/`MAX`), empty-set results (`SUM`/`COUNT`
+  → `0`; `MIN`/`MAX`/`AVG` → `NULL`), the same-set restriction, and that
+  `COUNT(*)` is rejected in favour of `COUNT([lines])`
+  (`column-types.md`, `formulas.md`, `SKILL.md`, `validation-checklist.md`).
+
+## 0.1.9
+
+### Changed
+- Bumped `@dforge-core/metadata` to `^0.0.8` (re-vendored schemas).
+
+### Skill
+- `dforge-mcp-author`: documentation updates to the action-DSL and field-type
+  references (no tool/behavior changes).
+  - **`getRecord` throws; `getRecordOrNull` is the nullable variant.** Corrected
+    the docs: `getRecord(entityCd, key)` raises a localized "not found" error
+    instead of returning `null`, so the old `if (rec == null)` guard was dead
+    code — use `getRecordOrNull(entityCd, key)` when absence is an expected
+    outcome (optional lookup, upsert probe). Also documents compound keys
+    (`getRecord('gl.tag', { tag_group: 'REGION', tag_code: 'EU' })`), dot /
+    `.get()` field access, and that the returned snapshot is **read-only**
+    (`dsl-reference.md`, `action-dsl.md`).
+  - **`file` / `image` columns are stored as `jsonb`, not `bytea`.** Despite the
+    `binary` base datatype, the column holds a JSON metadata reference
+    (`{ storagePath, fileName, … }`) while the bytes live in file storage — the
+    field tools derive `jsonb`, so never set `dbDatatype: "bytea"`
+    (`field-types.md`).
+
 ## 0.1.8
 
 ### Added
