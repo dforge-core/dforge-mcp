@@ -7,7 +7,7 @@ Run through this checklist **before** declaring a module complete. Always start 
 These five have each caused a real install failure. Check them before the section-by-section pass:
 
 - [ ] **DSL dates** — `execute:` blocks use lowercase `now()`, never `TODAY()`/`NOW()` (formula-only; otherwise install fails `'TODAY' is not defined`)
-- [ ] **Roll-up totals** — a sum over a child set is a Formula (`F`) column with `SUM([set].[field])`, **not** a Generated (`G`) column over a virtual `F`/`R`/`S` child (otherwise `db_error: column old.<field> does not exist`)
+- [ ] **Roll-up totals** — a sum over a child set is a Generated (`G`) column with `SUM([set].[field])` (`dbDatatype` + `formula`, no `link`/`baseDatatypeCd`), **not** a Formula (`F`) column (an `F` set-aggregate silently renders empty). The aggregated child column must be physical (`D` or same-row `G`) — never a virtual `F`/`R`/`S` child (otherwise `db_error: column old.<field> does not exist`)
 - [ ] **Rights keys** — actions/reports/folders use a **colon** (`action:x`, `report:x`, `folder:x`); entities bare or cross-module-dotted; deny by omitting the key, never `""`
 - [ ] **Manifest** — no `translations` key (auto-discovered; non-English locales go in `supportedLocales`)
 - [ ] **Column defaults** — set via `formula` / `numberSequence` / DSL, never a `defaultValue` key on an entity field

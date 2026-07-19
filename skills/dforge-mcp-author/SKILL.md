@@ -110,7 +110,7 @@ Always-on cheat-sheet — enough to author inline; load the linked `references/*
 - **Flags** = letters from `V I E M H` only (no `U`/`S`/`P`): `VEM` required+visible, `VE` optional+visible, `V` read-only, `EM` hidden FK, `I` trait-provided. → `flags.md`
 - **Field types:** `fieldTypeCd` = UI control, `dbDatatype` = SQL type. **Omit `dbDatatype` on plain data columns — it's derived from `fieldTypeCd`** (`currency` → `numeric(18,2)`, `text` → `varchar`). Only set it for a **hidden FK** (no `fieldTypeCd`, so use the target PK type `cuid`) or to override size/precision. When you do set it: never the same as `fieldTypeCd`, and never `"number"` (use `int`/`bigint`/`numeric`). Common `fieldTypeCd` fixes: `number` not `integer`/`float`, `phone` not `phoneNumber`, `date` not `datePicker`. Common `dbDatatype` fixes: `timestamptz` not `datetime`/`timestamp`, `bool` not `boolean`, `varchar`/`text` not `string`. (Invalid `fieldTypeCd`/`columnType` are now rejected at authoring time.) → `field-types.md`
 - **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, no `dbDatatype`, `flags: "V"`. → `formulas.md`
-- **Roll-up totals** over a child set → Formula `F` with `SUM([set].[field])` (query-time). Never a Generated `G` column aggregating a virtual `F`/`R`/`S` child — its DB trigger reads `OLD.<field>` and install fails (`column old.<field> does not exist`). → `column-types.md`
+- **Roll-up totals** over a child set → Generated `G` column with `SUM([set].[field])` (`dbDatatype` + `formula`, no `link`/`baseDatatypeCd`); the installer maintains it with a DB trigger. **Not** a Formula `F` — an `F` set-aggregate is unsupported and silently renders empty. Aggregate only a **physical** child column (`D` or same-row `G`); a virtual `F`/`R`/`S` child fails install (`column old.<field> does not exist`). → `column-types.md`
 - **Column defaults:** entity *data* columns have **no** `defaultValue`/`default` key. Set a default via a formula (`"formula": "TODAY()"`, `"formula": "'draft'"`) or in action/trigger logic. `defaultValue` is **settings-only**. → `field-types.md`
 - **Traits:** default `["identity", "audit"]`; `audit-full` (when the user needs *who*-tracking) adds required `created_by`/`last_updated_by` with no default — if such an entity is **seeded**, set both to the System user `0` in every record, or don't seed it. → `traits.md`
 - **`toString`:** every entity needs one, `{column}` braces, e.g. `"{first_name} {last_name}"`.
@@ -209,7 +209,7 @@ Push back on verb-less answers ("admins and users" → "What does an admin do th
 2. Every action's `canExecute` guard references a status value that exists in that entity's options list.
 3. Every seed record's FK references a parent entity that also has seed data (referential integrity in load order).
 4. Every formula column uses only fields that exist on the same entity or a directly referenced entity (exactly 1 FK hop). Transitive references (2+ hops) are async and must have been flagged in the Phase 0c gap scan.
-5. Any `SUM([set].[field])` formula is flagged as version-dependent.
+5. Any set aggregate (`SUM`/`COUNT`/`AVG`/`MIN`/`MAX` over `[set].[field]`) is a Generated (`G`) column — never a Formula (`F`) column (an `F` set-aggregate silently renders empty) — and aggregates only a **physical** child column (`D` or same-row `G`), never a virtual `F`/`R`/`S` child.
 6. Every seeded entity handles audit traits: if it uses `audit-full`, every seed record sets `created_by`/`last_updated_by` to the System user `0` (else use `audit` / don't seed it) — `audit-full`'s required user columns otherwise fail seed install.
 
 Once all checks pass, present a brief summary (entity count, action count) and ask for final confirmation before calling `dforge_module_create`.
@@ -380,7 +380,7 @@ Load `dforge://reference/validation-checklist`. Run through **every section** in
 **Top install-blockers — scan these first** (each is a documented real install failure the platform validator rejects):
 
 1. **DSL dates:** `execute:` blocks use lowercase `now()`; never `TODAY()`/`NOW()` (formula-only → `'TODAY' is not defined`).
-2. **Roll-ups:** a total over a child set is a Formula (`F`) column with `SUM([set].[field])` — never a Generated (`G`) column aggregating a virtual `F`/`R`/`S` child (→ `db_error: column old.<field> does not exist`).
+2. **Roll-ups:** a total over a child set is a Generated (`G`) column with `SUM([set].[field])` (`dbDatatype` + `formula`) — never a Formula (`F`) column (an `F` set-aggregate silently renders empty). Aggregate only a **physical** child column (`D` or same-row `G`); a virtual `F`/`R`/`S` child fails install (→ `db_error: column old.<field> does not exist`).
 3. **Rights keys:** actions/reports/folders use a **colon** (`action:x`, `report:x`, `folder:x`); entities are bare or cross-module-dotted; deny by omitting the key, never `""`.
 4. **Manifest:** no `translations` key (translation files auto-discovered; non-English locales → `supportedLocales`).
 5. **Column defaults:** set via `formula` / `numberSequence` / DSL — never a `defaultValue` key on an entity field.

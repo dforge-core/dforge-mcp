@@ -83,19 +83,32 @@ FORMAT([created_date], "yyyy-MM-dd")
 - `NULLIF(a, b)` — null if equal, else a
 - `ISNULL(x)` — boolean null check
 
-### Aggregation (on set columns)
+### Aggregation over a child set — use a Generated (`G`) column, not `F`
 
-- `COUNT([set_column])` — count related rows
-- `SUM([set_column].[field])` — sum a child field over a set
+- `SUM([set].[field])` — sum a child field over a set
+- `COUNT([set])` — count related rows (`COUNT(*)` is rejected)
 - `AVG`, `MIN`, `MAX` similarly
 
-Put set aggregations in a **Formula (`F`) column** — they evaluate at query time and may reference
-any child column, including the child's own formula columns, e.g. `SUM([lines].[line_total])`.
+> ⚠️ **Set aggregation is NOT a Formula (`F`) feature.** `SUM([set].[field])` in an `F` column is
+> unsupported by the engine — the formula runtime has no `SUM`/`COUNT`/`AVG`, and nav resolution
+> only walks single-hop N:1 references, never a 1:N set. It silently renders **empty** (no error).
 
-> ⛔ Do **not** put a `SUM([set].[field])` in a **Generated (`G`)** column unless `field` is a
-> *physical* (`D`) column. A `G` aggregate is maintained by a DB trigger that reads the child's
-> `OLD`/`NEW` physical values; aggregating a virtual `F` child fails at install with
-> `db_error: column old.<field> does not exist`. See `column-types.md` → "Roll-up totals over child rows".
+Put set aggregations in a **Generated (`G`) column** instead. The installer detects the set
+navigation and maintains the value with a database trigger on the child table. The aggregated
+child column must be **physical** (a `D` column, or a same-row `G`) — never a virtual `F`/`R`/`S`
+column, which fails at install with `db_error: column old.<field> does not exist`. Full details
+and the JSON shape: `column-types.md` → "Roll-up totals over child rows — use `G`, not `F`".
+
+```json
+"total_amount": {
+    "columnType": "G",
+    "dbDatatype": "numeric(18,2)",
+    "formula": "SUM([lines].[amount])",
+    "flags": "V",
+    "orderNum": 90,
+    "description": "Total Amount"
+}
+```
 
 ## Navigation (dot notation)
 
