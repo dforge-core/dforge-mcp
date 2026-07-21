@@ -5,16 +5,9 @@ binary `.xlsx` directly — decode it first, then reason over the result.
 
 ## Flow
 
-1. **Extract the sheets to a JSON model.** Load the bundled extractor resource
-   `dforge://script/xlsx-to-model`, write it to a temp file, and run it:
-
-   ```bash
-   python3 /tmp/xlsx_to_model.py "<path/to/file.xlsx>"
-   ```
-
-   It needs only Python 3 (pure standard library — no `pip install`). It prints
-   `{"sheets":[{"name":..,"headers":[..],"rows":[[..],..]}]}`. If it prints
-   `{"error":..}` (e.g. Python missing), fall back: ask the user to export each
+1. **Extract the sheets to a JSON model.** Call `dforge_xlsx_extract({ filePath: "<absolute/path/to/file.xlsx>" })`.
+   It returns `{"sheets":[{"name":..,"headers":[..],"rows":[[..],..]}]}`.
+   If it errors with "Python 3 not found", fall back: ask the user to export each
    sheet as **CSV** (CSV is plain text — read it directly).
 
 2. **Turn the model into a table-spec.** For each sheet:
