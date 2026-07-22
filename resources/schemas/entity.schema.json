@@ -120,10 +120,10 @@
 				"fieldTypeCd": {
 					"type": "string",
 					"enum": [
-						"text", "email", "phone", "url", "textarea", "number", "currency", "percent",
+						"text", "avatar", "email", "phone", "url", "textarea", "number", "currency", "percent",
 						"checkbox", "date", "datetime", "time",
 						"dropdown", "flags", "tags", "json", "hidden", "color", "image", "file",
-						"richtext", "lookup", "user", "grid", "entitylink", "code"
+						"markdown", "richtext", "lookup", "user", "grid", "list", "entitylink", "code"
 					],
 					"description": "UI field type code from field_type table"
 				},
@@ -210,7 +210,7 @@
 					"description": "On a self-referencing reference column (R column whose link.entity is the owning entity), set true to ALLOW parent/child cycles. When absent the self-reference is treated as an acyclic hierarchy and DB-level guards reject loops. Ignored on non-self-referencing columns."
 				},
 				"refFilter": {
-					"description": "Filter criteria for reference lookups"
+					"description": "Filter criteria for reference lookups. Condition values support @[field] placeholders resolved against the current record at lookup time (e.g. {\"c\":\"channel\",\"o\":\"eq\",\"v\":\"@[channel]\"} narrows options to rows matching the record's own channel); a condition whose placeholder is unset is dropped rather than matching nothing."
 				}
 			},
 			"oneOf": [

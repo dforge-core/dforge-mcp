@@ -15,11 +15,13 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |
 |---|---|---|---|---|
 | `text` | `string` | Single-line text | `varchar` (with `maxLen`) | `maxLen` |
+| `avatar` | `string` | Person/company name rendered as an initials circle; optional photo. | `varchar` | `imageColumn` (an `image` column on the same entity to use as the photo) |
 | `email` | `string` | Email address. Client-side format validation. | `varchar` 250 | — |
 | `phone` | `string` | Phone/telephone. | `varchar` 50 | — |
 | `url` | `string` | Web URL. | `varchar` 500 | — |
 | `textarea` | `string` | Multi-line plain text. | `text` | `defaultLines`, `maxLines` |
-| `richtext` | `string` | Rich text editor (HTML). | `text` | — |
+| `markdown` | `string` | Markdown editor (Write/Preview tabs), rendered sanitized. | `text` | — |
+| `richtext` | `string` | Rich text WYSIWYG editor, stores sanitized HTML. | `text` | — |
 | `code` | `string` | Code editor with syntax highlighting. | `text` | `language` |
 | `dropdown` | `string` | Fixed list of options. | `varchar` | `options: ["a","b",…]` or `[{value,label,icon,color}]` |
 | `flags` | `string` | Multiple checkboxes with letter flags. | `varchar` | `optionSets`, `style: "buttons"` |
@@ -67,6 +69,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `lookup` | `guid` | `R` | Reference to another entity (always paired with a hidden FK column — see SKILL.md "FK+Reference pattern") |
 | `user` | `cuid` | `D` | User picker. Writes a user ID directly, no paired FK needed. |
 | `grid` | `set` | `S` | Detail grid of related records (1:N backwards reference). Used with `link` declaring the relation. |
+| `list` | `set` | `S` | Detail list — same 1:N set as `grid`, rendered as a card list instead of a table. |
 | `entitylink` | `json` | `D` | Polymorphic link to any entity (stores `{entity, id}` pair). Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in (see `action-dsl.md`). |
 
 ## JSON
@@ -137,7 +140,8 @@ These are the field type names LLMs tend to invent. **They are all wrong.**
 | `picture`, `photo` | `image` |
 | `attachment` | `file` |
 | `multiline` | `textarea` |
-| `richText`, `markdown` | `richtext` |
+| `md` | `markdown` |
+| `richText`, `wysiwyg`, `html` | `richtext` |
 | `userPicker` | `user` |
 | `phoneNumber` | `phone` |
 

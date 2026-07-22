@@ -130,9 +130,12 @@ execute:
 
 ---
 
-## Built-in functions (30)
+## Built-in functions
 
 All exposed by `ActionScriptEngine.cs` as host globals — no `import` needed.
+
+> **Entity codes: always qualify** (`'comm.message'`, not `'message'`) in every data
+> built-in, even inside the owning module.
 
 ### Database & data
 
@@ -167,6 +170,46 @@ The returned record can be passed to a subsequent `insert()` for FK chaining:
 var po = insert('purchase_order', { supplier_id: params[supplier].supplier_id })
 insert('po_line', { po_id: po.purchase_order_id, product_id: [product_id], qty: 1 })
 ```
+
+#### `select(entityCd, opts?) → array`
+Structured multi-row read — the counterpart to `insert()`/`update()`/`delete()`; prefer
+it over `query()` for row-shaped reads. `opts` (all optional): `columns` (paths; a
+one-hop nav path `'ref.target as alias'` LEFT JOINs the referenced entity; formula
+columns translate to SQL; default = all physical columns), `filter` (canonical
+`{c,o,v}`/`{g,i}` filter JSON, nav paths allowed), `orderBy` (`'-'` prefix =
+descending; default = PK), `limit`, `offset`. **Fail-loud:** an unknown column,
+operator, or nav path throws instead of silently dropping the condition. Hits the
+table directly (no folder row-filter / column security); a plain reference (`R`)
+column can't be selected or string-filtered — use the FK column or a nav path.
+`query()` remains the escape hatch (aggregates, multi-hop joins, CTEs, `FOR UPDATE`).
+
+```dsl
+var queued = select('comm.message', {
+    columns: ['message_id', 'to_addr', 'to_point.value as point_value', 'subject'],
+    filter: { g: 'and', i: [
+        { c: 'status', o: '=', v: 'queued' },
+        { c: 'channel', o: '=', v: 'email' }
+    ] },
+    orderBy: ['message_id'],
+    limit: 10
+})
+```
+
+#### `update(entityCd, key, fields) → int`
+Update the row(s) matched by `key`; returns rows affected. Refreshes update-phase
+server defaults (audit `last_updated` / `last_updated_by`) and coerces values like
+`insert()`. `key` is a scalar PK (`update('task', 42, {…})`) or an object
+(`{ task_id: 42 }`; multiple entries for a compound key). Scalar string ids are
+coerced to the PK storage type (snowflake-as-string binds `int8`). A null key
+**throws**; array keys are rejected — loop and mutate per id.
+
+```dsl
+update('comm.message', msg.message_id, { status: 'sent', sent_at: now() })
+```
+
+#### `delete(entityCd, key) → int`
+Delete the row(s) matched by `key`; returns rows affected. Same key shapes and
+rules as `update()`.
 
 #### `getRecord(entityCd, key) → record`
 Fetch a single record by key. **Throws** a localized "not found" error if no row
@@ -375,6 +418,17 @@ if (!result.isValid) { error('Validation failed: ' + result.errors[0]) }
 ```
 
 ### Utility
+
+#### `entityLink(entityCd, record, description?) → link value`
+Build a clickable link to any entity record for storing in an `entitylink` (jsonb)
+column. `record` is a row object (e.g. from `insert()` / `getRecord()`); its PK
+columns are stored as **strings** so snowflake/cuid ids > 2^53 stay exact. Optional
+`description` sets the display text.
+
+```dsl
+var task = insert('workspace.task', { title: 'Follow up' })
+insert('workspace.task_note', { link: entityLink('workspace.task', task, task.title) })
+```
 
 #### `flush()`
 Commit pending changes mid-script AND broadcast SSE updates to connected clients. **Async / background actions only** — in sync actions, everything commits at the end automatically.

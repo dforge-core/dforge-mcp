@@ -62,7 +62,7 @@ Scheduled actions run with **no record bound**. Specifically:
 - `notify()` writes to inbox only (no live SSE in Phase 1)
 - `sendEmail()` raw mode only in Phase 1
 
-**Record context is forbidden.** The install pipeline rejects any action whose compiled DSL references `[field]` or `for x in records { … }` — those compile to `__r.` / `__records.` which would `ReferenceError` at fire time. Refactor to operate via `query()` / `insert()`:
+**Record context is forbidden.** The install pipeline rejects any action whose compiled DSL references `[field]` or `for x in records { … }` — those compile to `__r.` / `__records.` which would `ReferenceError` at fire time. Refactor to operate via `select()` / `insert()` / `update()`:
 
 ```
 execute:
@@ -132,7 +132,7 @@ Full source: [`modules/chore/`](../../../modules/chore/).
 ## Common mistakes
 
 - **Cross-module action reference.** A job in `crm` cannot reference an action in `fin`. Declare a thin `crm.run_fin_thing` action in your own module and bind the job to that.
-- **Record-bound action.** Any `[field]` or `for x in records` in the DSL fails install — the action has no record at fire time. Refactor to `query()`/`insert()`.
+- **Record-bound action.** Any `[field]` or `for x in records` in the DSL fails install — the action has no record at fire time. Refactor to `select()`/`insert()`/`update()`.
 - **Missing `timeout`.** Required, no default. Pick 30 s if you don't know; bump when you have evidence.
 - **`timeout > 300` without `class: "long_running"`.** Install fails. Heavy jobs are an explicit opt-in.
 - **Sub-minute cron.** The scheduler ticks every 60 s. Anything finer is dishonest — declare a minute cron.

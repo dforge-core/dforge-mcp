@@ -562,7 +562,7 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 - `schedule` — five fields, minute granularity (sub-minute schedules are rejected at install)
 - `timeout` — required, in seconds, range `(0, 3600]`
 - `timeout > 300` requires `"class": "long_running"` (the standard pool is capped at 300s)
-- Referenced action must NOT use `[field]` or `for x in records` — scheduled fires have no record context. Install fails fast if it does. Use `query()` / `insert()` for table-level work.
+- Referenced action must NOT use `[field]` or `for x in records` — scheduled fires have no record context. Install fails fast if it does. Use `select()` / `insert()` / `update()` for table-level work.
 - Max 50 jobs per module
 - Optional `timeZone` (IANA name) overrides `auth.tenant.time_zone` for that job
 - Use `paused: true` to freeze a job during incidents — admin "Run now" still works while the cron path is silent

@@ -274,7 +274,7 @@ For each trigger, propose: entity + event + (optional) condition formula + targe
 Load the "scheduled job" row from the Loading policy table (`dforge://reference/jobs` + `dforge://schema/jobs`).
 
 Constraints baked into the tool:
-- Action MUST NOT use record-context (`[field]`) syntax — jobs run as system user with NO current record. Wrap any record-context action in a thin job-friendly action that uses `query()` to fetch the records it needs.
+- Action MUST NOT use record-context (`[field]`) syntax — jobs run as system user with NO current record. Wrap any record-context action in a thin job-friendly action that uses `select()` (or `query()`) to fetch the records it needs.
 - `timeout` is required, ≤ 3600s.
 - If `timeout > 300`, you MUST set `jobClass: 'long_running'`.
 

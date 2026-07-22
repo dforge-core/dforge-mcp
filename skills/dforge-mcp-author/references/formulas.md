@@ -70,10 +70,15 @@ FORMAT([created_date], "yyyy-MM-dd")
 
 - `TODAY()` — current date
 - `NOW()` — current datetime with timezone
-- `YEAR(d)`, `MONTH(d)`, `DAY(d)` — date parts
+- `YEAR(d)`, `MONTH(d)`, `DAY(d)` — date parts (`MONTH` is 1-based)
 - `HOUR(dt)`, `MINUTE(dt)`, `SECOND(dt)` — time parts
-- `DATEADD(d, count, unit)` — add time (unit: `day`, `month`, `year`, `hour`, `minute`)
-- `DATEDIFF(a, b, unit)` — difference between dates
+- `WEEKDAY(d)` — day of week, `0` = Sunday
+- `DATE(y, m, d)` — build a date from parts; `DATE(v)` casts a value to a date
+- `DATEADD(d, count, unit)` — add time; unit is a **string literal**: `'DAY'`, `'HOUR'`, `'MINUTE'`, `'SECOND'`, `'MONTH'`, `'YEAR'` (plural forms accepted)
+- `DATEDIFF(d1, d2, unit)` — difference `d2 − d1` in the given unit (same unit list). `DAY`/`HOUR`/`MINUTE`/`SECOND` floor the elapsed time; `MONTH`/`YEAR` are calendar-component deltas. E.g. days overdue: `DATEDIFF([due_date], TODAY(), 'DAY')`
+- `STARTMONTH(d?)`, `ENDMONTH(d?)`, `STARTQUARTER(d?)`, `ENDQUARTER(d?)`, `STARTYEAR(d?)`, `ENDYEAR(d?)`, `STARTNEXTMONTH(d?)` — period boundaries; the argument is optional and defaults to today
+
+The whole date family evaluates identically **client-side and SQL-time** (reports, filters, sorts on formula columns) — the SQL translator mirrors the client runtime, including `MONTH` 1-based and `WEEKDAY` 0=Sunday. Unit arguments must be string literals; an unknown unit fails loud with the accepted list.
 
 ### Logical functions
 

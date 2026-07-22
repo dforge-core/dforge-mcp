@@ -4,6 +4,58 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.11
+
+> Release prerequisite: publish `@dforge-core/metadata@0.0.9` first (adds the
+> `avatar`/`markdown` field types to the runtime registry — until then the field
+> tools reject them), then `pnpm install` + `sync-schemas` here.
+
+### Skill
+
+- **Action DSL: `select()` / `update()` / `delete()` documented.**
+  `select('module.entity', {columns, filter, orderBy, limit, offset})` is the
+  structured multi-row read: canonical `{c,o,v}`/`{g,i}` filter JSON (same
+  operators as data views), one-hop nav paths `'ref.target as alias'` that emit
+  LEFT JOINs, **fail-loud** semantics (unknown column/operator/nav path throws —
+  unlike UI filters, which drop the condition), and no folder row-filter/column
+  security (it hits the table directly; filter nav paths instead of `R`
+  columns). `update()`/`delete()` take a scalar PK **or** a `{col: val}` object
+  key (string ids coerced to the PK storage type; array and null keys rejected).
+  `query()` is repositioned as the escape hatch (aggregates, multi-hop joins,
+  CTEs, `FOR UPDATE`). New real example: `comm.dispatch_messages` (cron-scan
+  `select()` + scalar-key `update()`). Also documents `exit(message?, level?)` —
+  the DSL's early-return — and the rule to always qualify entity codes
+  (`update('comm.message', …)`) (`action-dsl.md`, `jobs.md`, `SKILL.md`).
+- **Formula date family completed + SQL-time parity** (`formulas.md`). Adds the
+  missing `WEEKDAY`, `DATE`, and period-boundary functions (`STARTMONTH`,
+  `ENDMONTH`, `STARTQUARTER`, `ENDQUARTER`, `STARTYEAR`, `ENDYEAR`,
+  `STARTNEXTMONTH` — optional arg defaults to today) and corrects
+  `DATEADD`/`DATEDIFF` signatures (string-literal units `'DAY'`/`'HOUR'`/
+  `'MINUTE'`/`'SECOND'`/`'MONTH'`/`'YEAR'`; `DATEDIFF(d1, d2, unit)` = `d2 − d1`).
+  The whole family now evaluates identically client-side and SQL-time (reports,
+  filters, sorts) — the server SQL translator gained the full set, so
+  `DATEDIFF([due_date], TODAY(), 'DAY')` no longer comes back NULL in reports.
+- **Field types** (`field-types.md`): added `avatar` (initials circle +
+  optional photo via `params.imageColumn`), `markdown` (Write/Preview editor,
+  distinct from `richtext` WYSIWYG — the alias table previously mapped
+  `markdown` → `richtext`, now wrong), and `list` (card-list rendering of a 1:N
+  set, sibling of `grid`).
+
+### Resources
+
+- **`dforge://reference/dsl` (`resources/docs/dsl-reference.md`) caught up with the
+  engine**: documents `select()`, `update()`, `delete()` (previously absent — the
+  reference stopped at `query()`/`insert()`), plus `entityLink()`, the
+  qualify-entity-codes rule, and scalar-vs-object key semantics.
+
+### Schema
+
+- **`entity.schema.json` re-vendored** (from `@dforge-core/metadata@0.0.9`):
+  `fieldTypeCd` enum gains `avatar`, `markdown`, `list`; `refFilter` description
+  now documents `@[field]` dynamic placeholders (resolved against the current
+  record at option load; an unset placeholder drops the condition, and lookups
+  re-resolve options on every open).
+
 ## 0.1.10
 
 ### Schema
