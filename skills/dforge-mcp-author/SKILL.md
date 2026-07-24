@@ -64,6 +64,7 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 |---|---|---|
 | Add any field | `dforge://reference/field-types`, `dforge://reference/flags`, `dforge://example/entities/todo_item.json` | — |
 | Add a Reference or Set column | `dforge://reference/column-types` (FK+Reference pattern), `dforge://example/entities/todo_item.json` | — |
+| Reuse a field type / enum across columns (a `domain`) | `dforge://reference/column-domains` | `dforge://schema/domains` |
 | Add a formula column | `dforge://reference/formulas` | — |
 | Add a trait | `dforge://reference/traits` | — |
 | Add a data view (grid / list) | `dforge://reference/data-views`, `dforge://example/ui/data_views.json` | — |
@@ -78,6 +79,8 @@ The phase column below indicates the **typical** use. During a backtrack, the ba
 | Add security roles or folders | `dforge://reference/security`, `dforge://reference/filters`, `dforge://example/security/roles.json` | — |
 | Add a report | `dforge://reference/reports` | `dforge://schema/reports` |
 | Add a print template | `dforge://reference/print-templates` | — |
+| Wire OCR / document extraction (`ocrExtract` / `detectDocument`) | `dforge://reference/document-extraction` | `dforge://docs/dsl` (built-ins) |
+| Localize dropdown options / a column domain | `dforge://reference/translations` (§Dropdown option labels / §Column domain labels) | — |
 | Add translations | `dforge://reference/translations` | — |
 | Add a number sequence | `dforge://reference/number-sequences` | — |
 | Add module settings | `dforge://reference/settings` | — |

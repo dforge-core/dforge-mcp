@@ -91,6 +91,11 @@ export const resources: ResourceDef[] = [
 		"JSON Schema for entity files under entities/*.json (description, dbObject, toString, traits, fields).",
 	),
 	schema(
+		"domains",
+		"Column domains JSON schema",
+		"JSON Schema for domains.json — reusable column domains (base datatype + control + sizing + shared option list) referenced from a field via \"domain\": \"module_cd.domain_cd\".",
+	),
+	schema(
 		"data-views",
 		"Data view JSON schema",
 		"JSON Schema for ui/data_views.json — the map of viewName → { viewType, label, dataSources, ... }.",
@@ -172,6 +177,7 @@ export const resources: ResourceDef[] = [
 	reference("field-types", "Field types — fieldTypeCd (UI control) vs dbDatatype (SQL type), and the correct value for each. Load before adding any field."),
 	reference("flags", "Column flags — only V/I/E/M/H; valid combos (VEM/VE/V/EM/I) and why 'VEMHI' is invalid. Load before setting any flags."),
 	reference("column-types", "The FK + Reference two-column pattern (the #1 source of broken modules) and Set columns. Load before any relation."),
+	reference("column-domains", "Column domains: a reusable field type (datatype + control + shared option list) referenced via a single `domain` key. Use when the same enum/type repeats across columns. Load before authoring domains.json or a domain-backed column."),
 	reference("formulas", "Formula columns (columnType 'F'): baseDatatypeCd, no dbDatatype, flags 'V', and the formula expression grammar."),
 	reference("traits", "Entity traits (identity, audit, audit-full, ...). identity → PK is '{entity}_id'; don't redefine trait columns."),
 	reference("data-views", "Data views: dataSources array, columns, the order string-array ('order': ['-col','col']), and specialized view configs."),
@@ -183,6 +189,7 @@ export const resources: ResourceDef[] = [
 	reference("settings", "Module settings shape."),
 	reference("jobs", "Scheduled jobs: cron, timeout, jobClass, and the no-record-context constraint."),
 	reference("number-sequences", "Number sequences for reference numbers / codes."),
+	reference("document-extraction", "OCR / document extraction: ocrExtract() (v2 schema-driven + profile forms), logic/extraction_profiles.json, and the detectDocument() doc-type auto-detect built-in. Load before wiring any OCR/intake action."),
 	reference("print-templates", "Liquid HTML print templates."),
 	reference("translations", "Translation files: locale-keyed, every trait-provided field needs an entry."),
 	reference("queries", "Pre-built saved queries."),

@@ -1,0 +1,78 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/domains.schema.json",
+	"title": "dForge Column Domains",
+	"description": "domains.json — reusable, named semantic types. A domain bundles a base datatype, a control, sizing and a shared option list under one code; columns reference it via \"domain\": \"module_cd.domain_cd\" instead of restating the definition. Structural fields are materialized onto each column at install; options stay on the domain and resolve at metadata-load time, so a shared list is authored and translated exactly once.",
+	"type": "object",
+	"additionalProperties": {
+		"$ref": "#/$defs/domain"
+	},
+	"propertyNames": {
+		"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+		"description": "Domain code. Must not contain '.', which is reserved for the qualified 'module_cd.domain_cd' form."
+	},
+	"$defs": {
+		"domain": {
+			"type": "object",
+			"required": ["baseDatatypeCd"],
+			"additionalProperties": false,
+			"properties": {
+				"description": {
+					"type": "string",
+					"description": "Human-readable label. Localizable via translations/<locale>.json under domains.<domain_cd>.label."
+				},
+				"baseDatatypeCd": {
+					"type": "string",
+					"description": "Base datatype the domain stands for (e.g. string, number, date, datetime, boolean). Required — it is what consuming columns' DDL is generated from."
+				},
+				"dbDatatype": {
+					"type": "string",
+					"description": "Physical Postgres type for consuming columns (e.g. varchar, int4, numeric). Omit to let it be inferred from fieldTypeCd."
+				},
+				"fieldTypeCd": {
+					"type": "string",
+					"description": "Control used to render/edit consuming columns (e.g. dropdown, radio, flags, text, number)."
+				},
+				"maxLen": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Max length for string-backed domains."
+				},
+				"precision": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Decimal precision for numeric domains."
+				},
+				"params": {
+					"type": "object",
+					"description": "Field-type config shared by every consuming column — most importantly the 'options' list for dropdown/radio/flags. Never copied onto columns: it resolves from the domain at load time, which is what lets its labels be translated once for all consumers.",
+					"properties": {
+						"options": {
+							"type": "array",
+							"description": "Option list. Each entry is either a bare string (value doubles as label) or an object. Per-locale label/icon/color overrides live in translations/<locale>.json under domains.<domain_cd>.options.<value>.",
+							"items": {
+								"oneOf": [
+									{ "type": "string" },
+									{
+										"type": "object",
+										"required": ["value"],
+										"additionalProperties": false,
+										"properties": {
+											"value": {
+												"type": "string",
+												"description": "The stored code. Never translatable — translations match on it."
+											},
+											"label": { "type": "string" },
+											"icon": { "type": "string" },
+											"color": { "type": "string" }
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

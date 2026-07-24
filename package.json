@@ -1,45 +1,45 @@
 {
-	"name": "@dforge-core/dforge-mcp",
-	"version": "0.1.11",
-	"description": "MCP server for dForge module authoring. Exposes scaffold/pack/install tools and schema resources so AI agents (Claude Code, Cursor, Zed) can create and ship dForge modules.",
-	"license": "MIT",
-	"homepage": "https://github.com/iash44/dForge-core",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/dforge-core/dforge-mcp.git"
-	},
-	"bin": {
-		"dforge-mcp": "dist/server.js"
-	},
-	"files": [
-		"dist/",
-		"docs/",
-		"resources/",
-		"skills/",
-		"README.md",
-		"CHANGELOG.md"
-	],
-	"main": "dist/server.js",
-	"engines": {
-		"node": ">=18"
-	},
-	"scripts": {
-		"build": "tsup",
-		"sync-schemas": "node scripts/vendor-schemas.cjs",
-		"prepublishOnly": "node scripts/vendor-schemas.cjs && tsup",
-		"typecheck": "tsc --noEmit",
-		"test": "vitest run"
-	},
-	"dependencies": {
-		"@dforge-core/dforge-cli": "^0.2.7",
-		"@dforge-core/metadata": "^0.0.9",
-		"@modelcontextprotocol/sdk": "^1.29.0",
-		"zod": "^4.4.3"
-	},
-	"devDependencies": {
-		"@types/node": "^22.20.1",
-		"tsup": "^8.5.1",
-		"typescript": "^6.0.3",
-		"vitest": "^3.2.7"
-	}
+  "name": "@dforge-core/dforge-mcp",
+  "version": "0.1.12",
+  "description": "MCP server for dForge module authoring. Exposes scaffold/pack/install tools and schema resources so AI agents (Claude Code, Cursor, Zed) can create and ship dForge modules.",
+  "license": "MIT",
+  "homepage": "https://github.com/iash44/dForge-core",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dforge-core/dforge-mcp.git"
+  },
+  "bin": {
+    "dforge-mcp": "dist/server.js"
+  },
+  "files": [
+    "dist/",
+    "docs/",
+    "resources/",
+    "skills/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "sync-schemas": "node scripts/vendor-schemas.cjs",
+    "prepublishOnly": "node scripts/vendor-schemas.cjs && tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dforge-core/dforge-cli": "^0.2.7",
+    "@dforge-core/metadata": "^0.0.10",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.7"
+  }
 }

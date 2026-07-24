@@ -10,6 +10,8 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 >
 > Reference (`columnType: "R"`) and formula (`columnType: "F"`) columns never get a `dbDatatype` at all.
 
+> **Repeating the same type across columns?** If several columns share a datatype + control + option list (a `Draft/Posted/…` status, a currency, a priority), define a **column domain** once and reference it with a single `domain` key instead of restating `fieldTypeCd` + `params.options` each time — the options (and their translations) are then authored once for all consumers. See `dforge://reference/column-domains`.
+
 ## String-backed
 
 | `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |

@@ -417,6 +417,32 @@ var result = callService('studio.validate', { module_cd: [module_cd] })
 if (!result.isValid) { error('Validation failed: ' + result.errors[0]) }
 ```
 
+### Document extraction (OCR)
+
+Full guide + intake patterns: `dforge://reference/document-extraction`.
+
+#### `ocrExtract(fileField, endpointBaseUrl, schemaOrHints?, opts?) → string | object`
+Send a file to the OCR service and get structured fields back. Three forms:
+
+- **v1 (raw):** `ocrExtract([doc_file], getSetting('ocr_endpoint_url'))` → JSON **string** (you `JSON.parse`). Optional third arg = hints (array | string | object).
+- **v2 inline schema:** `ocrExtract([doc_file], url, schema, { mode: 'extract' })` → **parsed** `{ fields, confidence?, unmatched, raw_text, meta }`.
+- **v2 profile:** `ocrExtract([doc_file], url, null, { profile: 'module_cd.profile_cd' })` → same parsed shape, schema from `logic/extraction_profiles.json`.
+
+v2 is selected **only** by `opts.mode` (`'extract' | 'summary' | 'raw'`) or `opts.profile` — a bare schema object without `opts.mode` stays on the v1 (raw string) contract. `opts.profile` implies `mode: 'extract'` and is mutually exclusive with an inline `schema`.
+
+```dsl
+var r = ocrExtract([doc_file], getSetting('ocr_endpoint_url'), null, { profile: 'proc.bill_of_lading' })
+insert('bill_of_lading', { bl_no: r.fields.bl_no, issue_date: r.fields.issue_date })
+```
+
+#### `detectDocument(rawText) → object | null`
+Score a document's text against every reachable extraction profile's `detect` rules and return the best match at/above its threshold: `{ profile, docType, score }` (profile module-qualified, ready for `ocrExtract(..., { profile })`) — or `null`. Advisory: malformed rules are skipped, let the human confirm.
+
+```dsl
+var det = detectDocument(data.raw_text)     // { profile: 'proc.bill_of_lading', docType: 'bill_of_lading', score } | null
+if (det != null) { var r = ocrExtract([doc_file], getSetting('ocr_endpoint_url'), null, { profile: det.profile }) }
+```
+
 ### Utility
 
 #### `entityLink(entityCd, record, description?) → link value`

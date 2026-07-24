@@ -4,6 +4,46 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.1.12
+
+> Release prerequisite: publish `@dforge-core/metadata@0.0.10` first (adds the
+> `domains.schema.json` schema + the domain-backed column branch in
+> `entity.schema.json`), then `pnpm install` + `sync-schemas` here so the
+> vendored schemas match.
+
+### Skill
+
+- **Column domains** — new `references/column-domains.md`: a reusable field type
+  (base datatype + control + shared option list) declared in `domains.json` and
+  referenced from a column via a single `"domain": "module_cd.domain_cd"` key
+  instead of restating the type. Covers the owned-field rules (restating a
+  domain-owned field fails install), scalar-only constraint, cross-module
+  dependency requirement, and the localize-once payoff. Added to the SKILL
+  loading-policy table and cross-linked from `field-types.md`.
+- **Document extraction / OCR** — new `references/document-extraction.md`: the
+  `ocrExtract()` forms (v1 raw string, v2 inline `schema` + `{ mode: 'extract' }`,
+  v2 `{ profile }`), the `logic/extraction_profiles.json` registry (profile
+  lifecycle + `detect` rules), and the `detectDocument(rawText)` doc-type
+  auto-detect built-in. The DSL reference (`dforge://docs/dsl`) gains an
+  "External integration → Document extraction" section documenting both built-ins.
+- **Dropdown / domain option localization** (`translations.md`): per-option labels
+  are translatable (opt-in) under `entities.<e>.fields.<f>.options` (value-keyed,
+  string shorthand or `{label,icon,color}` partial override — `value` never
+  translated), and a column domain's label + shared option labels are translated
+  once under a top-level `domains` section, inherited by every consuming column.
+
+### Resources
+
+- New `dforge://schema/domains` (JSON Schema for `domains.json`).
+- New `dforge://reference/column-domains` and `dforge://reference/document-extraction`.
+
+### Schema
+
+- Re-vendored `entity.schema.json` — adds the "Domain-backed column" branch
+  (`required: ["domain"]`, forbidding restatement of domain-owned fields) and the
+  `domain` field property.
+- Vendored `domains.schema.json` (new) from `@dforge-core/metadata@0.0.10`.
+
 ## 0.1.11
 
 > Release prerequisite: publish `@dforge-core/metadata@0.0.9` first (adds the

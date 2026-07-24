@@ -85,6 +85,8 @@ Translation files mirror the module's content structure. Each translatable objec
 | `actions` | Action labels, descriptions, and param labels | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label } } }` |
 | `reports` | Report dataset captions and param labels | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label } } }` |
 | `entities.<e>.constraints` | Check/unique constraint violation messages (opt-in — warned, not enforced) | Constraint codes → `{ message }` under the owning entity |
+| `entities.<e>.fields.<f>.options` | Dropdown/radio/flags **option labels** (opt-in) | Option `value` → localized label (string) or `{ label, icon, color }` |
+| `domains` | Column domain labels **and** their shared option labels (opt-in) | Domain codes → `{ label, options: { value: … } }` |
 
 ### Constraint violation messages ARE translatable (opt-in)
 
@@ -104,6 +106,47 @@ A check/unique constraint declares a user-facing `message` in the entity JSON (`
 - The server resolves the message with culture fallback — **per-locale override → base message from the entity JSON**. `EntityMetadataLoader` reads `COALESCE(culture_res.label, resource.label, entity_constrains.description)`, so the same override surfaces on the client pre-save `CheckConstraints` validator and the server DB-violation (23514) path.
 - **Opt-in, never mandatory** (unlike roles/labels, which completeness *enforces*). If the manifest lists `supportedLocales` and a constraint `message` has no override for one of those (non-English) locales, install emits a **non-fatal warning** naming the missing `entities.<e>.constraints.<c>.message` keys (printed by the CLI, returned in the marketplace install response). Install still commits with the base message as the fallback. `dforge_module_validate` surfaces the same gap pre-flight as a warning.
 - Only constraints that declare a `message` are scanned; English (`en`/`en-*`) is the base and is never warned; extension entities (`"extends": "..."`) are skipped — their constraint translations belong with the foreign module's files.
+
+### Dropdown option labels ARE translatable (opt-in)
+
+The `options` on a `dropdown`/`radio`/`flags` column are the **base (fallback) labels**. To translate the labels a user actually sees, add an `options` map next to the field's `label`, keyed by the option's **value** (the stored code):
+
+```json
+"entities": {
+    "position": {
+        "fields": {
+            "status": {
+                "label": "Status",
+                "options": {
+                    "on_hold": { "label": "In Wartestellung", "color": "#f90" },
+                    "draft":   "Entwurf"
+                }
+            }
+        }
+    }
+}
+```
+
+- An override is a **partial merged over the base** — a bare string is shorthand for `{ "label": … }`; any field it omits (icon/color) falls through to the authored option. Only `label`, `icon`, `color` are translatable; **`value` is the stored code and is never translated** (translations match on it).
+- **Opt-in, never mandatory** — an option with no override keeps its authored label; nothing warns or fails.
+- Resolved once at metadata-load time and cached per culture, so the localized labels show up identically in the grid, the form, **and** print templates (`_fmt.<col>` / bare field refs) — which previously always rendered the base English label.
+- `optionSets` conditional narrowing is unaffected: it filters by `value`, which translation never touches.
+
+### Column domain labels + options ARE translatable (opt-in) — and shared
+
+If a column uses a **domain** (see `column-domains.md`), translate the domain **once** under a top-level `domains` section — its label and per-option labels then flow to *every* column that references it, instead of once per column:
+
+```json
+"domains": {
+    "doc_status": {
+        "label": "Belegstatus",
+        "options": { "draft": "Entwurf", "posted": { "label": "Gebucht", "color": "#0a0" } }
+    }
+}
+```
+
+- Keys are domain codes from this module's `domains.json`. The `options` map uses the same value-keyed, partial-override shape as field options above.
+- This is the whole point of domains for localization: the shared option list is authored and translated in one place. Don't also translate the consuming columns' options — they inherit from the domain.
 
 ### Roles ARE translated — and completeness is enforced
 

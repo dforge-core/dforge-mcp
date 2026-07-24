@@ -209,11 +209,29 @@
 					"type": "boolean",
 					"description": "On a self-referencing reference column (R column whose link.entity is the owning entity), set true to ALLOW parent/child cycles. When absent the self-reference is treated as an acyclic hierarchy and DB-level guards reject loops. Ignored on non-self-referencing columns."
 				},
+				"domain": {
+					"type": "string",
+					"description": "Reference to a reusable column domain, qualified as 'module_cd.domain_cd' (unqualified resolves within this module, then tenant-created domains). The domain supplies dbDatatype, baseDatatypeCd, fieldTypeCd, maxLen, precision and params; declaring any of those alongside 'domain' is rejected at install. The column keeps its own description, flags, orderNum, isNullable and isPk."
+				},
 				"refFilter": {
 					"description": "Filter criteria for reference lookups. Condition values support @[field] placeholders resolved against the current record at lookup time (e.g. {\"c\":\"channel\",\"o\":\"eq\",\"v\":\"@[channel]\"} narrows options to rows matching the record's own channel); a condition whose placeholder is unset is dropped rather than matching nothing."
 				}
 			},
 			"oneOf": [
+				{
+					"title": "Domain-backed column",
+					"description": "Physical column whose datatype, control, sizing and options all come from a reusable column domain. Requires 'domain' and must NOT restate what the domain owns.",
+					"required": ["domain"],
+					"properties": {
+						"link": false,
+						"dbDatatype": false,
+						"baseDatatypeCd": false,
+						"fieldTypeCd": false,
+						"maxLen": false,
+						"precision": false,
+						"params": false
+					}
+				},
 				{
 					"title": "Data column",
 					"description": "Physical DB column (columnType 'D' or unspecified). Requires 'dbDatatype'. Must NOT have 'link'.",
