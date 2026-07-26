@@ -18,10 +18,13 @@ The same grammar applies everywhere.
 
 - **Field references**: `[column_name]` — the value of another column on the same entity
 - **Navigation**: `[reference_column].[field]` — traverse a reference to a related entity's field
-- **Literals**: numbers (`42`, `3.14`), strings (`'hello'` or `"hello"`), booleans (`true`, `false`), null (`null`)
-- **Operators**: `+`, `-`, `*`, `/`, `%`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `NOT`
-- **Function calls**: `FUNCTION_NAME(arg1, arg2, ...)` — uppercase by convention
+- **Literals**: numbers (`42`, `3.14`), strings in **single quotes** (`'hello'`; embed a quote by doubling it: `'it''s'`), booleans (`true`, `false`), null (`null`). Double quotes are **not** string delimiters — `"hello"` is a lex error
+- **Operators**: `+`, `-`, `*`, `/`, `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `NOT`, `IN`, `BETWEEN … AND …`, `CONTAINS`, `STARTS_WITH`, `ENDS_WITH`. Equality is a **single** `=` — `==` is a syntax error. There is no `%` operator; use `MOD(a, b)`
+- **Function calls**: `FUNCTION_NAME(arg1, arg2, ...)` — uppercase by convention. Only the functions listed below exist; any other name is rejected at module install (see "Unknown functions" below)
 - **Parentheses** for grouping
+
+`CONTAINS` / `STARTS_WITH` / `ENDS_WITH` are infix operators, not functions — write
+`[note] CONTAINS 'urgent'`, never `CONTAINS([note], 'urgent')`.
 
 ## Examples
 
@@ -34,15 +37,17 @@ The same grammar applies everywhere.
 
 [account].[billing_address].[country]
 
-[status] == "active" AND [balance] > 0
+[status] = 'active' AND [balance] > 0
 
-CASE([priority], "high", 3, "medium", 2, "low", 1, 0)
+TODAY() > [due_date] AND [total_paid] < [total]
 
-IF([total] > 1000, "large", "small")
+SWITCH([priority], 'high', 3, 'medium', 2, 'low', 1, 0)
 
-COALESCE([nickname], [first_name], "Unknown")
+IF([total] > 1000, 'large', 'small')
 
-FORMAT([created_date], "yyyy-MM-dd")
+COALESCE([nickname], [first_name], 'Unknown')
+
+FORMAT([created_date], 'yyyy-MM-dd')
 ```
 
 ## Built-in functions
@@ -50,21 +55,27 @@ FORMAT([created_date], "yyyy-MM-dd")
 ### String functions
 
 - `CONCAT(a, b, ...)` — concatenate strings
-- `LEN(s)` — string length
+- `LEN(s)` — string length (`LENGTH` is an alias)
+- `LEFT(s, n)`, `RIGHT(s, n)` — leading / trailing `n` characters
 - `UPPER(s)`, `LOWER(s)` — case conversion
 - `TRIM(s)`, `LTRIM(s)`, `RTRIM(s)` — whitespace removal
-- `SUBSTRING(s, start, len)` — substring
-- `REPLACE(s, find, with)` — replace substring
-- `CONTAINS(s, find)` — boolean substring check
-- `STARTSWITH(s, prefix)`, `ENDSWITH(s, suffix)` — boolean
-- `FORMAT(value, pattern)` — format dates/numbers
+- `SUBSTRING(s, start, end)` — substring by 0-based offsets, `end` exclusive
+- `MID(s, start, len)` — substring by 0-based offset and length
+- `INDEX_OF(s, find)`, `LAST_INDEX_OF(s, find)` — 0-based position, `-1` when absent
+- `SPLIT(s, separator)` — split into a list
+- `REPLACE(s, find, with)` — replace **every** occurrence
+- Substring / prefix / suffix tests are the **operators** `CONTAINS`, `STARTS_WITH`, `ENDS_WITH` (`[note] CONTAINS 'x'`), not functions
+- `FORMAT(date, 'pattern')` — format a **date** as text with .NET-style tokens (case-sensitive: `MM` = month, `mm` = minute): `yyyy`, `yy`, `MM`/`M`, `dd`/`d`, `HH`/`H`, `mm`/`m`, `ss`/`s`; single-letter variants unpadded, other characters pass through. Pattern must be a string literal. Dates only — numbers are not supported. Works client-side and SQL-time (reports)
 
 ### Number functions
 
 - `ABS(n)`, `ROUND(n, digits)`, `FLOOR(n)`, `CEIL(n)`, `CEILING(n)`
-- `MIN(a, b)`, `MAX(a, b)` — binary min/max
+- `MIN(a, b, ...)`, `MAX(a, b, ...)` — smallest / largest argument; nulls are ignored
 - `POW(base, exp)`, `SQRT(n)`
-- `MOD(a, b)` — modulo
+- `MOD(a, b)` — modulo; a zero divisor is null, not an error
+- `TRUNC(n)`, `SIGN(n)`, `EXP(n)`, `LOG(n)` (natural), `LOG10(n)`, `LOG2(n)`, `LOG1P(n)`
+- `FROUND(n)` — round to single (32-bit float) precision
+- Trigonometry: `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `ATAN2(y, x)`, and the hyperbolic `SINH`, `COSH`, `TANH`, `ASINH`, `ATANH`
 
 ### Date functions
 
@@ -76,17 +87,67 @@ FORMAT([created_date], "yyyy-MM-dd")
 - `DATE(y, m, d)` — build a date from parts; `DATE(v)` casts a value to a date
 - `DATEADD(d, count, unit)` — add time; unit is a **string literal**: `'DAY'`, `'HOUR'`, `'MINUTE'`, `'SECOND'`, `'MONTH'`, `'YEAR'` (plural forms accepted)
 - `DATEDIFF(d1, d2, unit)` — difference `d2 − d1` in the given unit (same unit list). `DAY`/`HOUR`/`MINUTE`/`SECOND` floor the elapsed time; `MONTH`/`YEAR` are calendar-component deltas. E.g. days overdue: `DATEDIFF([due_date], TODAY(), 'DAY')`
-- `STARTMONTH(d?)`, `ENDMONTH(d?)`, `STARTQUARTER(d?)`, `ENDQUARTER(d?)`, `STARTYEAR(d?)`, `ENDYEAR(d?)`, `STARTNEXTMONTH(d?)` — period boundaries; the argument is optional and defaults to today
+- `STARTMONTH(d?)`, `ENDMONTH(d?)`, `STARTQUARTER(d?)`, `ENDQUARTER(d?)`, `STARTYEAR(d?)`, `ENDYEAR(d?)`, `STARTNEXTMONTH(d?)` — period boundaries. **Omitting** the argument means today; passing one that is null gives null (a row with no date renders blank, it does not fall back to today)
 
 The whole date family evaluates identically **client-side and SQL-time** (reports, filters, sorts on formula columns) — the SQL translator mirrors the client runtime, including `MONTH` 1-based and `WEEKDAY` 0=Sunday. Unit arguments must be string literals; an unknown unit fails loud with the accepted list.
 
 ### Logical functions
 
-- `IF(cond, then, else)` — ternary
-- `CASE(expr, val1, result1, val2, result2, ..., default)` — multi-branch
+- `IF(cond, then, else)` — ternary (`IIF` is an alias)
+- `CASE(cond1, result1, cond2, result2, ..., default)` — first **condition** that holds wins
+- `SWITCH(expr, val1, result1, val2, result2, ..., default)` — first **value** that matches
+  `expr` wins. Note the difference: `CASE` takes conditions, `SWITCH` takes values to compare
 - `COALESCE(a, b, c, ...)` — first non-null
 - `NULLIF(a, b)` — null if equal, else a
-- `ISNULL(x)` — boolean null check
+- `ISNULL(x)` — boolean **null check** (returns true/false). This is *not* T-SQL's two-arg "replace null with" — that is `COALESCE(x, fallback)`
+
+### Conversion and context functions
+
+- `TEXT(v)` — as text (null becomes `''`)
+- `NUMBER(v)` — as a number, or null when the value isn't numeric (including a blank string)
+- `BOOLEAN(v)` — null, `''` and `0` are false; everything else is true
+- `JSON_GET(json, 'key' [, type])` — read a key out of a JSON column. The optional type is a
+  string literal: `'text'` (default), `'number'`/`'numeric'`, `'int'`/`'integer'`/`'bigint'`,
+  `'bool'`/`'boolean'`, `'date'`, `'datetime'`/`'timestamp'`/`'timestamptz'`
+- `CURRENT_USER_ID()` — the id of the requesting user
+
+### Client-side vs SQL-time evaluation
+
+An `F` column is evaluated **client-side** in grids and cards, but translated to **SQL** when a
+report selects it, or when it is used in a filter or sort. **Every function listed here is
+implemented in both**, so a column reads the same in a grid and in a report; a test executes
+each one against PostgreSQL and diffs the result against the client runtime.
+
+Two deliberate points of agreement, because the engines disagree by nature:
+
+- **Out-of-domain math is null, not an error.** `SQRT(-1)`, `LOG(0)`, `ASIN(2)`, `EXP(1000)`,
+  `POW(0, -1)`, `MOD(x, 0)` — JavaScript would answer NaN or Infinity and PostgreSQL would
+  raise (failing the whole report). Both return null, so the cell renders blank.
+- **String indexing is JavaScript-flavoured, not SQL's.** `SUBSTRING(s, start, end)` and
+  `MID(s, start, len)` take a **0-based** start, and `SUBSTRING`'s third argument is an **end
+  offset**, not a length. `INDEX_OF` / `LAST_INDEX_OF` return a 0-based index, or `-1`.
+
+Known remaining difference: `CONCAT` on a numeric column renders PostgreSQL's declared scale
+(`-3.0`) where the client renders the JavaScript number (`-3`). Use `FORMAT`/`TEXT` when the
+exact rendering matters.
+
+`CURRENT_USER_ID()` needs the requesting user, so it resolves in grids, reports, filters and
+`select()`, but not in a context with no user (an unattended job).
+
+### Unknown functions
+
+The parser treats any `NAME(...)` as a call, so a misspelled or non-existent function is a
+*grammatically valid* formula. Module install rejects it with the offending name (and a "did
+you mean" suggestion where one is close). Before that check existed, such a formula installed
+cleanly and then rendered as an **empty cell on every row**, with no error in the server log,
+the browser console, or the install output.
+
+### Comparing dates
+
+Date comparisons work directly — `TODAY() > [due_date]`, `[due_date] BETWEEN STARTMONTH() AND
+ENDMONTH()`, `[due_date] = TODAY()` — and combine with other conditions through `AND` / `OR`
+like any other boolean. A bare `date` column is treated as a **local calendar date**, matching
+`TODAY()` and `DATE(y, m, d)`.
 
 ### Aggregation over a child set — use a Generated (`G`) column, not `F`
 
@@ -126,6 +187,8 @@ and the JSON shape: `column-types.md` → "Roll-up totals over child rows — us
 ```
 
 Navigation works through `columnType: "R"` columns (reference columns). Chains of length 1 are **synchronous** and resolved instantly. Chains of length ≥ 2 are **asynchronous** — the formula engine resolves them after the initial data load.
+
+**SQL-time (reports, filters, sorts):** single-hop navigation (`[ref].[field]`) is translated to a `LEFT JOIN` and computes in reports and query datasets. Multi-hop chains and `$[Setting]` references are **not** available at SQL time — the column returns NULL there and the response carries a warning naming the column. Keep report-bound formulas to single-hop navigation.
 
 ## Sync vs async formulas
 

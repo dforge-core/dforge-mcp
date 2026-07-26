@@ -31,6 +31,22 @@ the release workflow, so committed `package.json` versions are placeholders.
   string shorthand or `{label,icon,color}` partial override — `value` never
   translated), and a column domain's label + shared option labels are translated
   once under a top-level `domains` section, inherited by every consuming column.
+- **Formulas** (`formulas.md`) — corrected against the real parser and runtime,
+  after a reported `F` column that rendered empty on every row with no error
+  anywhere. The doc had documented functions the engine never implemented
+  (`ISNULL`, `NULLIF`, `MOD`, `LTRIM`, `RTRIM`) — since the parser accepts any
+  `NAME(...)` as a call, those installed cleanly and then rendered blank. They
+  are implemented now, and an unknown function is rejected at module install.
+  Also fixed: `==`, `%` and `"double-quoted strings"` are **parse errors**
+  (four examples used them); `CONTAINS`/`STARTS_WITH`/`ENDS_WITH` are infix
+  operators, not functions; and the documented `CASE` signature was actually
+  `SWITCH`'s — `CASE([priority], 'high', 3, …)` returns `'high'` for every row,
+  because the real `CASE` takes condition/result pairs. Adds the previously
+  undocumented `LEFT`/`RIGHT`/`FROUND`/`MID`/`INDEX_OF`/`SPLIT` and the
+  conversion functions, so the list now matches the engine exactly, plus notes
+  on date comparison, 0-based string indexing, and out-of-domain math. Every
+  function is now implemented client-side *and* SQL-side, so a column reads the
+  same in a grid and in a report.
 
 ### Resources
 
