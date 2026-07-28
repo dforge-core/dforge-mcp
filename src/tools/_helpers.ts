@@ -33,6 +33,7 @@ export interface ModulePaths {
 	webhooks: string;
 	printTemplates: string;
 	settings: string;
+	domains: string;
 }
 
 export function modulePaths(moduleDir: string): ModulePaths {
@@ -58,6 +59,7 @@ export function modulePaths(moduleDir: string): ModulePaths {
 		triggers: path.join(root, "logic", "triggers.json"),
 		webhooks: path.join(root, "logic", "webhooks.json"),
 		settings: path.join(root, "settings.json"),
+		domains: path.join(root, "domains.json"),
 	};
 }
 
@@ -168,10 +170,25 @@ export function withTodayStamp(manifest: Manifest): Manifest {
 /** Relative path (from the module root) of the Phase 0 state marker. */
 export const PHASE_STATE_FILE = "docs/phase.json";
 
+/**
+ * Phases 1–6, the build/ship half of the lifecycle. Phase 0's sub-phases
+ * (0a–0d) are tracked separately by their artifact files.
+ */
+export const BUILD_PHASES = ["1", "2", "3", "4", "5", "6"] as const;
+export type BuildPhase = (typeof BUILD_PHASES)[number];
+
 export interface PhaseState {
 	phase?: string;
 	readyToScaffold?: boolean;
 	validatedAt?: string;
+	/**
+	 * Ledger of completed build phases. Before this existed, a resumed session
+	 * had to GUESS the last completed phase by cross-referencing inspect output
+	 * — which can't distinguish "Phase 2 skipped deliberately" from "Phase 2 not
+	 * started". Recording it makes resume (and the design → build → ship skill
+	 * handoff) deterministic.
+	 */
+	phases?: Record<string, { completedAt: string; skipped?: boolean; note?: string }>;
 }
 
 /** Serialize a phase-state marker (for the validate action's file map). */
@@ -195,6 +212,30 @@ export function readPhaseState(moduleDir: string): PhaseState | null {
  * falls back to the legacy `readyToScaffold: true` substring in VALIDATION.md
  * for modules validated before the marker existed.
  */
+/**
+ * Merge a completed/skipped build phase into the on-disk state and return the
+ * serialized marker for the caller's file map. Never clobbers Phase 0 fields.
+ */
+export function markPhase(
+	moduleDir: string,
+	phase: BuildPhase,
+	opts: { skipped?: boolean; note?: string } = {},
+): { state: PhaseState; json: string } {
+	const prior = readPhaseState(moduleDir) ?? {};
+	const state: PhaseState = {
+		...prior,
+		phases: {
+			...(prior.phases ?? {}),
+			[phase]: {
+				completedAt: new Date().toISOString().slice(0, 10),
+				...(opts.skipped ? { skipped: true } : {}),
+				...(opts.note ? { note: opts.note } : {}),
+			},
+		},
+	};
+	return { state, json: phaseStateJson(state) };
+}
+
 export function isReadyToScaffold(moduleDir: string): boolean {
 	const state = readPhaseState(moduleDir);
 	if (state && typeof state.readyToScaffold === "boolean") return state.readyToScaffold;
@@ -330,6 +371,82 @@ export function assertSecurityCoverage(moduleDir: string): string | undefined {
 	return undefined;
 }
 
+// ── Composite keys ───────────────────────────────────────────────────
+
+/**
+ * Separator for Set/Map keys built by joining several identifiers (a view plus
+ * an entity, a dotted path into a translation file, …).
+ *
+ * Deliberately a VISIBLE string, not a NUL byte. Every identifier joined this
+ * way is a code (`[a-z][a-z0-9_]*`, sometimes dotted) or a JSON object key, so
+ * a colon pair can't occur inside one and needs no escaping — while a NUL is
+ * invisible in a diff, silently mangled by editors and formatters, makes any
+ * debug print of the key unreadable, and (worst) makes `grep` treat the whole
+ * source file as binary so it stops matching anything in it.
+ */
+export const KEY_SEP = "::";
+
+/** Join identifiers into a collision-free composite key. */
+export function compositeKey(...parts: string[]): string {
+	return parts.join(KEY_SEP);
+}
+
+// ── Folder tree ──────────────────────────────────────────────────────
+//
+// ui/folders.json IS the root folder (not a map), with sub-folders nested under
+// `children`. Folder CODES are referenced flat and path-less everywhere else in
+// the module — role rights use `folder:<code>`, and translations key on
+// `folders.<code>.label`. So two folders sharing a code in different branches
+// are genuinely ambiguous: the rights grant can't say which one it means, and
+// the translation for one silently overwrites the other. Nothing enforced that,
+// so these helpers let the add tool, the validator, and the translation sync
+// all apply the same rule.
+
+export interface FolderNode {
+	/** The folder's code (its key under the parent's `children`). */
+	code: string;
+	/** Slash-separated trail from the root, e.g. `central/east`. Empty for root. */
+	path: string;
+	node: Record<string, unknown>;
+}
+
+/**
+ * Depth-first walk of a folder tree, yielding every sub-folder. The root itself
+ * is NOT included — it has no code of its own (it's the file), and callers key
+ * it on the module code.
+ */
+export function walkFolders(root: Record<string, unknown>): FolderNode[] {
+	const out: FolderNode[] = [];
+	const visit = (node: Record<string, unknown>, trail: string[]): void => {
+		const children = (node.children as Record<string, unknown> | undefined) ?? {};
+		for (const [code, child] of Object.entries(children)) {
+			if (!child || typeof child !== "object") continue;
+			const next = [...trail, code];
+			out.push({ code, path: next.join("/"), node: child as Record<string, unknown> });
+			visit(child as Record<string, unknown>, next);
+		}
+	};
+	visit(root, []);
+	return out;
+}
+
+/**
+ * Folder codes used more than once anywhere in the tree, mapped to every path
+ * that claims them. Empty when the tree is well-formed.
+ */
+export function duplicateFolderCodes(root: Record<string, unknown>): Map<string, string[]> {
+	const byCode = new Map<string, string[]>();
+	for (const f of walkFolders(root)) {
+		const paths = byCode.get(f.code) ?? [];
+		paths.push(f.path);
+		byCode.set(f.code, paths);
+	}
+	for (const [code, paths] of byCode) {
+		if (paths.length < 2) byCode.delete(code);
+	}
+	return byCode;
+}
+
 // ── Entity traits ────────────────────────────────────────────────────
 //
 // Trait codes are validated against the canonical registry in
@@ -366,10 +483,59 @@ export const traitsInput = z
 			"'identity' makes the PK '{entity}_id'. Traits expand into columns server-side at install; list only the codes.",
 	);
 
+/**
+ * Trait codes on `traits` that aren't in the registry.
+ *
+ * `expandTraits` does NOT throw on an unknown code — it silently returns only
+ * the columns of the codes it recognized. So a typo'd trait doesn't fail; it
+ * just makes columns disappear, which then reads downstream as "that column
+ * doesn't exist". Anything that derives columns from traits should check this
+ * first. (`traitsInput` covers the authoring tools; this covers entities that
+ * arrived via import or a hand edit.)
+ */
+export function unknownTraits(traitCodes: readonly string[]): string[] {
+	return traitCodes.filter((cd) => !TRAIT_CODE_SET.has(cd));
+}
+
+/** Throw if any trait code is unknown, naming them and the valid set. */
+export function assertKnownTraits(traitCodes: readonly string[], entityName: string): void {
+	const bad = unknownTraits(traitCodes);
+	if (bad.length === 0) return;
+	throw new Error(
+		`Entity '${entityName}' declares unknown trait(s): ${bad.join(", ")}. Valid: ${TRAIT_CODES.join(", ")}. ` +
+			"An unrecognized trait is silently ignored when columns are expanded, so its columns would " +
+			"quietly go missing rather than fail loudly. (See dforge://reference/traits.)",
+	);
+}
+
 /** Override a built entity's `traits` array with a validated code list. */
 export function withTraits<T extends object>(
 	entity: T,
 	traitCodes: readonly string[],
 ): T & { traits: string[] } {
 	return { ...entity, traits: [...traitCodes] };
+}
+
+/**
+ * Repair the scaffolder's placeholder `toString`.
+ *
+ * dforge-cli's `buildEntity` emits `"toString": "{id}"`, but the `identity`
+ * trait names the PK `{entity}_id` — so every freshly scaffolded entity ships a
+ * template referencing a column that doesn't exist, and it stays broken until
+ * someone happens to overwrite it. Point it at the real PK instead: still a
+ * placeholder the author should replace with a business field, but a valid one.
+ * (The real fix belongs in dforge-cli; this normalizes on the way out so
+ * dforge_module_validate doesn't flag every new module.)
+ */
+export function withIdentityToString<T extends { toString?: unknown }>(
+	entity: T,
+	entityName: string,
+	traitCodes: readonly string[],
+): T {
+	const ts = Object.prototype.hasOwnProperty.call(entity, "toString")
+		? (entity as { toString?: unknown }).toString
+		: undefined;
+	if (typeof ts !== "string" || ts !== "{id}") return entity;
+	const pk = traitCodes.includes("identity") ? `${entityName}_id` : "id";
+	return { ...entity, toString: `{${pk}}` };
 }

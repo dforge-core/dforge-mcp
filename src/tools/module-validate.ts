@@ -17,8 +17,14 @@ import {
 	loadManifest,
 	readJsonOrDefault,
 	checkSecurityCoverage,
+	duplicateFolderCodes,
+	compositeKey,
+	unknownTraits,
+	TRAIT_CODES,
 	type ToolResult,
 } from "./_helpers";
+import { checkFieldSpec, parseSetAggregate } from "./field-rules";
+import { checkDsl } from "./dsl-check";
 
 export const moduleValidateSchema = {
 	moduleDir: z.string().describe("Path to the module root. Run this after authoring and before dforge_module_pack."),
@@ -133,14 +139,23 @@ export function moduleValidate(
 		entities[name] = e;
 		const fields = (e.fields as Record<string, Record<string, unknown>> | undefined) ?? {};
 		const cols = new Set<string>(Object.keys(fields));
-		let traitFields: Record<string, Record<string, unknown>> = {};
+		// An unknown trait code is NOT an exception — expandTraits silently
+		// returns only the codes it recognized, so the trait's columns just
+		// vanish and every later check reads them as "not a column". Flag the
+		// cause rather than the symptoms. (The authoring tools validate trait
+		// codes via `traitsInput`; this catches imports and hand edits.)
 		const traits = (e.traits as string[] | undefined) ?? [];
-		try {
-			traitFields = expandTraits(traits, name) as Record<string, Record<string, unknown>>;
-			for (const c of Object.keys(traitFields)) cols.add(c);
-		} catch {
-			/* unknown trait — surfaced separately by add-time validation */
+		const badTraits = unknownTraits(traits);
+		if (badTraits.length > 0) {
+			err(
+				`entities/${name}.json`,
+				`declares unknown trait(s): ${badTraits.join(", ")}. Valid: ${TRAIT_CODES.join(", ")}. ` +
+					"An unrecognized trait is ignored when columns are expanded, so its columns are missing " +
+					"from this entity — expect knock-on 'not a column' errors below.",
+			);
 		}
+		const traitFields = expandTraits(traits, name) as Record<string, Record<string, unknown>>;
+		for (const c of Object.keys(traitFields)) cols.add(c);
 		columnsOf[name] = cols;
 		// Trait fields first, authored fields last so an authored override wins.
 		fieldDefsOf[name] = { ...traitFields, ...fields };
@@ -243,7 +258,7 @@ export function moduleValidate(
 			const defs = fieldDefsOf[ent]; // undefined for system/cross-module entities — skip
 			if (!defs) continue;
 			if (hasVisibleScalarColumn(defs)) continue;
-			const key = `${vcode}\u0000${ent}`;
+			const key = compositeKey(vcode, ent);
 			if (vcSeen.has(key)) continue;
 			vcSeen.add(key);
 			err(
@@ -361,6 +376,314 @@ export function moduleValidate(
 					}
 				}
 			}
+		}
+	}
+
+	// ── 7. Field-spec rules, module-wide ──
+	// The same rules the entity_field_add/_modify zod schema enforces, re-run
+	// over every field of every entity. Fields that entered via module_import /
+	// dbml_import / the CLI scaffolder / a hand edit never passed through that
+	// schema, so this is the only place those get checked before install.
+	for (const [name, e] of Object.entries(entities)) {
+		const fields = (e.fields as Record<string, Record<string, unknown>> | undefined) ?? {};
+		for (const [fname, f] of Object.entries(fields)) {
+			for (const issue of checkFieldSpec(`${name}.${fname}`, f)) {
+				issues.push({ level: issue.level, where: `entities/${name}.json`, message: issue.message });
+			}
+		}
+	}
+
+	// ── 8. Every entity needs a toString, and its {braces} must resolve ──
+	// The platform renders a record's display label from this template; a
+	// missing one leaves lookups showing raw PKs. Extension entities inherit
+	// the base entity's template (toString: null is the documented form).
+	// NOTE: read it as an OWN property — `toString` is inherited from
+	// Object.prototype, so `e.toString` is a function, never undefined.
+	for (const [name, e] of Object.entries(entities)) {
+		const isExtension = typeof e.extends === "string" && e.extends.length > 0;
+		const ts: unknown = Object.prototype.hasOwnProperty.call(e, "toString")
+			? e.toString
+			: undefined;
+		if (ts === undefined || ts === null || (typeof ts === "string" && ts.trim() === "")) {
+			// A missing template degrades display (lookups show raw PKs) but does
+			// not block install — warn rather than error.
+			if (!isExtension) {
+				warn(
+					`entities/${name}.json`,
+					"has no 'toString' template — every entity should have one, e.g. \"toString\": \"{name}\" (extension entities use null to inherit the base).",
+				);
+			}
+			continue;
+		}
+		if (typeof ts !== "string") {
+			err(`entities/${name}.json`, `'toString' must be a string template, got ${typeof ts}.`);
+			continue;
+		}
+		const braces = [...ts.matchAll(/\{([a-z][a-z0-9_]*)\}/gi)].map((m) => m[1]);
+		if (braces.length === 0) {
+			warn(
+				`entities/${name}.json`,
+				`'toString' is "${ts}" with no {column} placeholder — every record will render the same label.`,
+			);
+		}
+		for (const b of braces) {
+			if (!columnsOf[name].has(b)) {
+				err(
+					`entities/${name}.json`,
+					`'toString' references {${b}}, which is not a column on '${name}'.`,
+				);
+			}
+		}
+	}
+
+	// ── 9. Set aggregates: must be Generated, over a PHYSICAL child column ──
+	// Two documented install-blockers in one place. An 'F' set-aggregate is
+	// unsupported and silently renders empty; a 'G' aggregate over a virtual
+	// (F/R/S) child fails install with `column old.<field> does not exist`.
+	for (const [name, e] of Object.entries(entities)) {
+		const fields = (e.fields as Record<string, Record<string, unknown>> | undefined) ?? {};
+		for (const [fname, f] of Object.entries(fields)) {
+			const formula = typeof f?.formula === "string" ? f.formula : "";
+			if (!formula) continue;
+			const agg = parseSetAggregate(formula);
+			if (!agg) continue;
+			const where = `entities/${name}.json → ${fname}`;
+
+			if (f.columnType === "F") {
+				err(
+					where,
+					`is a Formula ('F') column with a set aggregate ${agg.agg}([${agg.setField}].[${agg.childField}]) — ` +
+						"an F set-aggregate is unsupported and silently renders empty. Use a Generated ('G') column " +
+						"with dbDatatype + formula instead. (See dforge://reference/column-types.)",
+				);
+				continue;
+			}
+			if (f.columnType !== "G") continue;
+
+			// Resolve the set column → child entity → aggregated child column.
+			const setCol = fields[agg.setField] ?? fieldDefsOf[name]?.[agg.setField];
+			if (!setCol) {
+				err(where, `aggregates over '[${agg.setField}]', which is not a column on '${name}'.`);
+				continue;
+			}
+			if (setCol.columnType !== "S") {
+				warn(
+					where,
+					`aggregates over '[${agg.setField}]', which is not a set column (columnType 'S') on '${name}'.`,
+				);
+				continue;
+			}
+			const childEntity = (setCol.link as Record<string, unknown> | undefined)?.entity as
+				| string
+				| undefined;
+			if (!childEntity) continue;
+			const childDefs = fieldDefsOf[childEntity];
+			if (!childDefs) continue; // cross-module / system child — can't inspect offline
+			const childCol = childDefs[agg.childField];
+			if (!childCol) {
+				err(
+					where,
+					`aggregates '[${agg.setField}].[${agg.childField}]' but '${agg.childField}' is not a column on child entity '${childEntity}'.`,
+				);
+				continue;
+			}
+			const childType = typeof childCol.columnType === "string" ? childCol.columnType : "D";
+			if (childType === "F" || childType === "R" || childType === "S") {
+				err(
+					where,
+					`aggregates '[${agg.setField}].[${agg.childField}]', but '${childEntity}.${agg.childField}' is a ` +
+						`virtual '${childType}' column. A Generated aggregate reads the child's PHYSICAL column — install fails ` +
+						`with \`column old.${agg.childField} does not exist\`. Aggregate a 'D' (or same-row 'G') child column instead.`,
+				);
+			}
+		}
+	}
+
+	// ── 10. Actions: DSL file on disk + a real target entity ──
+	// `script` is a BARE filename; the installer resolves it to
+	// logic/actions/<script>.dsl. A typo here surfaces only at install as
+	// "action script not found".
+	for (const [acode, a] of Object.entries(actions)) {
+		const act = (a ?? {}) as Record<string, unknown>;
+		const where = `actions → ${acode}`;
+		const script = typeof act.script === "string" ? act.script : "";
+		if (!script) {
+			err(where, "has no 'script' — it must be the bare DSL filename (no path, no .dsl extension).");
+		} else if (script.includes("/") || script.includes("\\") || script.endsWith(".dsl")) {
+			err(
+				where,
+				`script '${script}' must be a BARE filename — no path, no '.dsl' extension (e.g. "script": "${script
+					.replace(/\.dsl$/, "")
+					.split(/[\\/]/)
+					.pop()}").`,
+			);
+		} else if (!fs.existsSync(path.join(paths.logicDir, "actions", `${script}.dsl`))) {
+			err(where, `script '${script}' has no file at logic/actions/${script}.dsl.`);
+		}
+		const ent = (act.entityCode ?? act.entity) as string | undefined;
+		if (ent && !isKnownEntity(ent)) {
+			err(where, `targets entity '${ent}', which is not a known entity.`);
+		}
+	}
+
+	// ── 11. Triggers / jobs / webhooks reference real actions + entities ──
+	// A trigger or job naming an action that doesn't exist compiles fine
+	// offline and fails at install. Cross-module dotted action codes are
+	// accepted when the module prefix is a declared dependency.
+	const isKnownAction = (code: string): boolean => {
+		if (code in actions) return true;
+		const dot = code.indexOf(".");
+		if (dot > 0) {
+			const mod = code.slice(0, dot);
+			return deps.has(mod) || mod === manifest.code;
+		}
+		return false;
+	};
+
+	const triggerFile = readJsonOrDefault<{ triggers?: Array<Record<string, unknown>> }>(
+		paths.triggers,
+		{},
+	);
+	for (const t of triggerFile.triggers ?? []) {
+		const where = `triggers → ${String(t.code ?? "?")}`;
+		const act = t.action as string | undefined;
+		if (act && !isKnownAction(act)) {
+			err(where, `fires action '${act}', which is not in ui/actions.json (add it with dforge_action_add first).`);
+		}
+		const ent = t.entity as string | undefined;
+		if (ent && !isKnownEntity(ent)) err(where, `is bound to entity '${ent}', which is not a known entity.`);
+	}
+
+	const jobFile = readJsonOrDefault<{ jobs?: Array<Record<string, unknown>> }>(paths.jobs, {});
+	for (const j of jobFile.jobs ?? []) {
+		const where = `jobs → ${String(j.code ?? "?")}`;
+		const act = j.action as string | undefined;
+		if (act && !isKnownAction(act)) {
+			err(where, `schedules action '${act}', which is not in ui/actions.json.`);
+		}
+		// A scheduled job runs as the system user with NO current record, so the
+		// action it fires must not use record-context `[field]` syntax.
+		if (act && act in actions) {
+			const script = (actions[act] as Record<string, unknown> | undefined)?.script;
+			if (typeof script === "string") {
+				const dslPath = path.join(paths.logicDir, "actions", `${script}.dsl`);
+				if (fs.existsSync(dslPath)) {
+					let body = "";
+					try {
+						body = fs.readFileSync(dslPath, "utf8");
+					} catch {
+						/* unreadable — the missing-file check above already reported it */
+					}
+					for (const issue of checkDsl(body, { viaJob: true })) {
+						if (issue.rule !== "job-record-context") continue;
+						issues.push({ level: issue.level, where, message: issue.message });
+					}
+				}
+			}
+		}
+	}
+
+	const webhookFile = readJsonOrDefault<{ subscriptions?: Array<Record<string, unknown>> }>(
+		paths.webhooks,
+		{},
+	);
+	for (const w of webhookFile.subscriptions ?? []) {
+		const ent = w.entity as string | undefined;
+		if (ent && !isKnownEntity(ent)) {
+			err(`webhooks → ${String(w.code ?? "?")}`, `is bound to entity '${ent}', which is not a known entity.`);
+		}
+	}
+
+	// ── 12. Action DSL static checks ──
+	// The DSL only compiles at install (a slow, tenant-bound round trip), so
+	// run the statically-decidable subset here. See ./dsl-check.
+	for (const [acode, a] of Object.entries(actions)) {
+		const script = (a as Record<string, unknown> | undefined)?.script;
+		if (typeof script !== "string" || !script) continue;
+		const dslPath = path.join(paths.logicDir, "actions", `${script}.dsl`);
+		if (!fs.existsSync(dslPath)) continue; // reported by check 10
+		let body: string;
+		try {
+			body = fs.readFileSync(dslPath, "utf8");
+		} catch {
+			continue;
+		}
+		const mode = ((a as Record<string, unknown>).executionMode ?? (a as Record<string, unknown>).mode) as
+			| string
+			| undefined;
+		for (const issue of checkDsl(body, { executionMode: mode })) {
+			issues.push({
+				level: issue.level,
+				where: `logic/actions/${script}.dsl`,
+				message: `[${acode}] ${issue.message}`,
+			});
+		}
+	}
+
+	// ── 12b. Folder codes are unique across the whole tree ──
+	// A folder is referenced flat and path-less — `folder:<code>` in role rights,
+	// `folders.<code>.label` in translations — so the same code in two branches
+	// makes the rights grant ambiguous and lets one folder's label overwrite the
+	// other's. Nesting alone doesn't namespace them.
+	const folderRoot = readJsonOrDefault<Record<string, unknown>>(paths.folders, {});
+	for (const [code, dupPaths] of duplicateFolderCodes(folderRoot)) {
+		err(
+			"ui/folders.json",
+			`folder code '${code}' is used ${dupPaths.length} times (${dupPaths.join(", ")}). Codes must be ` +
+				`unique across the whole tree: role rights say 'folder:${code}' with no path, and translations key ` +
+				`on 'folders.${code}.label', so duplicates are ambiguous and silently collide.`,
+		);
+	}
+
+	// ── 13. Translation completeness ──
+	// `TranslationCompletenessValidator` requires a `roles.<code>.label` for
+	// EVERY role in security/roles.json, in EVERY translation file — including
+	// the en-US base. A missing one fails install with `Label for role '<code>'.`
+	// Also: every locale in supportedLocales must have a matching file.
+	const roleCodes = Object.keys(roles);
+	const localeFiles = fs.existsSync(paths.translationsDir)
+		? fs
+				.readdirSync(paths.translationsDir)
+				.filter((f) => f.toLowerCase().endsWith(".json"))
+				.sort()
+		: [];
+
+	for (const raw of supportedLocales) {
+		const locale = raw.trim();
+		if (!locale) continue;
+		if (!resolveTranslationFile(paths.translationsDir, locale)) {
+			err(
+				"translations",
+				`manifest.supportedLocales lists '${locale}' but translations/${locale}.json does not exist — install fails translation completeness validation.`,
+			);
+		}
+	}
+
+	if (roleCodes.length > 0 && localeFiles.length === 0) {
+		warn(
+			"translations",
+			`no translations/ files — ship at least translations/en-US.json with a roles block (a 'label' for each of: ${roleCodes.join(", ")}); role labels are completeness-enforced at install.`,
+		);
+	}
+
+	for (const file of localeFiles) {
+		let tx: Record<string, unknown>;
+		try {
+			tx = JSON.parse(fs.readFileSync(path.join(paths.translationsDir, file), "utf8"));
+		} catch (ex) {
+			err(`translations/${file}`, `invalid JSON: ${(ex as Error).message}`);
+			continue;
+		}
+		const txRoles = (tx.roles as Record<string, unknown> | undefined) ?? {};
+		const missing = roleCodes.filter((rc) => {
+			const entry = txRoles[rc] as Record<string, unknown> | undefined;
+			return !entry || typeof entry.label !== "string" || entry.label.trim() === "";
+		});
+		if (missing.length > 0) {
+			err(
+				`translations/${file}`,
+				`missing roles.<code>.label for: ${missing.join(", ")} — completeness is enforced in every locale (including en-US); install fails with "Label for role '<code>'."`,
+			);
 		}
 	}
 

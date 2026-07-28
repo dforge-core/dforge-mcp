@@ -1,7 +1,19 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
-import { PHASE_STATE_FILE, phaseStateJson, isReadyToScaffold } from "./_helpers";
+import {
+	PHASE_STATE_FILE,
+	phaseStateJson,
+	isReadyToScaffold,
+	readPhaseState,
+	markPhase,
+	modulePaths,
+	readJsonOrDefault,
+	checkSecurityCoverage,
+	BUILD_PHASES,
+	type BuildPhase,
+	type FileMap,
+} from "./_helpers";
 
 // Phase 0 doc paths (relative to module root)
 const P0 = {
@@ -74,9 +86,16 @@ Total FKs: <N>
 
 export const planModuleSchema = {
 	action: z
-		.enum(["check", "write_identity", "write_requirements", "write_design", "validate"])
+		.enum([
+			"check",
+			"write_identity",
+			"write_requirements",
+			"write_design",
+			"validate",
+			"complete_phase",
+		])
 		.describe(
-			"Sub-command: 'check' = current Phase 0 state; 'write_identity' = Phase 0a; 'write_requirements' = Phase 0b; 'write_design' = Phase 0c; 'validate' = Phase 0d.",
+			"Sub-command: 'check' = current lifecycle state (Phase 0 sub-phase, or the build/ship phase once Phase 0 is done) + which skill to run next; 'write_identity' = Phase 0a; 'write_requirements' = Phase 0b; 'write_design' = Phase 0c; 'validate' = Phase 0d; 'complete_phase' = record a build phase (1-6) as done or deliberately skipped.",
 		),
 	moduleDir: z
 		.string()
@@ -131,13 +150,47 @@ export const planModuleSchema = {
 		.describe(
 			"[validate] Semantic check results from agent evaluation. Omit on the first call (structural pre-check only). Provide after evaluating the returned semanticChecks.",
 		),
+	// ── complete_phase fields (Phases 1-6) ───────────────────────────────
+	phase: z
+		.enum(BUILD_PHASES)
+		.optional()
+		.describe(
+			"[complete_phase] Which build phase finished: '1' domain, '2' behavior, '3' views/reports, '4' polish, '5' security, '6' verify.",
+		),
+	skipped: z
+		.boolean()
+		.optional()
+		.describe(
+			"[complete_phase] True when the phase was deliberately skipped rather than done (only valid for the optional phases 2 and 4). Recording it stops a resumed session from re-proposing work the user already declined.",
+		),
+	note: z
+		.string()
+		.optional()
+		.describe("[complete_phase] One-line record of what was done or why it was skipped."),
 };
 
 type Args = z.infer<z.ZodObject<typeof planModuleSchema>>;
 
+/**
+ * This tool's result is NOT a ToolResult. Most actions return lifecycle state —
+ * the current phase, the questions to ask, the next step, the skill to run next
+ * — with no files at all; only the write actions carry a `files` map for the
+ * client to write. The shape is the contract, so it's typed here rather than
+ * cast to ToolResult at the registration site (a cast would silently absorb a
+ * real mismatch).
+ */
+export interface PlanResult {
+	/** One-line human-readable status. Always present. */
+	summary: string;
+	/** Files for the client to write — only on the write actions. */
+	files?: FileMap;
+	/** Action-specific fields: currentPhase, questions, nextStep, nextSkill, … */
+	[key: string]: unknown;
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
-export function planModule(rawArgs: Args): unknown {
+export function planModule(rawArgs: Args): PlanResult {
 	const root = path.resolve(rawArgs.moduleDir);
 	switch (rawArgs.action) {
 		case "check":
@@ -150,12 +203,244 @@ export function planModule(rawArgs: Args): unknown {
 			return handleWriteDesign(root, rawArgs);
 		case "validate":
 			return handleValidate(root, rawArgs);
+		case "complete_phase":
+			return handleCompletePhase(root, rawArgs);
 	}
+}
+
+// ─── Build phases (1-6) ───────────────────────────────────────────────────────
+//
+// Phase 0 is tracked by which artifact files exist. Phases 1-6 are tracked by a
+// LEDGER in docs/phase.json plus evidence derived from the module itself. Before
+// this, a resumed session had to guess the last completed phase by
+// cross-referencing inspect output — which can't tell "Phase 2 skipped
+// deliberately" from "Phase 2 not started", and can't tell whether the user has
+// signed off. The ledger records intent; the evidence catches drift.
+
+/** Which skill owns each stretch of the lifecycle. */
+const SKILL_FOR_PHASE: Record<string, string> = {
+	"0a": "dforge-module-design",
+	"0b": "dforge-module-design",
+	"0c": "dforge-module-design",
+	"0d": "dforge-module-design",
+	"1": "dforge-module-build",
+	"2": "dforge-module-build",
+	"3": "dforge-module-build",
+	"4": "dforge-module-build",
+	"5": "dforge-module-build",
+	"6": "dforge-module-ship",
+};
+
+const PHASE_TITLES: Record<BuildPhase, string> = {
+	"1": "Domain — entities, fields, relations (required)",
+	"2": "Behavior — actions, triggers, jobs, webhooks (optional)",
+	"3": "Views + menus, reports (3a grids required)",
+	"4": "Polish — settings, translations, seed data (optional)",
+	"5": "Security — roles + rights matrix (5a required)",
+	"6": "Verify — validate, pack, install (required)",
+};
+
+/** Phases the module can't ship without. 2 and 4 are legitimately skippable. */
+const REQUIRED_PHASES: BuildPhase[] = ["1", "3", "5", "6"];
+
+interface BuildEvidence {
+	scaffolded: boolean;
+	entityCount: number;
+	entitiesWithoutFields: string[];
+	entitiesWithoutView: string[];
+	entitiesWithoutSelect: string[];
+	actionCount: number;
+	viewCount: number;
+	roleCount: number;
+}
+
+/** Read what the module itself proves, independent of the ledger. */
+function gatherEvidence(root: string): BuildEvidence {
+	const paths = modulePaths(root);
+	const empty: BuildEvidence = {
+		scaffolded: false,
+		entityCount: 0,
+		entitiesWithoutFields: [],
+		entitiesWithoutView: [],
+		entitiesWithoutSelect: [],
+		actionCount: 0,
+		viewCount: 0,
+		roleCount: 0,
+	};
+	if (!fileExists(paths.manifest)) return empty;
+
+	let manifest: Record<string, unknown>;
+	try {
+		manifest = JSON.parse(readFile(paths.manifest));
+	} catch {
+		return empty;
+	}
+
+	const entityMap = (manifest.entities ?? {}) as Record<string, string>;
+	const names = Object.keys(entityMap).filter((n) => !n.includes("."));
+	const entitiesWithoutFields: string[] = [];
+	for (const name of names) {
+		const abs = path.join(root, entityMap[name].replace(/^\.\//, ""));
+		if (!fileExists(abs)) {
+			entitiesWithoutFields.push(name);
+			continue;
+		}
+		try {
+			const e = JSON.parse(readFile(abs)) as { fields?: Record<string, unknown> };
+			if (Object.keys(e.fields ?? {}).length === 0) entitiesWithoutFields.push(name);
+		} catch {
+			entitiesWithoutFields.push(name);
+		}
+	}
+
+	const views = readJsonOrDefault<Record<string, Record<string, unknown>>>(paths.dataViews, {});
+	const covered = new Set<string>();
+	for (const v of Object.values(views)) {
+		for (const s of (v.dataSources as Array<Record<string, unknown>> | undefined) ?? []) {
+			if (typeof s.entityCode === "string") covered.add(s.entityCode);
+		}
+	}
+
+	let entitiesWithoutSelect: string[] = [];
+	try {
+		entitiesWithoutSelect = checkSecurityCoverage(root).uncoveredEntities;
+	} catch {
+		entitiesWithoutSelect = names;
+	}
+
+	return {
+		scaffolded: true,
+		entityCount: names.length,
+		entitiesWithoutFields,
+		entitiesWithoutView: names.filter((n) => !covered.has(n)),
+		entitiesWithoutSelect,
+		actionCount: Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.actions, {})).length,
+		viewCount: Object.keys(views).length,
+		roleCount: Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.roles, {})).length,
+	};
+}
+
+/**
+ * `check`'s build/ship result. A narrower PlanResult: the fields callers read
+ * are declared, so `handleCompletePhase` can consume them without casting the
+ * whole thing back to an untyped bag.
+ */
+export interface BuildPhaseCheck extends PlanResult {
+	currentPhase: BuildPhase | "complete";
+	/** Which authoring skill owns the next phase. Absent once complete. */
+	nextSkill?: string;
+	nextStep: string;
+	/** What the module itself proves is unfinished, regardless of the ledger. */
+	gaps: string[];
+	completed: BuildPhase[];
+	pending: BuildPhase[];
+}
+
+/**
+ * The build/ship half of `check`, reached once Phase 0d has passed. Returns the
+ * next phase to work on, the skill that owns it, and — where the module's own
+ * state contradicts the ledger — the specific gaps.
+ */
+function buildPhaseCheck(root: string): BuildPhaseCheck {
+	const ledger = readPhaseState(root)?.phases ?? {};
+	const ev = gatherEvidence(root);
+
+	const recorded = (p: BuildPhase) => Boolean(ledger[p]);
+	const completed = BUILD_PHASES.filter(recorded);
+
+	// Gaps are what the module PROVES is unfinished, regardless of the ledger.
+	const gaps: string[] = [];
+	if (!ev.scaffolded) {
+		gaps.push("no manifest.json — the module has not been scaffolded (dforge_module_create).");
+	} else {
+		if (ev.entitiesWithoutFields.length > 0) {
+			gaps.push(
+				`Phase 1: entities with no fields yet: ${ev.entitiesWithoutFields.join(", ")}.`,
+			);
+		}
+		if (ev.entitiesWithoutView.length > 0) {
+			gaps.push(
+				`Phase 3a: entities with no data view: ${ev.entitiesWithoutView.join(", ")} (every entity needs a default grid).`,
+			);
+		}
+		if (ev.entitiesWithoutSelect.length > 0) {
+			gaps.push(
+				`Phase 5a: entities with no role granting Select: ${ev.entitiesWithoutSelect.join(", ")} (dforge_module_pack refuses to build until fixed).`,
+			);
+		}
+	}
+
+	// Next phase = the first required-or-unrecorded phase that isn't done.
+	const next = BUILD_PHASES.find((p) => !recorded(p));
+	const allRequiredDone = REQUIRED_PHASES.every(recorded);
+
+	if (!next || (allRequiredDone && gaps.length === 0)) {
+		return {
+			summary: `Module complete — all build phases recorded${gaps.length ? " (with open gaps, see below)" : ""}.`,
+			currentPhase: "complete",
+			phase0: "complete",
+			readyToScaffold: true,
+			completed,
+			pending: [],
+			gaps,
+			evidence: ev,
+			nextStep:
+				gaps.length > 0
+					? "Every phase is recorded as done, but the module still shows the gaps listed above. Resolve them, then re-run dforge_module_validate."
+					: "Nothing left to do. Run dforge_module_validate for a final check if the module has changed since install.",
+		};
+	}
+
+	return {
+		summary: `Phase 0 complete. ${completed.length ? `Recorded: ${completed.join(", ")}. ` : ""}Next: Phase ${next} — ${PHASE_TITLES[next]}.`,
+		currentPhase: next,
+		phase0: "complete",
+		readyToScaffold: true,
+		completed,
+		pending: BUILD_PHASES.filter((p) => !recorded(p)),
+		optionalPhases: ["2", "4"],
+		gaps,
+		evidence: ev,
+		nextSkill: SKILL_FOR_PHASE[next],
+		nextStep:
+			`Run the '${SKILL_FOR_PHASE[next]}' skill and work Phase ${next} (${PHASE_TITLES[next]}). ` +
+			(gaps.length > 0 ? `Open gaps to resolve first: ${gaps.join(" ")} ` : "") +
+			`When the phase is done (or the user declines an optional one), record it with ` +
+			`dforge_module_plan({ action: 'complete_phase', moduleDir, phase: '${next}', note: '...' }).`,
+	};
+}
+
+function handleCompletePhase(root: string, args: Args): PlanResult {
+	if (!args.phase) {
+		throw new Error(
+			`complete_phase needs a 'phase' — one of ${BUILD_PHASES.join(", ")}. (Phase 0 sub-phases are recorded by write_identity / write_requirements / write_design / validate.)`,
+		);
+	}
+	if (!isReadyToScaffold(root)) {
+		throw new Error(
+			"Phase 0 has not passed validation yet — there are no build phases to record. Call dforge_module_plan({ action: 'check', moduleDir }) to see what Phase 0 still needs.",
+		);
+	}
+	if (args.skipped && args.phase !== "2" && args.phase !== "4") {
+		throw new Error(
+			`Phase ${args.phase} (${PHASE_TITLES[args.phase]}) is required and can't be marked skipped. Only Phases 2 and 4 are optional.`,
+		);
+	}
+
+	const { json } = markPhase(root, args.phase, { skipped: args.skipped, note: args.note });
+	const { currentPhase, nextSkill, nextStep, gaps } = buildPhaseCheck(root);
+
+	return {
+		summary: `Recorded Phase ${args.phase} as ${args.skipped ? "SKIPPED" : "complete"}${args.note ? ` — ${args.note}` : ""}.`,
+		files: { [P0.phaseState]: json },
+		next: { currentPhase, nextSkill, nextStep, gaps },
+		nextStep: `Write the updated ${P0.phaseState} to disk, then continue: ${nextStep}`,
+	};
 }
 
 // ─── check ────────────────────────────────────────────────────────────────────
 
-function handleCheck(root: string): unknown {
+function handleCheck(root: string): PlanResult {
 	const claudePath = path.join(root, P0.identity);
 	const reqPath = path.join(root, P0.requirements);
 	const designPath = path.join(root, P0.design);
@@ -177,17 +462,9 @@ function handleCheck(root: string): unknown {
 	const allPhases = ["0a", "0b", "0c", "0d"];
 	const pending = allPhases.filter((p) => !completed.includes(p));
 
-	if (has0d) {
-		return {
-			summary: "Phase 0 complete — all docs present and validated.",
-			currentPhase: "complete",
-			completed,
-			pending: [],
-			readyToScaffold: true,
-			nextStep:
-				"All Phase 0 docs are in place. Call dforge_module_create({ moduleDir, code, displayName, entities, ... }) to scaffold the module.",
-		};
-	}
+	// Phase 0 done → hand off to the build/ship half, which tracks phases 1-6
+	// from the ledger in docs/phase.json plus evidence from the module itself.
+	if (has0d) return buildPhaseCheck(root);
 
 	if (!has0a) {
 		return {
@@ -297,7 +574,7 @@ function handleCheck(root: string): unknown {
 
 // ─── write_identity ───────────────────────────────────────────────────────────
 
-function handleWriteIdentity(root: string, args: Args): unknown {
+function handleWriteIdentity(root: string, args: Args): PlanResult {
 	const { displayName, code, dependencies = [], locales = ["en-US"], preset = "minimal" } = args;
 
 	if (!displayName) throw new Error("displayName is required for write_identity.");
@@ -365,7 +642,7 @@ dforge_module_install({ moduleDir: "${root}" })
 
 // ─── write_requirements ───────────────────────────────────────────────────────
 
-function handleWriteRequirements(root: string, args: Args): unknown {
+function handleWriteRequirements(root: string, args: Args): PlanResult {
 	const reqPath = path.join(root, P0.requirements);
 	assertDocReady(reqPath, P0.requirements);
 
@@ -399,7 +676,7 @@ function handleWriteRequirements(root: string, args: Args): unknown {
 
 // ─── write_design ─────────────────────────────────────────────────────────────
 
-function handleWriteDesign(root: string, args: Args): unknown {
+function handleWriteDesign(root: string, args: Args): PlanResult {
 	const designPath = path.join(root, P0.design);
 	assertDocReady(designPath, P0.design);
 
@@ -610,7 +887,7 @@ function runStructuralChecks(root: string): CheckResult[] {
 	return results;
 }
 
-function handleValidate(root: string, args: Args): unknown {
+function handleValidate(root: string, args: Args): PlanResult {
 	const structuralResults = runStructuralChecks(root);
 	const structuralFailed = structuralResults.filter((r) => !r.pass);
 

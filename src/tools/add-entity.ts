@@ -9,7 +9,7 @@ import {
 	buildRoles,
 } from "@dforge-core/dforge-cli/templates";
 import type { EntitySpec, ScaffoldOpts } from "@dforge-core/dforge-cli/templates";
-import { traitsInput, withTraits } from "./_helpers";
+import { traitsInput, withTraits, withIdentityToString } from "./_helpers";
 
 export const addEntitySchema = {
 	moduleDir: z
@@ -101,7 +101,15 @@ export function addEntityFiles(
 	const files: Record<string, string> = {};
 	files["manifest.json"] = JSON.stringify(newManifest, null, "\t") + "\n";
 	files[`entities/${newEntity.name}.json`] =
-		JSON.stringify(withTraits(buildEntity(newEntity), args.entity.traits), null, "\t") + "\n";
+		JSON.stringify(
+			withIdentityToString(
+				withTraits(buildEntity(newEntity), args.entity.traits),
+				args.entity.name,
+				args.entity.traits,
+			),
+			null,
+			"\t",
+		) + "\n";
 	files["ui/data_views.json"] =
 		JSON.stringify(buildDataViews(allEntities), null, "\t") + "\n";
 	files["ui/folders.json"] =

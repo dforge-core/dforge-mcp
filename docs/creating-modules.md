@@ -42,19 +42,27 @@ Sidebar also gives you right-click commands: **Pack Module**, **Install Module t
 
 ## Path 3 — AI co-pilot, wizard-driven
 
-Claude Code (or Cursor / Zed) with `dforge-mcp` connected. You describe what you want; the AI walks you through six phases via MCP tool calls, pausing at each gate for your approval.
+Claude Code (or Cursor / Zed) with `dforge-mcp` connected. You describe what you want; the AI walks you through seven phases (0-6) via MCP tool calls, pausing at each gate for your approval. Guidance ships as four skills — a router plus one per lifecycle stage — so only the active stage is loaded.
 
 Setup once:
 
 ```bash
 claude mcp add dforge --scope user -- npx -y @dforge-core/dforge-mcp
-# Resolve actual latest from npm, then pin jsdelivr URL to it.
-# (jsdelivr's @latest endpoint caches 6-12h; pinning the version skips that.)
-VERSION=$(npm view @dforge-core/dforge-mcp version)
-mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL "https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dforge-mcp-author/SKILL.md" \
-  -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+
+# Install the four authoring skills into ~/.claude/skills/
+npx -y -p @dforge-core/dforge-mcp dforge-install-skills
 ```
+
+That works as-is on Windows (cmd.exe / PowerShell), macOS and Linux — it's a
+Node script, not bash. From a clone, `npm run install-skills` installs the local
+copy instead. See the README's "Windows notes" for the WSL caveat.
+
+| Skill | Stage |
+|---|---|
+| `dforge-mcp-author` | Router — finds the current phase and hands off |
+| `dforge-module-design` | Phase 0 — identity, requirements, design, validation |
+| `dforge-module-build` | Phases 1-5 — entities, behavior, views, security |
+| `dforge-module-ship` | Phase 6 — validate, pack, install |
 
 Restart Claude Code, approve the MCP server on first prompt, then in a new conversation:
 
@@ -66,7 +74,7 @@ The wizard runs:
 
 ### Phase 0 — Identity, requirements, design, validation (required)
 
-A documented chain the `dforge-mcp-author` skill enforces — the AI authors each artifact directly (drafts it, you approve, your client writes the file):
+A documented chain the `dforge-module-design` skill enforces — the AI authors each artifact directly (drafts it, you approve, your client writes the file):
 
 - **0a Identity** — write `CLAUDE.md` (identity + MCP-first rules + a live status tracker).
 - **0b Requirements** — intake questions (purpose / users / dependencies / language scope), then write `docs/REQUIREMENTS.md`. **You review it before moving on.**
@@ -148,6 +156,9 @@ VS Code with the [dForge extension](https://github.com/dforge-core/dforge-editor
 
 ## Going further
 
-- [SKILL.md](../skills/dforge-mcp-author/SKILL.md) — the full wizard spec the AI follows, including the deterministic backtrack protocol, multi-trigger priority rule, tool-failure protocol, and resume-from-partial-state support
-- [README.md](../README.md) — full tool reference (18 tools, 13 resources) + maintainer docs
+- [dforge-mcp-author](../skills/dforge-mcp-author/SKILL.md) — the router: session start, tool inventory, hard rules, tool-failure protocol, resource index
+- [dforge-module-design](../skills/dforge-module-design/SKILL.md) — Phase 0, including the intake guardrails and gap scans
+- [dforge-module-build](../skills/dforge-module-build/SKILL.md) — Phases 1-5, the loading-policy table, core-rules cheat sheet, and the deterministic backtrack protocol
+- [dforge-module-ship](../skills/dforge-module-ship/SKILL.md) — Phase 6 and the install-fix loop
+- [README.md](../README.md) — full tool reference (34 tools) + maintainer docs
 - [iash44/dForge-core](https://github.com/iash44/dForge-core) — the platform itself: source of truth for the schemas + DSL conventions
