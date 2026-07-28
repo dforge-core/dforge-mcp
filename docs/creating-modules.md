@@ -50,9 +50,12 @@ Setup once:
 claude mcp add dforge --scope user -- npx -y @dforge-core/dforge-mcp
 
 # Install the four authoring skills into ~/.claude/skills/
-curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/scripts/install-skills.sh \
-  | bash -s -- --from-npm
+npx -y -p @dforge-core/dforge-mcp dforge-install-skills
 ```
+
+That works as-is on Windows (cmd.exe / PowerShell), macOS and Linux — it's a
+Node script, not bash. From a clone, `npm run install-skills` installs the local
+copy instead. See the README's "Windows notes" for the WSL caveat.
 
 | Skill | Stage |
 |---|---|

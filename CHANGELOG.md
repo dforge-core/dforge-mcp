@@ -187,6 +187,32 @@ in `dforge_module_validate`:
 - translation completeness: a file per `supportedLocales` entry, and a
   `roles.<code>.label` in every locale file including the en-US base
 
+### Fixed — the skills installer did not work on Windows
+
+`scripts/install-skills.sh` was bash-only, so it could not run in cmd.exe or
+PowerShell at all — and `npm run install-skills` invoked `bash`, which fails
+there too. Under WSL it appeared to work but resolved `$HOME` to the *Linux*
+home, silently installing to `/home/you/.claude` while a Windows Claude Code
+read `C:\Users\you\.claude`. `scripts/` was also absent from package.json
+`files`, so the script did not ship at all.
+
+The installer is now **`scripts/install-skills.mjs`** (Node), behaving
+identically on Windows/macOS/Linux/Git Bash/WSL:
+
+- exposed as a `dforge-install-skills` bin, so
+  `npx -y -p @dforge-core/dforge-mcp dforge-install-skills` needs no clone and
+  no bash (npm shims it as `.cmd` on Windows)
+- destination resolves `DEST` → `CLAUDE_CONFIG_DIR/skills` →
+  `os.homedir()/.claude/skills`, so Windows gets `%USERPROFILE%` regardless of
+  the invoking shell
+- `--from-npm` uses `npm pack` + `tar` (built into Windows 10 1803+), which
+  fetches only this package rather than its ~35 MB native CLI dependency
+- handles `EPIPE` so piping into `head`/`less` doesn't dump a stack trace
+- `scripts/install-skills.mjs` added to package.json `files`
+
+`scripts/install-skills.sh` is kept as a thin wrapper that execs the Node
+script, so the documented `curl … | bash` one-liner still works.
+
 ### Changed — skills split by lifecycle stage
 
 `dforge-mcp-author` becomes a thin router; `dforge-module-design` (Phase 0),

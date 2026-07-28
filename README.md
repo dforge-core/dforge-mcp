@@ -217,18 +217,34 @@ The router directory also holds the shared assets:
 | `examples/matrix-budget/` | Worked example for the `matrix` (pivot) view type |
 | `scripts/xlsx_to_model.py` | Stdlib Python `.xlsx` → table-spec extractor |
 
-**Skills are NOT auto-installed by `npm install`** — they ship in the npm tarball, but Claude Code looks in `~/.claude/skills/`, not `node_modules`. Use the installer:
+**Skills are NOT auto-installed by `npm install`** — they ship in the npm tarball, but Claude Code looks in `~/.claude/skills/`, not `node_modules`. Use the installer, which is a Node script so it behaves identically on **Windows (cmd.exe / PowerShell), macOS, Linux, Git Bash and WSL**:
 
 ```bash
+# Straight from the published package — no clone needed:
+npx -y -p @dforge-core/dforge-mcp dforge-install-skills
+
 # From a local checkout:
-scripts/install-skills.sh
+npm run install-skills
 
-# Or straight from the published package:
-curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/scripts/install-skills.sh | bash -s -- --from-npm
-
-# Custom destination:
-DEST=/path/to/skills scripts/install-skills.sh
+# Equivalently, without npm:
+node scripts/install-skills.mjs [--from-npm]
 ```
+
+Destination resolution, in order: `DEST` → `CLAUDE_CONFIG_DIR/skills` → `<home>/.claude/skills`. The home directory comes from Node's `os.homedir()`, so on Windows it's `%USERPROFILE%` no matter which shell invoked it.
+
+```bash
+DEST=/path/to/skills npm run install-skills
+```
+
+<details>
+<summary>Windows notes</summary>
+
+- **cmd.exe / PowerShell**: `npm run install-skills` works directly. There is no bash requirement.
+- **WSL**: run it from *Windows*, not inside WSL — inside WSL, `os.homedir()` is the Linux home (`/home/you`), so the skills would land where a Windows Claude Code never looks. If you deliberately run Claude Code inside WSL, then installing from WSL is correct.
+- `--from-npm` shells out to `tar`, built into Windows 10 1803+ (and macOS/Linux). Without it, clone the repo and run the installer without `--from-npm`.
+- `scripts/install-skills.sh` still exists and works (it just execs the Node script), so the older `curl … | bash` one-liner keeps working on macOS/Linux/Git Bash.
+
+</details>
 
 It replaces each skill directory wholesale — a stale reference file left behind is worse than a missing one, because the agent will happily author against it.
 
