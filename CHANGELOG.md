@@ -4,6 +4,211 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.0
+
+Tools go from 27 → 34; the single wizard skill splits into a router plus three
+stage skills; `dforge_module_validate` grows the checks that previously only
+surfaced at install.
+
+### Fixed
+
+- **`dforge_module_inspect` reported nothing useful about actions.** It read
+  `entity` / `mode` / `background`, but `dforge_action_add` has always written
+  `entityCode` / `executionMode` / `isAsync` (matching the installer and the
+  canonical example), so every action inspected as `entity: "?"`. Since the
+  skill makes inspect the pre-patch source of truth, agents were planning
+  against wrong data. Legacy key names are still read as a fallback.
+- **`dforge_module_inspect` listed `["jobs"]` as the job list** — `logic/jobs.json`
+  is `{ jobs: [...] }`, not a code-keyed map, so `Object.keys` returned the
+  wrapper key. Jobs, triggers and webhooks are now reported properly, alongside
+  queries, print templates, domains and `supportedLocales`.
+- **Every entity's `toString` was reported as an inherited function.** `toString`
+  comes from `Object.prototype`, so reading `entity.toString` never yields
+  `undefined`; `JSON.stringify` then dropped it silently. Now read as an own
+  property.
+- **Freshly scaffolded entities shipped a dangling `toString`.** dforge-cli's
+  `buildEntity` emits `"{id}"`, but the `identity` trait names the PK
+  `{entity}_id` — so the template referenced a column that never existed.
+  Normalized to `{<entity>_id}` on the way out of `module_create` / `entity_add`.
+- **Phase labels in the tool descriptions had drifted** from the skill: entity
+  and field tools claimed Phase 2 (they're Phase 1); views and reports claimed
+  Phase 4 (they're Phase 3). Tool descriptions are always in context and the
+  skill table isn't, so the wrong one was winning.
+- **Resource descriptions never reached the client.** The deprecated
+  `server.resource()` signature dropped them; `registerResource` carries them.
+
+### Added — composite entity tools
+
+Three dForge concepts each span several coordinated keys, and hand-assembling
+them from `entity_field_add` is the top source of broken modules. These take the
+intent and emit the whole shape, so the broken variants aren't representable:
+
+- **`dforge_entity_reference_add`** — a relation as all three of its parts:
+  hidden FK (`cuid` / `EM` / no `fieldTypeCd`), visible Reference (`R` /
+  `lookup` / `link`), and the `references` entry. Also *completes* a half-built
+  relation by reusing an FK column an import already created.
+- **`dforge_entity_rollup_add`** — a child total as a **Generated** (`G`) column,
+  creating the parent's Set column when needed, and refusing to aggregate a
+  virtual `F`/`R`/`S` child (the `column old.<field> does not exist` failure).
+- **`dforge_entity_status_add`** — a dropdown with `params.options` objects and
+  the initial value as a `formula`, never the `defaultValue` key the entity
+  schema rejects.
+
+### Added — DSL static checking
+
+- **`dforge_action_check`** — check a draft `dslBody` before committing to
+  `action_add`, or an `actionCode` already on disk (its execution mode and job
+  bindings are read from the module). Catches `TODAY()`/`NOW()` inside
+  `execute:`, `[field]` record-context in batch mode or a job-invoked action,
+  block order/duplication, top-level `return`, `:param` SQL placeholders, and
+  unknown host functions.
+- `dforge_action_add` now runs the same checker and rejects errors, replacing
+  the single hard-coded `TODAY()` grep.
+- `dforge_module_validate` runs it over every action body in the module.
+
+### Added — the element tools that were missing
+
+- **`dforge_menu_add`** — menus had a reference doc and a schema but no tool, so
+  agents hand-wrote the JSON and hit the same three documented mistakes. Now
+  `dataViewCode` is validated against `data_views.json`, `itemType` lands on
+  leaves only, and icons are normalized to the bare form menus require.
+- **`dforge_translation_sync`** — generates every install-required key from the
+  module's own contents (entities + trait-provided fields, views, menus, roles,
+  actions, folders, settings), never overwriting existing translated text.
+  "Missing translation key" was a documented install-failure mode with no tool
+  behind it, and role labels are completeness-enforced.
+- **`dforge_seed_add`** — enforces the four documented seed traps: numeric
+  `{entity}_id` PKs, parent-before-child load order, `audit-full` System-user
+  columns, and FKs pointing at seeded parents.
+
+### Added — `apply: true`
+
+Every patch tool accepts `apply`. It writes the file map to disk and returns the
+paths instead of the contents — cutting the full-file round trip through context
+on routine patches, and guaranteeing the `deletes` half of a rename/delete is
+applied. Refuses to write outside `moduleDir`; never writes report payloads.
+
+### Added — full-lifecycle phase ledger
+
+`docs/phase.json` now records Phases 1-6, not just Phase 0.
+`dforge_module_plan({ action: "check" })` returns `currentPhase`, `nextSkill`
+and `gaps` derived from the ledger **plus** evidence read from the module
+(entities without fields, without a view, without a Select grant).
+`complete_phase` records a phase as done or deliberately skipped. Previously a
+resumed session had to guess the phase by cross-referencing inspect output,
+which can't distinguish "skipped deliberately" from "not started".
+
+### Fixed — follow-ups from review
+
+- **`dbDatatype: "number"` produced a suggestion with unbalanced quotes.** The
+  alias table smuggled quote characters into its value to fake a list, so the
+  rendered message depended on the surrounding template. Multi-option
+  suggestions are now real arrays formatted by one helper — `use 'int' /
+  'bigint' / 'numeric'.`
+- **Folder codes were only checked among siblings.** A folder is addressed flat
+  and path-less outside the tree — `folder:<code>` in role rights,
+  `folders.<code>.label` in translations — so the same code in two branches was
+  ambiguous in the rights matrix and let one folder's label silently overwrite
+  the other's in a synced translation file. `dforge_folder_add` now refuses a
+  code used anywhere in the tree, `dforge_module_validate` errors on duplicates,
+  and `dforge_translation_sync` refuses to generate colliding keys.
+- **`apply: true` without `moduleDir` silently degraded to a preview** — a
+  client relying on apply semantics got a success response and no write. It now
+  errors.
+- **Raw NUL bytes were being used as composite-key separators** (the validator's
+  view+entity keys and `dforge_translation_sync`'s keep/prune path keys). Beyond
+  being invisible in a diff and unreadable in debug output, a NUL makes `grep`
+  classify the whole source file as BINARY and stop reporting matches in it — so
+  the usual "search the codebase" check came back clean while the problem sat
+  right there. Both now use a shared, exported `compositeKey()` / `KEY_SEP =
+  "::"`, and a `source-hygiene` test fails the build on any raw NUL or other
+  invisible control character in `src/` or `test/`.
+- **`dforge_entity_reference_add` reused an existing FK column without checking
+  its shape.** An import commonly emits the FK as a visible numeric column;
+  reusing it as-is produced a pair that looked complete and failed at install.
+  The column is now normalized to the hidden-FK shape (`cuid` / `EM`, no
+  `fieldTypeCd`, no `columnType`), preserving author metadata like `orderNum`
+  and `description`, and the response reports exactly what changed.
+- **`dforge_module_plan` was registered through the ToolResult envelope with a
+  cast**, which would have absorbed a real shape mismatch — most of its actions
+  return lifecycle state with no `files` at all. It now has an explicit
+  `PlanResult` type and a `serialize()` envelope that makes no ToolResult
+  assumption. (The envelope was also renamed off `readOnly`: read-only-ness is
+  declared by the tool `annotations`, and some tools it wraps do return files.)
+- **`applyToDisk` would throw an opaque error if `deletes` ever contained a
+  directory.** `deletes` is a file-only contract, so it now says so: directories
+  are refused by name rather than removed recursively (silently deleting a
+  subtree would be the worst response to a tool bug), and symlinks are unlinked
+  rather than followed.
+
+### Fixed — second review pass
+
+- **`dforge_seed_add` hard-coded a list of "trait-provided columns" that was
+  wrong on almost every entry.** The registry's real names are `created_date` /
+  `last_updated` (audit), `order_num` (sorting), `active` (soft-delete) — not
+  `created_at` / `updated_at` / `sort_order` / `is_deleted`, and `audit-full`'s
+  `created_by_user` / `last_updated_by_user` and the whole `period` set were
+  missing. Seeding a legitimate `created_date` was rejected as an unknown
+  column. Now derived from `expandTraits` for the entity's actual trait list.
+- **Unknown trait codes were silently dropped, not rejected.** `expandTraits`
+  returns only the codes it recognizes, so a typo'd trait doesn't fail — its
+  columns just vanish, and every downstream check then reports them as "not a
+  column". `dforge_module_validate` now flags the cause, and `seed_add` /
+  `translation_sync` refuse to run against one.
+- **`dforge_translation_sync` silently skipped unreadable entity files**,
+  producing an incomplete skeleton while reporting success — the gap would only
+  surface later as a missing-label install failure. A missing or malformed
+  entity file named in the manifest is now fatal, and names the path.
+- **The SQL-literal scan used a regex that stopped at the first escaped quote**,
+  so `query('... \' ... :cid')` truncated mid-statement and the placeholder
+  check missed what followed. Replaced with an escape-aware string scanner;
+  concatenation is now detected after the literal rather than inside it.
+- `dforge_module_plan`'s `complete_phase` cast its own check result back to an
+  untyped bag, discarding the `PlanResult` typing; `buildPhaseCheck` now returns
+  a declared `BuildPhaseCheck` and the fields are destructured.
+- Renamed the control-character guard test to match what it scans (whole source,
+  not only string literals).
+
+### Changed — validation is now the single choke point
+
+Field rules lived only in the `entity_field_add` zod schema, so anything
+entering via `module_import`, `dbml_import`, the scaffolder or a hand edit
+bypassed them entirely. They now live in one place and run in both. New checks
+in `dforge_module_validate`:
+
+- every field re-checked against the full rule set, module-wide
+- Formula (`F`) and Generated (`G`) column shape; Reference (`R`) column shape
+- `dbDatatype` values that are really `fieldTypeCd`s
+- `toString` present, and its `{braces}` resolving to real columns
+- an `F` column carrying a set aggregate; a `G` aggregate over a virtual child
+- action `script` files missing from disk, or not bare filenames
+- triggers/jobs firing actions that don't exist; job actions using `[field]`
+- DSL static checks on every action body
+- translation completeness: a file per `supportedLocales` entry, and a
+  `roles.<code>.label` in every locale file including the en-US base
+
+### Changed — skills split by lifecycle stage
+
+`dforge-mcp-author` becomes a thin router; `dforge-module-design` (Phase 0),
+`dforge-module-build` (Phases 1-5) and `dforge-module-ship` (Phase 6) own the
+instructions. Each stage needs a different half of the knowledge base, and the
+488-line monolith was resident for all of it. Handoff is deterministic via
+`dforge_module_plan`'s `nextSkill`. The router directory still carries the
+shared `references/` + `examples/` the MCP server serves as resources.
+
+`scripts/install-skills.sh` installs all four (`--from-npm` to pull the
+published package).
+
+### Changed — internal
+
+- Migrated from the deprecated `server.tool()` / `server.resource()` to
+  `registerTool` / `registerResource`, adding titles and annotations
+  (`readOnlyHint` on inspect/validate/action_check, `destructiveHint` on the
+  delete/rename refactors and install, `openWorldHint` on pack/install).
+- Tests: 80 → 161, including an end-to-end suite that drives a module through
+  the real tool surface on a temp directory and asserts it validates clean. That
+  suite is what caught the inspect key mismatch and the scaffolder's `{id}`.
+
 ## 0.1.12
 
 > Release prerequisite: publish `@dforge-core/metadata@0.0.10` first (adds the

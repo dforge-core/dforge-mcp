@@ -1,8 +1,8 @@
 # @dforge-core/dforge-mcp
 
-MCP server for dForge module authoring. Exposes 27 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
+MCP server for dForge module authoring. Exposes 34 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
-Ships with a wizard Skill (`skills/dforge-mcp-author/`) that walks the AI through six phases with explicit backtrack support when later phases expose earlier gaps. The skill bundle includes 23 detailed reference files (field types, flags, traits, formulas, DSL, security, etc.) and an annotated `simple-todo` example module.
+Ships with **four Claude Skills** (`skills/`): a router plus one skill per lifecycle stage — design (Phase 0), build (Phases 1-5), and ship (Phase 6). The router directory carries 25 reference files (field types, flags, traits, formulas, DSL, security, etc.) and two annotated example modules.
 
 **New here?** Start with **[docs/creating-modules.md](docs/creating-modules.md)** — three ways to scaffold a module (terminal CLI, VS Code sidebar, AI wizard) and when to pick each.
 
@@ -74,7 +74,7 @@ claude mcp list
 # Should show: dforge — npx -y @dforge-core/dforge-mcp — connected
 ```
 
-Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 27 `dforge_*` tools should be listed.
+Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 34 `dforge_*` tools should be listed.
 
 ### Cursor / Zed
 
@@ -82,7 +82,7 @@ Same `command + args` config shape; check their docs for the file location. Veri
 
 ## What it exposes
 
-### Tools (27)
+### Tools (34)
 
 Grouped by typical phase in the wizard flow. All "return" tools emit `{ summary, files: { '<relPath>': '<contents>' } }`; the client decides whether to write — lets the AI preview diffs with the user before committing.
 
@@ -91,11 +91,11 @@ Phase 0 (identity → requirements → design → validation) is orchestrated by
 **Module-level**
 | Tool | Behavior |
 |---|---|
-| `dforge_module_plan` | **Phase 0 orchestrator** — drives identity → requirements → design → validation, returning the next step each call; gates `dforge_module_create` until `readyToScaffold: true`. Call first in any session (`action: "check"`) |
+| `dforge_module_plan` | **Lifecycle orchestrator** — drives Phase 0 (identity → requirements → design → validation), gates `dforge_module_create` until `readyToScaffold: true`, then tracks Phases 1-6 via a ledger in `docs/phase.json`. `action: "check"` returns `currentPhase` + `nextSkill`; `complete_phase` records a phase done or skipped. Call first in any session |
 | `dforge_module_create` | New module scaffold (blocked until Phase 0 passes) |
 | `dforge_module_import` | Import a normalized **table-spec** (tables → columns → relationships) into an existing module as entities. Infers `fieldTypeCd` from SQL type / sample values / name (metadata-validated, `dbDatatype` derived) and builds the FK+Reference pair per relationship. Fed by DBML/SQL, Excel/CSV, or a hand-authored spec |
 | `dforge_module_inspect` | Read current module state. Full structured data is in `files["_inspect.json"]`; `summary` is one-line stats |
-| `dforge_module_validate` | Offline cross-reference check (run before pack): dangling FK targets, missing hidden-FK columns, view/menu/role refs to non-existent things, uncovered entities. Errors + warnings in `files["_validate.json"]` |
+| `dforge_module_validate` | Offline check (run before pack): dangling FK targets, missing hidden-FK columns, view/menu/role refs to non-existent things, uncovered entities, **field-spec rules re-run across every field**, `toString` templates, Formula-vs-Generated set aggregates, missing action DSL files, triggers/jobs firing non-existent actions, DSL static checks, and translation completeness. Errors + warnings in `files["_validate.json"]` |
 | `dforge_module_pack` | Shells to `dforge-cli module pack` via bundled CLI, PATH fallback, or `DFORGE_CLI_BINARY`. Returns tarball path + size |
 | `dforge_module_install` | Shells to `dforge-cli module install`. Args: `pathOrTarball`, optional `tenantUrl` / `token` / `tenantCode` — fall back to `DFORGE_URL` / `DFORGE_TOKEN` env. Returns `ok`, `exitCode`, `command`, and raw CLI `output` so the AI can fix install-time module defects and retry |
 
@@ -110,23 +110,41 @@ Phase 0 (identity → requirements → design → validation) is orchestrated by
 | `dforge_entity_field_rename` | **Refactor-safe rename** — propagates the new name to the paired Reference, formulas, view columns + order, seed data, and other entities' FKs |
 | `dforge_entity_field_remove` | **Refactor-safe remove** — cascade-cleans paired Reference, view columns + order, seed keys; warns on formula/cross-entity dependents |
 
+**Composite entity tools (Phase 1) — one call per concept, prefer these**
+
+Each of these spans several coordinated keys that hand-assembly gets wrong. They exist so the broken shapes aren't expressible.
+
+| Tool | Emits |
+|---|---|
+| `dforge_entity_reference_add` | A whole relation: hidden FK (`cuid`/`EM`) **+** Reference column (`R`/`lookup`/`link`) **+** the `references` entry. The documented #1 source of broken modules, in one call. Also completes a half-built relation by reusing an FK an import already created |
+| `dforge_entity_rollup_add` | A child total as a **Generated** (`G`) column — never a Formula, whose set-aggregates silently render empty — creating the parent's Set column if needed, and refusing to aggregate a virtual `F`/`R`/`S` child (`column old.<field> does not exist`) |
+| `dforge_entity_status_add` | A dropdown with `params.options` objects and the initial value as a `formula` — entity fields have no `defaultValue` key |
+
 The field/entity tools validate against the `@dforge-core/metadata` registry: an unknown `fieldTypeCd` (e.g. `integer`, `reference`), `columnType`, or trait code is rejected at authoring time with a "did you mean" hint, and `dbDatatype` is auto-derived from the field type (currency → `numeric(18,2)`, text → `varchar`; reference/formula columns get none) unless you set it explicitly.
 
 **Behavior (Phase 2 — optional)**
 | Tool | Behavior |
 |---|---|
-| `dforge_action_add` | DSL script + `ui/actions.json` entry |
+| `dforge_action_add` | DSL script + `ui/actions.json` entry. Runs the DSL static checker first — errors reject the call |
+| `dforge_action_check` | Statically check a **draft** `dslBody` before committing, or an `actionCode` already on disk. Catches `TODAY()` in `execute:`, `[field]` in batch/job context, block order, top-level `return`, `:param` placeholders, unknown host functions |
 | `dforge_trigger_add` | DB-event trigger in `logic/triggers.json` (entity event + optional condition → action) |
 | `dforge_job_add` | Scheduled job in `logic/jobs.json` (5-field cron + timeout + action) |
 | `dforge_webhook_add` | Outbound webhook in `logic/webhooks.json` (entity event → POST to endpoint) |
 
-**Views + reports (Phase 3)**
+**Views, menus + reports (Phase 3)**
 | Tool | Behavior |
 |---|---|
 | `dforge_view_add` | Add a data view |
 | `dforge_view_modify` | Replace a view's spec |
+| `dforge_menu_add` | Add a menu leaf or section. Validates `dataViewCode` against `data_views.json`, emits `itemType: "V"` on leaves only, and normalizes icons to the bare form menus require (strips `bi-`) |
 | `dforge_report_add` | Add a report |
+
+**Polish (Phase 4)**
+| Tool | Behavior |
+|---|---|
 | `dforge_setting_add` | Configurable module-level setting |
+| `dforge_translation_sync` | Generate/refresh `translations/<locale>.json` from the module's own contents. Never overwrites existing translated text; fills the role labels that are **completeness-enforced at install**. Defaults to en-US + every `supportedLocales` entry |
+| `dforge_seed_add` | Write a seed file for one entity. Enforces numeric `{entity}_id` PKs, parent-before-child load order, `audit-full` System-user columns, and FKs that point at seeded parents |
 
 **Security (Phase 5)**
 | Tool | Behavior |
@@ -141,23 +159,33 @@ The field/entity tools validate against the `@dforge-core/metadata` registry: an
 | `dforge_dependency_add` | Add a dep on another dForge module |
 | `dforge_dbml_import` | **DBML front-end** to `module_import` — parses DBML (Table blocks, typed columns, inline + top-level refs) into the table-spec, drops the source PK (identity provides `{entity}_id`), and imports. Pass `module` for a greenfield import |
 
-### Resources (13)
+### Writing files: preview vs `apply`
 
-| URI | Content |
+Every patch tool returns `{ summary, files, deletes? }` for the client to write, so the agent can preview a diff with the user first. Passing **`apply: true`** instead writes the files (and honours `deletes`) directly and returns only the paths touched.
+
+```jsonc
+// preview (default) — full file contents come back through the model's context
+{ "moduleDir": "/path/to/mod", "entityName": "order", "fieldName": "note", "field": { ... } }
+
+// apply — writes to disk, returns { applied: true, written: [...], deleted: [...] }
+{ "moduleDir": "/path/to/mod", "entityName": "order", "fieldName": "note", "field": { ... }, "apply": true }
+```
+
+Use `apply` for routine patches inside an already-approved plan, and for every `rename`/`delete` refactor — it guarantees the `deletes` half is applied, which is easy to drop by hand. It refuses to write outside `moduleDir`, and never writes the `_inspect.json` / `_validate.json` / `_action_check.json` report payloads, which only reuse the file-map shape for transport.
+
+### Resources
+
+Served over MCP with descriptions and mime types, so the agent can tell what a URI is for before pulling it.
+
+| URI pattern | Content |
 |---|---|
-| `dforge://schema/manifest` | manifest.json JSON Schema |
-| `dforge://schema/entity` | entity files |
-| `dforge://schema/data-views` | ui/data_views.json |
-| `dforge://schema/folders` | ui/folders.json |
-| `dforge://schema/menus` | ui/menus.json |
-| `dforge://schema/roles` | security/roles.json |
-| `dforge://schema/jobs` | logic/jobs.json |
-| `dforge://schema/seed-data` | seed-data/*.json |
-| `dforge://schema/reports` | ui/reports.json |
-| `dforge://schema/settings` | settings.json |
-| `dforge://schema/traits` | entity trait codes |
-| `dforge://schema/webhooks` | ui/webhooks.json |
+| `dforge://schema/<name>` | JSON Schemas: `manifest`, `entity`, `domains`, `data-views`, `folders`, `menus`, `roles`, `jobs`, `seed-data`, `traits`, `webhooks`, `triggers`, `print-templates`, `settings`, `reports` |
+| `dforge://reference/<name>` | 25 per-element authoring references — schema shape + worked example + common-mistakes list for one element type |
+| `dforge://example/<path>` | Files from the canonical `simple-todo` module (mandatory structure validators) |
+| `dforge://example/matrix-budget/<path>` | Files from the `matrix` (pivot) view example |
 | `dforge://docs/conventions` | MODULE_CONVENTIONS.md |
+| `dforge://docs/dsl` | Full action-DSL grammar, built-ins, patterns, anti-patterns |
+| `dforge://script/xlsx-to-model` | Stdlib Python `.xlsx` → table-spec extractor |
 
 Schemas + conventions are vendored at build time from `iash44/dForge-core`'s `docs/`. The published npm tarball ships them under `resources/`, and jsdelivr serves them at:
 
@@ -167,70 +195,60 @@ https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/resources/schemas/<n
 
 **Compatibility:** schemas vendored for this release came from `iash44/dForge-core` `main` as of the publish date stamped in `package.json`. If the platform adds new entity properties / field types after this release, generated modules using those features may validate locally but be rejected at install time. Bump the dforge-mcp version when the platform schemas change materially.
 
-## Claude Skill — the wizard
+## Claude Skills — router + three stage skills
 
-The skill bundle lives at `skills/dforge-mcp-author/` and contains:
+Authoring guidance ships as **four** skills, split by lifecycle stage. Each stage needs a different half of the knowledge base — Phase 0 needs none of the field-type/DSL detail, Phase 6 needs none of the intake guardrails — so loading only the active stage is what keeps a full module build inside one context window.
+
+| Skill | Phases | Owns |
+|---|---|---|
+| `dforge-mcp-author` | — | **Router. Start here.** Calls `dforge_module_plan` to find the current phase and hands off. Also carries the shared `references/` + `examples/`. |
+| `dforge-module-design` | 0a–0d | Identity, intake guardrails, design doc, pre-scaffold validation. Ends at `readyToScaffold: true`. |
+| `dforge-module-build` | 1–5 | Entities, behavior, views/menus, polish, security. Loading-policy table, core-rules cheat sheet, backtrack protocol. |
+| `dforge-module-ship` | 6 | Validate → pre-pack review → version audit → pack → install-fix loop. |
+
+The handoff is deterministic rather than vibes-based: `dforge_module_plan({ action: "check" })` returns `currentPhase` **and** `nextSkill`, derived from the Phase 0 artifacts, the phase ledger in `docs/phase.json`, and evidence read from the module itself (entities without fields, entities without a view, entities without a Select grant).
+
+The router directory also holds the shared assets:
 
 | Path | Contents |
 |---|---|
-| `SKILL.md` | Six-phase co-pilot wizard |
-| `references/*.md` | 23 detailed reference files (field types, flags, traits, formulas, DSL, security, views, menus, translations, …) |
+| `references/*.md` | 25 reference files (field types, flags, traits, formulas, DSL, security, views, menus, translations, …) |
 | `examples/simple-todo/` | Annotated reference module showing all core patterns |
+| `examples/matrix-budget/` | Worked example for the `matrix` (pivot) view type |
+| `scripts/xlsx_to_model.py` | Stdlib Python `.xlsx` → table-spec extractor |
 
-**It is NOT auto-installed by `npm install`** — the skill ships in the npm tarball but Claude Code looks for skills in `~/.claude/skills/`, not in `node_modules`. Sync the whole bundle manually:
+**Skills are NOT auto-installed by `npm install`** — they ship in the npm tarball, but Claude Code looks in `~/.claude/skills/`, not `node_modules`. Use the installer:
 
 ```bash
-# Resolve the actual latest published version from the npm registry,
-# then pin the jsdelivr URL to it. We don't use jsdelivr's `@latest`
-# alias directly — that CDN endpoint caches aggressively (6-12h lag
-# after a new publish), which silently serves stale Skill content.
-VERSION=$(npm view @dforge-core/dforge-mcp version)
-BASE="https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@${VERSION}/skills/dforge-mcp-author"
+# From a local checkout:
+scripts/install-skills.sh
 
-# Wizard
-mkdir -p ~/.claude/skills/dforge-mcp-author
-curl -fsSL "$BASE/SKILL.md" -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+# Or straight from the published package:
+curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/scripts/install-skills.sh | bash -s -- --from-npm
 
-# Reference files (23 guides — load on demand per the table in SKILL.md)
-mkdir -p ~/.claude/skills/dforge-mcp-author/references
-for f in action-dsl column-types conventions data-migration data-views \
-          field-types filters flags formulas jobs manifest menus \
-          number-sequences print-templates queries reports schema-import \
-          security settings traits translations validation-checklist; do
-  curl -fsSL "$BASE/references/${f}.md" \
-    -o ~/.claude/skills/dforge-mcp-author/references/${f}.md
-done
-
-# simple-todo example
-mkdir -p ~/.claude/skills/dforge-mcp-author/examples/simple-todo/{entities,logic/actions,ui,security,seed-data}
-for f in README.md manifest.json; do
-  curl -fsSL "$BASE/examples/simple-todo/$f" \
-    -o ~/.claude/skills/dforge-mcp-author/examples/simple-todo/$f
-done
-# … entity, ui, security, seed-data files follow the same pattern
-
-# Or, straight from GitHub main (always fresh, but pre-release content):
-# curl -fsSL https://raw.githubusercontent.com/dforge-core/dforge-mcp/main/skills/dforge-mcp-author/SKILL.md \
-#   -o ~/.claude/skills/dforge-mcp-author/SKILL.md
+# Custom destination:
+DEST=/path/to/skills scripts/install-skills.sh
 ```
 
-> **Note on CLAUDE.md:** Every module gets a `CLAUDE.md` in its root, authored during Phase 0a by the `dforge-mcp-author` skill (the AI drafts it; you write it) and kept current as later phases complete. It tells Claude Code that the directory is a dForge module, instructs it to use the `dforge-mcp-author` skill, describes the module layout, and carries a live **Module status** tracker (which phase is done) so future sessions resume accurately.
+It replaces each skill directory wholesale — a stale reference file left behind is worse than a missing one, because the agent will happily author against it.
 
-Re-run after every dforge-mcp upgrade — the skill version isn't checked at runtime, so a stale skill against new tools will misroute calls.
+**Re-run after every dforge-mcp upgrade.** The skill version isn't checked at runtime, so stale skills against new tools will misroute calls.
+
+> **Note on CLAUDE.md:** Every module gets a `CLAUDE.md` in its root, authored during Phase 0a (the AI drafts it; you write it) and kept current as later phases complete. It tells Claude Code that the directory is a dForge module, points at the skills, describes the module layout, and carries a live **Module status** tracker so future sessions resume accurately.
 
 The phases:
 
-| Phase | Required? | Tools used |
-|---|---|---|
-| 0. Identity / requirements / design / validation | yes | (docs authored directly) |
-| 1. Domain | yes | `module_create`, `entity_add`, `entity_field_*` |
-| 2. Actions | optional | `action_add` |
-| 3. Views + Reports | views yes, reports optional | `view_*`, `report_add`, `setting_add` |
-| 4. Polish (translations, seed) | optional | (file map authored directly) |
-| 5. Security | roles required, folders optional | `role_add`, `role_right_set`, `folder_add` |
-| 6. Verify | yes | `module_pack`, `module_install` |
+| Phase | Required? | Skill | Tools used |
+|---|---|---|---|
+| 0. Identity / requirements / design / validation | yes | design | `module_plan` |
+| 1. Domain | yes | build | `module_create`, `entity_add`, `entity_field_*`, `entity_reference_add`, `entity_rollup_add`, `entity_status_add`, `module_import`, `dbml_import` |
+| 2. Behavior | optional | build | `action_add`, `action_check`, `trigger_add`, `job_add`, `webhook_add` |
+| 3. Views + menus, reports | 3a yes, rest optional | build | `view_*`, `menu_add`, `report_add` |
+| 4. Polish | optional | build | `setting_add`, `translation_sync`, `seed_add` |
+| 5. Security | 5a yes, folders optional | build | `role_add`, `role_right_set`, `folder_add` |
+| 6. Verify | yes | ship | `module_validate`, `module_pack`, `module_install` |
 
-Key principles encoded in the Skill: inspect-before-patch, one-at-a-time, deterministic backtrack on earliest-phase-first rule, tool-failure protocol that distinguishes auth/connectivity from module defects, end-of-session cleanup user-driven.
+Key principles encoded in the skills: inspect-before-patch, one-at-a-time, composite-tools-first, deterministic backtrack on the earliest-phase-first rule, a tool-failure protocol that distinguishes auth/connectivity from module defects, and user-driven end-of-session cleanup.
 
 ## For maintainers
 

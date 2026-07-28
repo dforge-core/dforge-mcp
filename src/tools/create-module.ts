@@ -22,7 +22,13 @@ import type {
 	Preset,
 	ScaffoldOpts,
 } from "@dforge-core/dforge-cli/templates";
-import { traitsInput, withTraits, isReadyToScaffold, PHASE_STATE_FILE } from "./_helpers";
+import {
+	traitsInput,
+	withTraits,
+	withIdentityToString,
+	isReadyToScaffold,
+	PHASE_STATE_FILE,
+} from "./_helpers";
 
 // Tool input schema. zod gives us both validation and a JSON schema MCP
 // can advertise to clients (so the LLM sees argument types).
@@ -143,7 +149,11 @@ export function createModuleFiles(
 	// Minimal set — every preset writes these.
 	write("manifest.json", buildManifest(opts, moduleId));
 	for (const e of opts.entities) {
-		write(`entities/${e.name}.json`, withTraits(buildEntity(e), traitsByName[e.name]));
+		const traits = traitsByName[e.name];
+		write(
+			`entities/${e.name}.json`,
+			withIdentityToString(withTraits(buildEntity(e), traits), e.name, traits),
+		);
 	}
 	write("ui/data_views.json", buildDataViews(opts.entities));
 	write("ui/folders.json", buildFolders(opts));

@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import * as path from "node:path";
-import { isFieldTypeCd, fieldTypeCds, deriveDbDatatype, getColumnType } from "@dforge-core/metadata";
+import { deriveDbDatatype } from "@dforge-core/metadata";
 import {
 	loadManifest,
 	readJson,
@@ -19,26 +19,7 @@ import {
 	withTodayStamp,
 	type ToolResult,
 } from "./_helpers";
-
-// Common wrong codes → the real fieldTypeCd, surfaced in the validation error
-// so the agent self-corrects instead of guessing.
-const FIELD_TYPE_ALIASES: Record<string, string> = {
-	integer: "number",
-	int: "number",
-	decimal: "number",
-	float: "number",
-	string: "text",
-	varchar: "text",
-	boolean: "checkbox",
-	bool: "checkbox",
-	reference: "lookup",
-	autocomplete: "lookup",
-	fk: "lookup",
-	datepicker: "date",
-	timestamp: "datetime",
-	select: "dropdown",
-	multiselect: "flags",
-};
+import { checkFieldSpec } from "./field-rules";
 
 /**
  * Auto-fill `dbDatatype` from `fieldTypeCd` when the author omitted it, using
@@ -74,51 +55,16 @@ const fieldSchema = z
 	})
 	.passthrough()
 	.superRefine((val, ctx) => {
-		const v = val as Record<string, unknown>;
-		// `defaultValue`/`default` are settings keys, not entity-field keys — the
-		// entity schema is additionalProperties:false. Set defaults via `formula`.
-		if (v.defaultValue !== undefined || v.default !== undefined) {
+		// Rules live in ./field-rules so dforge_module_validate can re-run the
+		// exact same set over every field of every entity — catching fields that
+		// entered via import / scaffold / a hand edit and never saw this schema.
+		// Only `error`-level issues reject the call here; warnings are advisory
+		// and surface in the validator.
+		for (const issue of checkFieldSpec("field", val)) {
+			if (issue.level !== "error") continue;
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message:
-					"entity fields have no 'defaultValue'/'default' key (settings-only). Set a default with 'formula' (e.g. \"formula\": \"'draft'\" or \"formula\": \"TODAY()\"), a numberSequence, or DSL logic.",
-			});
-		}
-		// Dropdown options live under params.options, never at the field root.
-		if (v.options !== undefined) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message:
-					"dropdown options go under params.options, not at the field root, e.g. \"params\": { \"options\": [{ \"value\": \"a\", \"label\": \"A\" }] }.",
-			});
-		}
-		// Flags letters must be from V/I/E/M/H (no U/S/P).
-		if (typeof v.flags === "string" && v.flags.length > 0 && !/^[VIEMH]+$/.test(v.flags)) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: `flags '${v.flags}' contains invalid letters — use only V/I/E/M/H (e.g. VEM, VE, V, EM). U/S/P are not flag letters.`,
-			});
-		}
-		// fieldTypeCd must be a real code from the platform registry
-		// (@dforge-core/metadata, mirror of the field_type seed). A hidden FK
-		// column legitimately has no fieldTypeCd, so only validate when present.
-		if (typeof v.fieldTypeCd === "string" && v.fieldTypeCd.length > 0 && !isFieldTypeCd(v.fieldTypeCd)) {
-			const alias = FIELD_TYPE_ALIASES[v.fieldTypeCd.toLowerCase()];
-			const hint = alias
-				? ` Did you mean '${alias}'?`
-				: ` Valid codes: ${[...fieldTypeCds].sort().join(", ")}.`;
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: `fieldTypeCd '${v.fieldTypeCd}' is not a valid field type.${hint} (See dforge://reference/field-types.)`,
-			});
-		}
-		// columnType, when present, must be a known column kind. A plain data
-		// column omits it; R/S/F cover reference/set/formula; A/L/G are register
-		// columns. Catches typos like 'ref', 'lookup', 'X'.
-		if (typeof v.columnType === "string" && v.columnType.length > 0 && !getColumnType(v.columnType)) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: `columnType '${v.columnType}' is invalid. Use 'R' (reference), 'S' (set/child list), or 'F' (formula) — or omit it for a plain data column. (A/L/G exist for register columns.)`,
+				message: issue.message.replace(/^field: /, ""),
 			});
 		}
 	})

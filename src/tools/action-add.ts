@@ -14,6 +14,7 @@ import {
 	withTodayStamp,
 	type ToolResult,
 } from "./_helpers";
+import { checkDsl } from "./dsl-check";
 
 export const actionAddSchema = {
 	moduleDir: z.string(),
@@ -55,29 +56,23 @@ export const actionAddSchema = {
 		),
 };
 
-/**
- * The `execute:` block runs as JavaScript (Jint) and only exposes lowercase
- * `now()`. Uppercase `TODAY()` is a formula-engine function — undefined in
- * `execute:` — and the install fails to compile the script ("'TODAY' is not
- * defined"). `TODAY()` IS valid in `canExecute:`, so only scan after `execute:`.
- */
-function assertNoFormulaDateInExecute(dslBody: string, code: string): void {
-	const m = dslBody.match(/(^|\n)[ \t]*execute:/);
-	if (!m) return;
-	const execPart = dslBody.slice((m.index ?? 0) + m[0].length);
-	if (/\bTODAY\s*\(\s*\)/.test(execPart)) {
-		throw new Error(
-			`Action '${code}': the execute: block calls TODAY(), which is undefined at runtime — ` +
-				`install fails with "'TODAY' is not defined". Use lowercase now() in execute:. ` +
-				`TODAY()/NOW() are formula-only (canExecute:, formula columns).`,
-		);
-	}
-}
-
 export function actionAdd(
 	args: z.infer<z.ZodObject<typeof actionAddSchema>>,
 ): ToolResult {
-	assertNoFormulaDateInExecute(args.dslBody, args.code);
+	// Static DSL checks (see ./dsl-check). Errors reject the call — they're all
+	// documented install failures, and finding them here saves a pack/install
+	// round trip. Warnings ride along on the result for the agent to review.
+	const dslIssues = checkDsl(args.dslBody, { executionMode: args.executionMode });
+	const dslErrors = dslIssues.filter((i) => i.level === "error");
+	if (dslErrors.length > 0) {
+		throw new Error(
+			`Action '${args.code}' has ${dslErrors.length} DSL error(s):\n` +
+				dslErrors.map((i) => `  • ${i.line ? `line ${i.line}: ` : ""}${i.message}`).join("\n") +
+				"\n\nFix the DSL body and call again. (Load dforge://docs/dsl for the full grammar.)",
+		);
+	}
+	const dslWarnings = dslIssues.filter((i) => i.level === "warning");
+
 	const { paths, manifest } = loadManifest(args.moduleDir);
 
 	const actionsJson = readJsonOrDefault<Record<string, unknown>>(paths.actions, {});
@@ -115,5 +110,10 @@ export function actionAdd(
 			[rel(paths.root, dslPath)]: dslBody,
 			"manifest.json": jsonText(withTodayStamp(manifest)),
 		},
+		dslWarnings.length > 0
+			? `DSL warnings (not blocking):\n${dslWarnings
+					.map((i) => `  • ${i.line ? `line ${i.line}: ` : ""}${i.message}`)
+					.join("\n")}`
+			: undefined,
 	);
 }

@@ -121,7 +121,13 @@ describe("module_validate — untranslated constraint messages", () => {
 	});
 
 	it("warns when a declared locale lacks the constraint override", () => {
-		const res = make({ supportedLocales: ["de-DE"], message: "Qty must be positive" });
+		// The locale file must EXIST (a declared locale with no file is a separate,
+		// hard error) — it just carries no override for this constraint.
+		const res = make({
+			supportedLocales: ["de-DE"],
+			message: "Qty must be positive",
+			localeFiles: { "de-DE": {} },
+		});
 		expect(res.ok).toBe(true); // never an error
 		expect(JSON.stringify(res.warnings)).toContain("chk_qty_positive");
 		expect(JSON.stringify(res.warnings)).toContain("de-DE");

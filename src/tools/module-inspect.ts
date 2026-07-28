@@ -39,12 +39,24 @@ interface InspectSummary {
 	folders: { tree: Record<string, unknown>; depth: number };
 	menus: Array<{ code: string; itemCount: number }>;
 	roles: Array<{ code: string; objectCount: number; rights: Record<string, string> }>;
-	actions: Array<{ code: string; entity: string; mode: string; background: boolean }>;
+	actions: Array<{
+		code: string;
+		entityCode: string;
+		executionMode: string;
+		isAsync: boolean;
+		script: string;
+	}>;
+	triggers: Array<{ code: string; entity: string; event: string; action: string; async: boolean }>;
+	webhooks: Array<{ code: string; entity: string; event: string; endpointUrl: string }>;
 	reports: string[];
 	settings: string[];
-	jobs: string[];
+	jobs: Array<{ code: string; action: string; schedule: string }>;
+	queries: string[];
+	printTemplates: string[];
+	domains: string[];
 	seedFiles: string[];
 	translations: string[];
+	supportedLocales: string[];
 }
 
 export function moduleInspect(
@@ -64,7 +76,11 @@ export function moduleInspect(
 			fieldCount: Object.keys(fields).length,
 			fields: Object.keys(fields),
 			hasNumberSequence: Boolean(e.numberSequence),
-			toString: e.toString,
+			// Read as an OWN property — `toString` is inherited from
+			// Object.prototype, so a plain `e.toString` reports the built-in
+			// function (which JSON.stringify then silently drops) for every
+			// entity that doesn't declare a template.
+			toString: Object.prototype.hasOwnProperty.call(e, "toString") ? e.toString : null,
 		};
 	});
 
@@ -92,17 +108,57 @@ export function moduleInspect(
 		return { code, objectCount: Object.keys(rights).length, rights };
 	});
 
+	// Key names MUST match what dforge_action_add writes and what the installer
+	// reads (entityCode / executionMode / isAsync / script) — see
+	// examples/simple-todo/ui/actions.json. The legacy entity/mode/background
+	// fallbacks cover modules authored before the keys were settled.
 	const actions = readJsonOrDefault<Record<string, Record<string, unknown>>>(paths.actions, {});
 	const actionSummaries = Object.entries(actions).map(([code, a]) => ({
 		code,
-		entity: (a.entity as string) ?? "?",
-		mode: (a.mode as string) ?? "single",
-		background: Boolean(a.background),
+		entityCode: (a.entityCode as string) ?? (a.entity as string) ?? "?",
+		executionMode: (a.executionMode as string) ?? (a.mode as string) ?? "single",
+		isAsync: Boolean(a.isAsync ?? a.background),
+		script: (a.script as string) ?? code,
+	}));
+
+	// triggers.json / webhooks.json are `{ triggers: [...] }` / `{ subscriptions: [...] }`
+	// arrays (not code-keyed maps) — see behavior.ts.
+	const triggerFile = readJsonOrDefault<{ triggers?: Array<Record<string, unknown>> }>(
+		paths.triggers,
+		{},
+	);
+	const triggerSummaries = (triggerFile.triggers ?? []).map((t) => ({
+		code: (t.code as string) ?? "?",
+		entity: (t.entity as string) ?? "?",
+		event: (t.event as string) ?? "?",
+		action: (t.action as string) ?? "?",
+		async: Boolean(t.async),
+	}));
+
+	const webhookFile = readJsonOrDefault<{ subscriptions?: Array<Record<string, unknown>> }>(
+		paths.webhooks,
+		{},
+	);
+	const webhookSummaries = (webhookFile.subscriptions ?? []).map((w) => ({
+		code: (w.code as string) ?? "?",
+		entity: (w.entity as string) ?? "?",
+		event: (w.event as string) ?? "?",
+		endpointUrl: (w.endpointUrl as string) ?? "?",
 	}));
 
 	const reports = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.reports, {}));
 	const settings = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.settings, {}));
-	const jobs = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.jobs, {}));
+	const jobsFile = readJsonOrDefault<{ jobs?: Array<Record<string, unknown>> }>(paths.jobs, {});
+	const jobSummaries = (jobsFile.jobs ?? []).map((j) => ({
+		code: (j.code as string) ?? "?",
+		action: (j.action as string) ?? "?",
+		schedule: (j.schedule as string) ?? "?",
+	}));
+	const queries = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.queries, {}));
+	const printTemplates = Object.keys(
+		readJsonOrDefault<Record<string, unknown>>(paths.printTemplates, {}),
+	);
+	const domains = Object.keys(readJsonOrDefault<Record<string, unknown>>(paths.domains, {}));
 
 	const seedFiles = fs.existsSync(paths.seedDataDir)
 		? fs.readdirSync(paths.seedDataDir).filter((f) => f.endsWith(".json")).sort()
@@ -127,11 +183,19 @@ export function moduleInspect(
 		menus: menuSummaries,
 		roles: roleSummaries,
 		actions: actionSummaries,
+		triggers: triggerSummaries,
+		webhooks: webhookSummaries,
 		reports,
 		settings,
-		jobs,
+		jobs: jobSummaries,
+		queries,
+		printTemplates,
+		domains,
 		seedFiles,
 		translations,
+		supportedLocales: Array.isArray(manifest.supportedLocales)
+			? (manifest.supportedLocales as unknown[]).filter((l): l is string => typeof l === "string")
+			: [],
 	};
 
 	// We return the summary as the `files` map's single "inspect.json"
@@ -139,7 +203,10 @@ export function moduleInspect(
 	// same file-map shape uniformly. (See server.ts where the tool result
 	// is serialized.)
 	return {
-		summary: `Module '${manifest.code}' v${manifest.version}: ${entitySummaries.length} entities, ${viewSummaries.length} views, ${roleSummaries.length} roles, ${actionSummaries.length} actions, ${reports.length} reports.`,
+		summary:
+			`Module '${manifest.code}' v${manifest.version}: ${entitySummaries.length} entities, ` +
+			`${viewSummaries.length} views, ${roleSummaries.length} roles, ${actionSummaries.length} actions, ` +
+			`${triggerSummaries.length} triggers, ${jobSummaries.length} jobs, ${reports.length} reports.`,
 		files: { "_inspect.json": JSON.stringify(summary, null, "\t") + "\n" },
 	};
 }
