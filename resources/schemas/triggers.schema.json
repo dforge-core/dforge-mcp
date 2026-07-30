@@ -37,20 +37,20 @@
 				},
 				"condition": {
 					"type": "string",
-					"description": "Optional formula expression — same shape as canExecute in action DSL. Uses `[field]` syntax to reference the affected record. Single-line, evaluates to boolean. If omitted, trigger fires for every matching event."
+					"description": "Optional formula expression — same shape as canExecute in action DSL. Uses `[field]` syntax to reference the affected record. Single-line, evaluates to boolean. If omitted, trigger fires for every matching event. Reference navigation (`[ref].[target]`) is REJECTED here: the event-time evaluator only reads columns of the changed row, so a nav path would resolve to null and the trigger would misfire. Navigate inside the action instead, or denormalise the value onto the watched entity."
 				},
 				"action": {
 					"type": "string",
-					"description": "Action code to invoke. The action must NOT use record-context (`[field]`) syntax in a way that requires the original triggering record — the trigger passes the record id via params. Cross-module form 'module.action' is supported."
+					"description": "Action code to invoke. The trigger binds the affected record to the action as RECORD CONTEXT, so the action reads its columns with `[field]` (and its PK with `[pk_column]`) exactly like a UI-invoked action — no lookup needed. The action's `entityCode` MUST equal this trigger's `entity`, and its `executionMode` must not be `batch`; both are enforced at pack time. Cross-module references use the qualified form 'module.action'."
 				},
 				"params": {
 					"type": "object",
-					"description": "Optional static parameters passed to the action at invocation time. Merged with the runtime-injected `record_id` / `record_old` (if event uses old-record diff)."
+					"description": "Optional STATIC parameters passed to the action at invocation time — the literal values written here, nothing else. Nothing is injected at runtime: there is no `record_id` param. The affected record arrives as record context (`[field]`), and its pre-change values as `old[field]` on update/delete/status_change events."
 				},
 				"async": {
 					"type": "boolean",
-					"default": false,
-					"description": "When true, the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls); background failures are logged, not surfaced to the caller. When false, the action runs synchronously inside the same transaction as the triggering insert/update/delete: if the action fails (e.g. calls error()), the whole mutation rolls back and the error is returned to the caller. Keep async:false actions fast — they run on the request's transaction."
+					"default": true,
+					"description": "When true (the default), the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls); background failures are logged, not surfaced to the caller. When false, the action runs synchronously inside the same transaction as the triggering insert/update/delete: if the action fails (e.g. calls error()), the whole mutation rolls back and the error is returned to the caller — so an async:false trigger can undo the user's write. Keep async:false actions fast; they run on the request's transaction."
 				}
 			},
 			"additionalProperties": false

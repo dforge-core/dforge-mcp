@@ -90,7 +90,8 @@ execute:
 ### Current record (single / each mode)
 
 - `[fieldName]` — read or write a field on the current record
-- `[refField].[targetField]` — navigate via a Reference (FK) column to a field on the linked entity
+- `[refField].[targetField]` — navigate via a Reference (FK) column to a field on the linked entity. `[refField].targetField` (bare target) is accepted as an equivalent spelling. **Single-hop only** — `[a].[b].[c]` is a compile error; use `getRecord()` / `select()` to reach past one reference
+- `old[fieldName]` — the field's value *before* the change, in an action invoked by an event trigger. Read-only; reads `null` on `insert` events and outside triggers
 
 ```dsl
 # Read
@@ -150,6 +151,12 @@ var open = query(
 if (open.length == 0) { exit('Nothing open', 'info') }
 info('Open invoices: ' + open.length + ', total $' + open[0].total)
 ```
+
+> **Pooled connection.** The connection is handed to another request once your
+> statement finishes — so don't leave state behind on it: `SET LOCAL` not `SET`,
+> `pg_advisory_xact_lock()` not `pg_advisory_lock()`, `ON COMMIT DROP` on temp
+> tables. Don't assume the whole action is one transaction either — that depends
+> on the execution path. Applies to `query()` only.
 
 #### `insert(entityCd, fields) → record`
 Insert a row. Returns the inserted record as a dictionary (PKs populated, defaults applied, audit columns set).
@@ -312,7 +319,10 @@ sendEmail([customer_id].[email], 'order_confirmation', {
 ```
 
 #### `error(message)`
-**Throw** — aborts execution and rolls back the **entire transaction** including any prior `insert()` / writes in this `execute:` block. Use for validation failures.
+**Throw** — aborts execution immediately. Use for validation failures. Whether
+prior `insert()` / writes in this `execute:` block are rolled back **depends on the
+execution path** and is not something to rely on — validate before writing
+anything (see the anti-pattern near the end of this document).
 
 ```dsl
 if ([rating] == null || [rating] < 1 || [rating] > 5) {
@@ -766,16 +776,27 @@ execute:
     [last_touched] = now()
 ```
 
-### ❌ Assuming `error()` skips work done above
+### ❌ Assuming you know what `error()` does to work done above
 
-`error()` rolls back the **entire transaction** including prior `insert()` calls. Don't use it to "log and continue" — it's a hard abort.
+`error()` is a hard abort — never use it to "log and continue". What happens to
+writes made *before* it is **not something you can rely on**: it depends on the
+execution path. The same script keeps the row on one path and discards it on
+another, and the difference isn't visible in the action.
 
 ```dsl
-# WRONG — the insert below is rolled back when error fires
+# WRONG — is this insert kept or discarded? Depends on the path.
 execute:
-    insert('audit_log', { event: 'attempted_close', record_id: [id] })   # rolled back!
+    insert('audit_log', { event: 'attempted_close', record_id: [id] })   # unreliable!
     if ([balance_due] > 0) { error('Cannot close — balance owing') }
 ```
+
+Whether an `error()` unwinds earlier writes turns on whether that path opened a
+transaction — for a synchronous action, on whether the entity has `auditHistory`
+**and** whether the mode is `single` (in `batch` mode nothing covers the script);
+a background action has none at all and keeps everything written before the
+failure. This is a platform defect rather than a contract — actions are intended
+to be atomic — so don't design around it either way. Write the script so the
+question never arises: validate first.
 
 ```dsl
 # RIGHT — validate first, then perform side-effects
