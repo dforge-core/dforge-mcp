@@ -35,25 +35,27 @@ export const triggerAddSchema = {
 		),
 	action: z
 		.string()
-		.describe("Action code to invoke. Cross-module dotted form ('module.action') supported."),
+		.describe(
+			"Action code to invoke. The trigger binds the affected record to the action as RECORD CONTEXT — the action reads it with [field] / [pk_column], and old[field] for pre-change values. The action's entityCode MUST match this trigger's entity, and its executionMode must not be 'batch' (both rejected at pack time). Cross-module dotted form ('module.action') supported.",
+		),
 	description: z.string().optional(),
 	condition: z
 		.string()
 		.optional()
 		.describe(
-			"Optional formula expression (same shape as canExecute) using `[field]` syntax. Single-line boolean. If omitted, trigger fires on every matching event.",
+			"Optional formula expression (same shape as canExecute) using `[field]` syntax. Single-line boolean. If omitted, trigger fires on every matching event. Reference navigation (`[ref].[target]`) is REJECTED here — the event-time evaluator only reads columns of the changed row. Navigate inside the action instead.",
 		),
 	params: z
 		.record(z.string(), z.unknown())
 		.optional()
 		.describe(
-			"Static params merged into the action invocation alongside auto-injected record_id.",
+			"STATIC params only — the literal values given here. Nothing is injected at runtime; there is no record_id param. The affected record arrives as record context ([field]), its pre-change values as old[field].",
 		),
 	async: z
 		.boolean()
-		.default(false)
+		.default(true)
 		.describe(
-			"When true, the action runs in background (recommended for slow actions). When false, runs in the same transaction — action failure rolls back the original DB change.",
+			"When true (the platform default), the action runs in background — recommended for slow actions. When false, it runs in the caller's transaction, so a failing action ROLLS BACK the user's original write.",
 		),
 };
 

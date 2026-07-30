@@ -464,13 +464,48 @@ In `ui/actions.json`:
 | `entityCode` | Yes | Which entity this action applies to |
 | `executionMode` | Yes | `"single"` (default) or `"each"` — runs per record, DSL uses `[field]`; or `"batch"` — runs once, DSL uses `for x in records { ... }` with `__records` |
 | `script` | Yes | DSL script name (without path or extension — matches filename in `logic/actions/`) |
-| `isTransacted` | Recommended | `true` = all changes roll back on error; `false` = partial commits possible |
+| `isTransacted` | Recommended | `true` = the first record that fails aborts the run; `false` = the failure is reported and the loop moves to the next record. It does **not** open a transaction — see *Don't assume your action is atomic* below |
 | `orderNum` | Recommended | Display order in the action menu |
 | `isAsync` | Optional | `true` = runs in background via Hangfire, user gets completion notification |
+
+## Don't assume your action is atomic
+
+An action is **not** reliably one transaction, and `isTransacted: true` does not
+make it one — it only decides whether the first failing record aborts the run.
+Whether the writes made before a failure survive depends on the execution path:
+
+| path | mode | writes before the failure |
+|---|---|---|
+| Sync execute, entity **with** `auditHistory` | `single` | rolled back |
+| Sync execute, entity **with** `auditHistory` | `batch` | **stay committed** |
+| Sync execute, entity without it | either | **stay committed** |
+| Scheduled job | — | rolled back |
+| Background (`isAsync: true`) action | either | **stay committed** |
+
+Both "rolled back" rows are a side effect of the audit machinery opening a
+transaction the action then inherits — and in `batch` mode it opens only after the
+script has finished, so it doesn't cover the script at all. Adding or removing
+`auditHistory`, or switching between `single` and `batch`, changes whether a failed
+action leaves partial writes behind, with no change to the action itself.
+
+**This is a platform defect, not a contract** — actions are intended to be atomic,
+and this table is what happens until that lands. So don't design around either
+outcome, and don't reach for `auditHistory` as an atomicity switch.
+
+**Write actions that don't depend on it:** do all validation up front and call
+`error()` before any `insert()` / `update()`, so there is nothing to unwind either
+way.
 
 ## SQL in query() — important notes
 
 `query()` is the **escape hatch** — reach for it only when the structured built-ins can't express the read/write (aggregates, multi-hop joins, CTEs, `FOR UPDATE`). For row-shaped work prefer `select()` / `insert()` / `update()` / `delete()`: they validate entity codes against metadata, coerce values per column, and (for `insert`/`update`) maintain auto-fill and audit columns.
+
+> **`query()` runs on a pooled, shared connection.** Once your statement — or the
+> surrounding transaction, where there is one — finishes, that connection is
+> handed to another request. So never leave state behind on it: use `SET LOCAL`
+> rather than `SET`, `pg_advisory_xact_lock()` rather than `pg_advisory_lock()`,
+> and `ON COMMIT DROP` on any temp table. Only `query()` can do any of this — the
+> structured built-ins emit plain DML — and nothing checks it statically.
 
 1. **Table names are schema-qualified** within the module: `crm.contact`, `wms.stock_movement`, `fin.invoice`. Use the module code as the schema prefix. (Module codes with a hyphen, e.g. `crm-fin`, cannot be schema-qualified in raw SQL — another reason to use the structured built-ins, which accept the qualified `module.entity` code.)
 2. **Use `@param` placeholders** for values — NEVER concatenate user input into SQL strings. The engine auto-parameterizes.

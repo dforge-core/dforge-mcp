@@ -4,6 +4,66 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.1
+
+Adds the column-domain schema that `dforge_module_inspect` already reported on,
+and corrects three areas where the schemas and reference docs described
+behavior the platform doesn't have.
+
+### Added — column domains
+
+- **`resources/schemas/domains.schema.json`** — `domains.json` had no schema, so
+  the one file that defines reusable semantic types was the only module file
+  authored blind. A domain bundles a base datatype, a control, sizing and a
+  shared option list under one code. Structural fields (`dbDatatype`,
+  `baseDatatypeCd`, `fieldTypeCd`, `maxLen`, `precision`) are materialized onto
+  each consuming column at install; `params` — most importantly `options` —
+  stays on the domain and resolves at metadata-load time, which is what lets a
+  shared list be authored and translated exactly once.
+- **`entity.schema.json` gains `domain`** plus a *Domain-backed column* branch in
+  the column `oneOf`. Referencing a domain and restating what it owns is
+  rejected at install, so the schema now refuses the same combination rather
+  than letting it through to a failed install.
+
+### Fixed — trigger semantics were documented wrong
+
+`triggers.schema.json` and `dforge_trigger_add` both described an invocation
+contract the runtime doesn't implement, and agents wrote actions against it:
+
+- **There is no injected `record_id` param.** The trigger binds the affected
+  record to the action as *record context* — the action reads it with `[field]`
+  and its PK with `[pk_column]`, exactly like a UI-invoked action, with
+  pre-change values as `old[field]` on update/delete/status_change. `params` is
+  static-only: the literal values written in the trigger, nothing else.
+- **The action's `entityCode` must equal the trigger's `entity`**, and its
+  `executionMode` must not be `batch` — both enforced at pack time. The old
+  description said the opposite, warning the action must *not* rely on the
+  triggering record.
+- **`condition` rejects reference navigation.** The event-time evaluator reads
+  only columns of the changed row, so `[ref].[target]` resolves to null and the
+  trigger misfires. Navigate inside the action, or denormalise onto the watched
+  entity.
+- **`async` defaults to `true`**, matching the platform. The tool defaulted it to
+  `false`, so every trigger added without an explicit `async` ran synchronously
+  inside the user's transaction — where a failing action rolls back their write.
+
+### Fixed — actions are not reliably atomic
+
+- **`isTransacted` does not open a transaction.** It only decides whether the
+  first failing record aborts the run or the loop continues. Whether writes made
+  before a failure survive depends on the execution path: `auditHistory` on the
+  entity, `single` vs `batch`, sync vs background. `action-dsl.md` now tabulates
+  all six combinations, and `dsl-reference.md` no longer claims `error()` rolls
+  back the whole transaction. This is a platform defect rather than a contract —
+  actions are intended to be atomic — so both documents say to validate before
+  writing anything, and not to design around either outcome.
+- **`query()` runs on a pooled, shared connection**, which nothing checks
+  statically and neither document mentioned: `SET LOCAL` not `SET`,
+  `pg_advisory_xact_lock()` not `pg_advisory_lock()`, `ON COMMIT DROP` on temp
+  tables.
+- Documented `old[fieldName]`, and the single-hop limit on `[ref].[target]` —
+  `[a].[b].[c]` is a compile error, not a slow path.
+
 ## 0.2.0
 
 Tools go from 27 → 34; the single wizard skill splits into a router plus three
