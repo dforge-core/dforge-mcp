@@ -149,7 +149,10 @@ var open = query(
     { s: 'open', cid: [customer_id] }
 )
 if (open.length == 0) { exit('Nothing open', 'info') }
-info('Open invoices: ' + open.length + ', total $' + open[0].total)
+for (var i = 0; i < open.length; i++) {
+    update('fin.invoice', open[i].invoice_id, { status: 'reminded' })
+}
+info('Reminded ' + open.length + ' open invoice(s)')
 ```
 
 > **Pooled connection.** The connection is handed to another request once your
@@ -228,7 +231,8 @@ The result is a **read-only** snapshot — writing to it (`rec.set(...)`) throws
 
 ```dsl
 var rec = getRecord('crm.customer', [customer_id])
-info('Customer: ' + rec.name + ' — credit limit $' + rec.credit_limit)
+if (rec.credit_limit == null) { error('Customer has no credit limit set') }
+[customer_name] = rec.name
 ```
 
 #### `getRecordOrNull(entityCd, key) → record | null`
@@ -245,7 +249,7 @@ Call a stored procedure with named args. Returns the proc's result row (or rows 
 
 ```dsl
 var summary = callProc('fin.compute_balance', { account_id: [account_id], as_of: now() })
-info('Balance: ' + summary.balance)
+[closing_balance] = summary.balance
 ```
 
 #### `preloadRef(fkField)`
@@ -288,6 +292,8 @@ Fractional-unit arithmetic.
 
 #### `info(message, opts?)`, `warn(message, opts?)`
 Queue user-facing toast. `opts.links: [{entity, id}]` adds "open record" buttons.
+
+A message is a **receipt for work the action did**, not a way to publish a computed value. An action whose only output is `info('<some computed number>')` stores nothing — it can't be audited, re-read or reported on, and the value arrives unformatted. Build a report, a formula column, or an action that writes a result record instead. See `dforge://reference/action-dsl`, *When an action is the wrong tool*.
 
 ```dsl
 info('Created PO ' + po.po_number, {
@@ -458,12 +464,21 @@ if (det != null) { var r = ocrExtract([doc_file], getSetting('ocr_endpoint_url')
 #### `entityLink(entityCd, record, description?) → link value`
 Build a clickable link to any entity record for storing in an `entitylink` (jsonb)
 column. `record` is a row object (e.g. from `insert()` / `getRecord()`); its PK
-columns are stored as **strings** so snowflake/cuid ids > 2^53 stay exact. Optional
-`description` sets the display text.
+columns are stored as **strings** so snowflake/cuid ids > 2^53 stay exact.
+
+The target entity is resolved at build time and stored **by id**, not by code:
+`entity_cd` is only unique per module, so a bare `'invoice'` would re-resolve at click
+time against the *reader's* folder module and could land on another module's entity.
+Always qualify the code you pass (`'fin.invoice'`).
+
+`description` is optional — omit it and the link is captioned with the entity's
+`toString` evaluated against `record`, the way records are captioned everywhere else.
+An explicit `description` still wins.
 
 ```dsl
 var task = insert('workspace.task', { title: 'Follow up' })
-insert('workspace.task_note', { link: entityLink('workspace.task', task, task.title) })
+# Captioned by workspace.task's toString — no third argument needed.
+insert('workspace.task_note', { link: entityLink('workspace.task', task) })
 ```
 
 #### `flush()`

@@ -33,8 +33,14 @@ Most columns. They map 1:1 to a physical SQL column.
 
 Virtual N:1 lookup. No physical column. Always **paired with a hidden FK column** that does hold the physical data. Together they form the **FK+Reference pattern**.
 
+The example below is a **required** relation, so both halves carry `M`. For an optional
+one, drop it from both: FK `"E"`, Reference `"VE"`. `M` resolves to `isNullable: false`
+at install, so it is what makes the FK column `NOT NULL` — and while `M` is inert on the
+virtual Reference half, leaving it there over an optional FK reads as a required field to
+the next author. `dforge_entity_reference_add({ required })` emits both halves in step.
+
 ```json
-// Hidden FK column — physical, hidden
+// Hidden FK column — physical, hidden. "E" instead of "EM" if the relation is optional.
 "account_id": {
     "dbDatatype": "cuid",
     "flags": "EM",
@@ -175,9 +181,10 @@ inside one aggregate must point at the **same** set column, and `COUNT(*)` is re
 
 > ⛔ **Do not use a Formula (`F`) column for set aggregation.** `SUM([set].[field])` in an `F`
 > column is **not supported** by the engine — the formula runtime has no `SUM`/`COUNT`/`AVG`, and
-> nav resolution only walks single-hop N:1 references, never a 1:N set. The column silently renders
-> **empty** on the form, grid, and reports (no error). `F` is for same-row expressions
-> (`[qty] * [price]`) and single-hop reference navigation (`[account].[name]`) only.
+> nav resolution walks N:1 references only, never a 1:N set (however many hops it is given). The
+> column silently renders **empty** on the form, grid, and reports (no error). `F` is for same-row
+> expressions (`[qty] * [price]`) and N:1 reference navigation (`[account].[name]`, and multi-hop
+> chains — see `dforge://reference/formulas`).
 
 > ⛔ **The aggregated child column must be physical.** A `G` trigger reads the child's `OLD`/`NEW`
 > physical values, so aggregating a **virtual** child column (`F`/`R`/`S`) fails at install with

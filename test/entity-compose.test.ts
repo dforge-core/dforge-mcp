@@ -89,7 +89,11 @@ describe("entity_reference_add", () => {
 		});
 	});
 
-	it("optional relations get VE, required get VEM", () => {
+	// Both halves, deliberately: asserting only the Reference is what let an
+	// unconditional 'EM' on the hidden FK go unnoticed. 'M' resolves to
+	// isNullable:false at install, so an optional relation whose FK carried 'M'
+	// silently made the column NOT NULL while its Reference said "optional".
+	it("optional relations get FK 'E' + Reference 'VE'", () => {
 		apply(
 			entityReferenceAdd({
 				moduleDir: dir,
@@ -99,7 +103,24 @@ describe("entity_reference_add", () => {
 				required: false,
 			}),
 		);
-		expect(entity("invoice").fields.parent.flags).toBe("VE");
+		const e = entity("invoice");
+		expect(e.fields.parent.flags).toBe("VE");
+		expect(e.fields.parent_id.flags).toBe("E");
+	});
+
+	it("required relations get FK 'EM' + Reference 'VEM'", () => {
+		apply(
+			entityReferenceAdd({
+				moduleDir: dir,
+				entity: "invoice",
+				targetEntity: "invoice",
+				name: "parent",
+				required: true,
+			}),
+		);
+		const e = entity("invoice");
+		expect(e.fields.parent.flags).toBe("VEM");
+		expect(e.fields.parent_id.flags).toBe("EM");
 	});
 
 	it("refuses to overwrite an existing visible column", () => {
@@ -130,6 +151,50 @@ describe("entity_reference_add", () => {
 		const e = entity("invoice_line");
 		expect(e.fields.invoice_id).toMatchObject({ dbDatatype: "cuid", flags: "EM" });
 		expect(e.fields.invoice.link.thisKey).toBe("invoice_id");
+	});
+
+	it("drops isNullable:true from a reused FK when the relation is required", () => {
+		// 'M' resolves to isNullable:false at install, so keeping the author's
+		// isNullable:true alongside it would emit a pair the platform rejects at
+		// pack time (MandatoryFlagNormalizer treats it as an unresolvable conflict).
+		rmSync(dir, { recursive: true, force: true });
+		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-compose-"));
+		makeModule({
+			invoice_id: { dbDatatype: "cuid", flags: "E", isNullable: true, orderNum: 15 },
+		});
+		const r = entityReferenceAdd({
+			moduleDir: dir,
+			entity: "invoice_line",
+			targetEntity: "invoice",
+			name: "invoice",
+			fkField: "invoice_id",
+			required: true,
+		});
+		expect(r.warning).toContain('dropped "isNullable": true');
+		apply(r);
+		const fk = entity("invoice_line").fields.invoice_id;
+		expect(fk.flags).toBe("EM");
+		expect(fk.isNullable).toBeUndefined();
+	});
+
+	it("keeps isNullable on a reused FK when the relation is optional", () => {
+		rmSync(dir, { recursive: true, force: true });
+		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-compose-"));
+		makeModule({
+			invoice_id: { dbDatatype: "cuid", flags: "E", isNullable: true, orderNum: 15 },
+		});
+		const r = entityReferenceAdd({
+			moduleDir: dir,
+			entity: "invoice_line",
+			targetEntity: "invoice",
+			name: "invoice",
+			fkField: "invoice_id",
+			required: false,
+		});
+		apply(r);
+		const fk = entity("invoice_line").fields.invoice_id;
+		expect(fk.flags).toBe("E");
+		expect(fk.isNullable).toBe(true);
 	});
 
 	it("normalizes a reused FK column that isn't in the hidden-FK shape", () => {

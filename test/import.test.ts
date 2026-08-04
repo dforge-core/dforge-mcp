@@ -32,8 +32,16 @@ const { files } = moduleImport({
 		},
 		{
 			name: "sales_order",
-			columns: [{ name: "total", sqlType: "numeric" }],
-			references: [{ column: "customer_id", toTable: "customer" }],
+			// customer_id is not declared among the columns, so the source says
+			// nothing about its nullability — the import must not assume required.
+			columns: [
+				{ name: "total", sqlType: "numeric" },
+				{ name: "warehouse_id", sqlType: "int8", required: true },
+			],
+			references: [
+				{ column: "customer_id", toTable: "customer" },
+				{ column: "warehouse_id", toTable: "customer" },
+			],
 		},
 	],
 });
@@ -68,7 +76,7 @@ describe("module_import — type inference", () => {
 
 describe("module_import — FK + Reference pair", () => {
 	it("generates the hidden FK + Reference + references block", () => {
-		expect(order.fields.customer_id).toMatchObject({ dbDatatype: "cuid", flags: "EM" });
+		expect(order.fields.customer_id).toMatchObject({ dbDatatype: "cuid", flags: "E" });
 		expect(order.fields.customer).toMatchObject({
 			columnType: "R",
 			fieldTypeCd: "lookup",
@@ -79,6 +87,15 @@ describe("module_import — FK + Reference pair", () => {
 			to: { entity: "customer", field: "customer_id" },
 		});
 	});
+	// 'M' resolves to isNullable:false at install, so it has to follow the source
+	// column's nullability — a blanket 'EM' would make every imported FK NOT NULL.
+	it("takes 'M' from the source column's nullability, on both halves", () => {
+		expect(order.fields.customer_id.flags).toBe("E"); // source silent → optional
+		expect(order.fields.customer.flags).toBe("VE");
+		expect(order.fields.warehouse_id.flags).toBe("EM"); // source: required
+		expect(order.fields.warehouse.flags).toBe("VEM");
+	});
+
 	it("registers both entities in the manifest", () => {
 		const m = JSON.parse(files["manifest.json"]);
 		expect(m.entities.customer).toBe("./entities/customer.json");

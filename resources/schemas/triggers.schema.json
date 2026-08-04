@@ -33,7 +33,7 @@
 				"event": {
 					"type": "string",
 					"enum": ["insert", "update", "delete", "status_change", "any"],
-					"description": "DB event that fires this trigger. 'status_change' only fires when the entity's status field actually changes value. 'any' fires for all insert/update/delete."
+					"description": "DB event that fires this trigger. 'status_change' only fires when the entity's status field actually changes value. 'any' fires for all insert/update/delete. Events are raised by the row change itself, whichever path wrote it \u2014 a user edit and an action's `[field] = value` both count \u2014 except for the DSL's insert()/update()/delete()/query() builtins writing OTHER records, which raise nothing."
 				},
 				"condition": {
 					"type": "string",

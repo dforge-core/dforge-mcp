@@ -57,8 +57,10 @@ Enough to author inline; load the linked reference for the full detail.
 - **A relation is TWO columns + a references entry.** Use
   `dforge_entity_reference_add` — it emits all three parts. → `column-types`
 - **Flags** are letters from `V I E M H` only (never `U`/`S`/`P`): `VEM`
-  required+visible, `VE` optional+visible, `V` read-only, `EM` hidden FK, `I`
-  trait-provided. → `flags`
+  required+visible, `VE` optional+visible, `V` read-only, `E`/`EM` hidden FK
+  (optional/required), `I` trait-provided. `M` means required — it resolves to
+  `isNullable: false`, so it makes the column `NOT NULL`; don't spend it as
+  decoration, and never pair it with `"isNullable": true`. → `flags`
 - **`fieldTypeCd` = UI control; `dbDatatype` = SQL type.** Omit `dbDatatype` on
   plain data columns — it's derived. Set it only for a hidden FK or to override
   size/precision. Common fixes: `number` not `integer`/`float`; `phone` not
@@ -168,9 +170,14 @@ to fill a sub-step** — a pure CRUD module skips Phase 2 entirely (record it wi
 | 2c Jobs | a cron timer fires | `dforge_job_add` |
 | 2d Webhooks | a DB event → outbound POST | `dforge_webhook_add` |
 
-**2a Actions.** Load all four resources in the action row — the wrong-field-
-access / wrong-batch-flag / wrong-`ui/actions.json`-property mistakes only
-surface when you cross-check them. Draft the DSL, run
+**2a Actions.** First check the action is an action at all: it must **change**
+something. If the `execute:` block would only read, compute and `info()` the
+answer, build a report, a formula column, or an action that writes a result
+record instead — a printed number is never stored and can't be re-read
+(`dforge://reference/action-dsl`, *When an action is the wrong tool*). Then load
+all four resources in the action row — the wrong-field-access /
+wrong-batch-flag / wrong-`ui/actions.json`-property mistakes only surface when
+you cross-check them. Draft the DSL, run
 **`dforge_action_check({ dslBody, executionMode })`** to catch install failures
 before committing, then `dforge_action_add`. One action per turn.
 

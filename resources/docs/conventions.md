@@ -135,15 +135,14 @@ The entity file uses the same `fields` schema as regular entities, plus an `exte
 	"fields": {
 		"customer_id": {
 			"dbDatatype": "int8",
-			"isNullable": true,
-			"flags": "EM",
+			"flags": "E",
 			"orderNum": 34,
 			"description": "Customer FK"
 		},
 		"customer": {
 			"columnType": "R",
 			"fieldTypeCd": "lookup",
-			"flags": "VEM",
+			"flags": "VE",
 			"orderNum": 35,
 			"description": "Customer",
 			"link": {
@@ -641,7 +640,6 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 		},
 		"department_id": {
 			"dbDatatype": "cuid",
-			"fieldTypeCd": "hidden",
 			"flags": "EM",
 			"orderNum": 30,
 			"description": "Department ID"
@@ -715,8 +713,7 @@ For every foreign key relationship, create TWO columns:
 ```json
 "department_id": {
 	"dbDatatype": "cuid",
-	"fieldTypeCd": "hidden",
-	"flags": "EM",
+	"flags": "E",
 	"orderNum": 30,
 	"description": "Department ID"
 }
@@ -727,7 +724,7 @@ For every foreign key relationship, create TWO columns:
 "department": {
 	"columnType": "R",
 	"fieldTypeCd": "lookup",
-	"flags": "VEM",
+	"flags": "VE",
 	"orderNum": 35,
 	"description": "Department",
 	"link": {
@@ -752,8 +749,14 @@ For every foreign key relationship, create TWO columns:
 - Reference columns use `"link"` (not `"params"`) for entity binding
 - `link.entity` = target entity code, `link.thisKey` = local FK field, `link.otherKey` = remote PK field
 - `params` is used for other purposes (e.g., dropdown `options`)
-- Hidden FK column: `flags: "EM"` (no `V` = hidden from UI)
-- Visible reference column: `flags: "VEM"`, `columnType: "R"`
+- Hidden FK column: `flags: "E"` (no `V` = hidden from UI), `flags: "EM"` when the
+  relationship is genuinely required. `M` resolves to `isNullable: false` at install, so it
+  makes the FK `NOT NULL`; omitting both leaves the column nullable, which is the default.
+  Declaring `M` alongside `"isNullable": true` fails at pack time.
+- Visible reference column: `columnType: "R"`, `flags: "VE"` — or `"VEM"` when the FK is
+  required. **Keep the two in step.** `M` is inert on a virtual column (a Reference is
+  required exactly when its hidden FK is), so `VEM` over an optional FK changes nothing but
+  reads as a required field to the next author.
 - The FK column's `dbDatatype` **MUST match the referenced PK's type** — use `cuid` for `identity`-trait PKs (`cuid` is physically `int8`, **not** a UUID). A mismatch (e.g. FK `uuid` → PK `cuid`) fails install with *"foreign key constraint … cannot be implemented"*.
 
 ---

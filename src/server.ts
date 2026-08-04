@@ -338,7 +338,7 @@ server.registerTool(
 	{
 		title: "Add a relation (FK + Reference)",
 		description:
-			"PHASE 1: Add a relation between two entities in ONE call. Emits the complete FK+Reference pattern — the documented #1 source of broken modules — as all three of its parts: the hidden FK column (dbDatatype 'cuid', flags 'EM', no fieldTypeCd), the visible Reference column (columnType 'R', fieldTypeCd 'lookup', flags VEM/VE, link{entity,thisKey,otherKey}), and the `references` block entry. Use this instead of two dforge_entity_field_add calls — it can't emit the one-column form that fails install.",
+			"PHASE 1: Add a relation between two entities in ONE call. Emits the complete FK+Reference pattern — the documented #1 source of broken modules — as all three of its parts: the hidden FK column (dbDatatype 'cuid', flags 'EM'/'E', no fieldTypeCd), the visible Reference column (columnType 'R', fieldTypeCd 'lookup', flags 'VEM'/'VE', link{entity,thisKey,otherKey}), and the `references` block entry. `required` sets 'M' on both halves in step — 'M' resolves to isNullable:false at install, so it is what makes the FK NOT NULL. Use this instead of two dforge_entity_field_add calls — it can't emit the one-column form that fails install.",
 		inputSchema: { ...entityReferenceAddSchema, ...applyInput },
 	},
 	envelope(entityReferenceAdd),

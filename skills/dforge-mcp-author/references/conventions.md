@@ -64,8 +64,10 @@ Only include what your module actually uses — not every module needs `print_te
 
 **Every reference to another entity is two columns**:
 
-1. Hidden FK column with `flags: "EM"` and `dbDatatype` matching the target PK type
-2. Visible Reference column with `columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, and a `link` object pointing at the target
+1. Hidden FK column with `flags: "E"` — `"EM"` when the relation is genuinely required — and `dbDatatype` matching the target PK type
+2. Visible Reference column with `columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VE"` / `"VEM"` **matching the FK**, and a `link` object pointing at the target
+
+`M` resolves to `isNullable: false` at install, so it is what makes the FK column `NOT NULL` — keep the two halves in step. `dforge_entity_reference_add({ required })` emits both correctly.
 
 Plus the actual FK constraint declared in the entity's `references` block.
 
