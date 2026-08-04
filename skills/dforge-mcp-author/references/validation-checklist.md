@@ -42,8 +42,9 @@ For each entity:
 ### FK+Reference pattern
 
 - [ ] Every reference column (`columnType: "R"`) has a paired hidden FK column
-- [ ] The hidden FK column has `flags: "EM"` (not `V`, not `I`)
-- [ ] The reference column has `flags: "VEM"`, `fieldTypeCd: "lookup"`, and a `link` object
+- [ ] The hidden FK column has `flags: "E"` — `"EM"` only if the relation is required (not `V`, not `I`)
+- [ ] The reference column has `flags` **matching the FK** (`"VE"` / `"VEM"`), `fieldTypeCd: "lookup"`, and a `link` object
+- [ ] No field declares `M` together with `"isNullable": true` — that combination fails the pack
 - [ ] `link.entity` points to an entity that exists (in this module or a dependency)
 - [ ] `link.thisKey` matches the FK column name on this entity
 - [ ] `link.otherKey` matches the PK column name on the target entity

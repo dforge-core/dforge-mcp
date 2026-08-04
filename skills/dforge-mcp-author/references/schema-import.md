@@ -79,8 +79,10 @@ If the source uses non-standard audit column names (e.g. `date_created`, `modifi
 
 For each FK, create **two columns** following the FK+Reference pattern:
 
-1. Hidden FK column: `flags: "EM"`, matching `dbDatatype`
-2. Visible Reference column: `columnType: "R"`, `fieldTypeCd: "lookup"`, `flags: "VEM"`, with `link`
+1. Hidden FK column: `flags: "E"` — `"EM"` only when the source column is `NOT NULL` — matching `dbDatatype`
+2. Visible Reference column: `columnType: "R"`, `fieldTypeCd: "lookup"`, `flags` **matching the FK** (`"VE"` / `"VEM"`), with `link`
+
+`M` resolves to `isNullable: false` at install, so carrying it onto an FK the source declares nullable would import the column as `NOT NULL`. `dforge_dbml_import` / `dforge_module_import` take `M` from the source's own nullability.
 
 Plus declare the constraint in the entity's `references` block.
 

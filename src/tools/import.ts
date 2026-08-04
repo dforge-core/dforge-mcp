@@ -124,6 +124,13 @@ const tableSpec = z.object({
 				column: codeRe.describe("FK column on THIS table (a hidden cuid column is generated for it)."),
 				toTable: codeRe.describe("Target entity code."),
 				toColumn: codeRe.optional().describe("Target PK column; defaults to {toTable}_id."),
+				required: z
+					.boolean()
+					.optional()
+					.describe(
+						"Whether the relation is required — puts 'M' on both halves (FK 'EM', Reference 'VEM'), " +
+							"which is what makes the FK column NOT NULL. Default: nullable.",
+					),
 			}),
 		)
 		.optional(),
@@ -228,13 +235,24 @@ function buildImportedEntity(table: Table): Record<string, unknown> {
 	const references: Record<string, unknown> = {};
 	for (const ref of table.references ?? []) {
 		const otherKey = ref.toColumn ?? `${ref.toTable}_id`;
-		fields[ref.column] = { dbDatatype: "cuid", flags: "EM", orderNum: order, description: titleCase(ref.column) };
+		// Take 'M' from the source column's own nullability rather than assuming
+		// every relation is required: 'M' resolves to isNullable:false at install,
+		// so a blanket 'EM' would emit NOT NULL for FKs the source declares
+		// optional — and the import would then contradict itself on the Reference.
+		const required =
+			ref.required === true || table.columns.find((c) => c.name === ref.column)?.required === true;
+		fields[ref.column] = {
+			dbDatatype: "cuid",
+			flags: required ? "EM" : "E",
+			orderNum: order,
+			description: titleCase(ref.column),
+		};
 		order += 10;
 		const refName = ref.column.endsWith("_id") ? ref.column.slice(0, -3) : `${ref.column}_ref`;
 		fields[refName] = {
 			columnType: "R",
 			fieldTypeCd: "lookup",
-			flags: "VEM",
+			flags: required ? "VEM" : "VE",
 			orderNum: order,
 			description: titleCase(refName),
 			link: { entity: ref.toTable, thisKey: ref.column, otherKey },
@@ -365,7 +383,16 @@ export function parseDbml(dbml: string): Table[] {
 		const references = t.refs.map((r) => {
 			const targetPk = byName.get(r.toTable)?.pk;
 			const toColumn = targetPk && r.toColumn === targetPk ? undefined : r.toColumn;
-			return { column: r.column, toTable: r.toTable, ...(toColumn ? { toColumn } : {}) };
+			// The FK column is dropped from `columns` just below, so carry its
+			// `[not null]` onto the reference — otherwise every DBML relation would
+			// import as optional, and 'M' is what makes the FK column NOT NULL.
+			const required = t.columns.find((c) => c.name === r.column)?.required === true;
+			return {
+				column: r.column,
+				toTable: r.toTable,
+				...(toColumn ? { toColumn } : {}),
+				...(required ? { required: true } : {}),
+			};
 		});
 		const columns = t.columns.filter((c) => !refColNames.has(c.name));
 		const spec: Table = { name: t.name, columns: columns.length ? columns : [{ name: "name", sqlType: "varchar" }] };

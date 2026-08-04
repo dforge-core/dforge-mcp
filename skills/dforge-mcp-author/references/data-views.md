@@ -67,8 +67,8 @@ If none of an entity's fields are visible (or only its set/child-collection colu
 ```jsonc
 // WRONG — grid over an entity whose fields are all hidden (no "V")
 "fields": {
-    "code": { "fieldTypeCd": "text", "flags": "EM" },   // E=editable, M=… but no V
-    "lines": { "columnType": "S", "flags": "VEM" }        // visible, but a SET — doesn't count for a grid
+    "code": { "fieldTypeCd": "text", "flags": "EM" },   // E=editable, M=required, but no V
+    "lines": { "columnType": "S", "flags": "VE" }        // visible, but a SET — doesn't count for a grid
 }
 // RIGHT — at least one visible scalar field
 "fields": {

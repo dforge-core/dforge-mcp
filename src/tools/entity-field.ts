@@ -70,9 +70,10 @@ const fieldSchema = z
 	})
 	.describe(
 		"Field spec. RULES (load dforge://reference/flags, /field-types, /column-types first):\n" +
-			"• flags = a subset of V/E/M only. NEVER combine I or H with them. VEM = required+visible; VE = optional+visible; V = read-only/formula; EM = hidden FK. 'VEMHI' is INVALID.\n" +
+			"• flags = a subset of V/E/M only. NEVER combine I or H with them. VEM = required+visible; VE = optional+visible; V = read-only/formula; EM/E = hidden FK (required/optional). 'VEMHI' is INVALID.\n" +
+			"• 'M' means required: it is resolved into isNullable:false at install, so it makes the column NOT NULL. Declaring 'M' AND \"isNullable\": true fails the pack. 'M' is inert on virtual (R/S/F) and identity columns — don't put it there.\n" +
 			"• dbDatatype is AUTO-DERIVED from fieldTypeCd when omitted (e.g. currency → numeric(18,2), text → varchar) — only set it to override. Values: bool, varchar, text, int, bigint, numeric, timestamptz, date, time, cuid, json. NOT boolean/string/datetime/integer/timestamp/number — 'number' is a fieldTypeCd, not a dbDatatype.\n" +
-			"• A relation is TWO fields: hidden FK (dbDatatype:'cuid', flags:'EM', NO fieldTypeCd) + a Reference (columnType:'R', fieldTypeCd:'lookup', flags:'VEM', link:{entity,thisKey,otherKey}). otherKey = the target entity's PK ('{entity}_id'), never 'id'.\n" +
+			"• A relation is TWO fields: hidden FK (dbDatatype:'cuid', flags:'EM' if required else 'E', NO fieldTypeCd) + a Reference (columnType:'R', fieldTypeCd:'lookup', flags:'VEM'/'VE' to match, link:{entity,thisKey,otherKey}). Keep the two halves in step. otherKey = the target entity's PK ('{entity}_id'), never 'id'. Prefer dforge_entity_reference_add, which emits both.\n" +
 			"• Formula column: columnType:'F', baseDatatypeCd set, NO dbDatatype, flags:'V'.\n" +
 			"• Column DEFAULTS use 'formula' (e.g. \"'draft'\" or \"TODAY()\"), NOT 'defaultValue' (settings-only).\n" +
 			"• dropdown options go under params.options = [{value,label}] objects, never at the field root and never bare strings.",

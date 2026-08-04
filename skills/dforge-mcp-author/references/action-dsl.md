@@ -5,6 +5,26 @@ Actions are dForge's business logic. They are scripts with three declarative blo
 Lives in: `logic/actions/<action_name>.dsl`
 Registered in: `ui/actions.json`
 
+## When an action is the wrong tool
+
+An action exists to **change something**. Its message is a receipt for work that was done — not the output itself.
+
+Do **not** write an action whose `execute:` block only reads data, computes a value and reports it with `info()`. The result is a line of text that is never stored: it can't be audited, referenced, re-read or reported on, and every reader has to re-run the action to see it again. The value also reaches the user unformatted — a raw `query()` result carries no column metadata, so money renders as `1000.0099999999999` instead of `1,000.01`.
+
+If you are about to write a `check_…`, `calculate_…` or `show_…` action, build one of these instead:
+
+| What's actually needed | Build this |
+|---|---|
+| The user needs to **see** current numbers | A **report** or a data view — both are metadata-driven, so values format correctly, and the user can return to them any time without re-running anything. |
+| A derived value **belongs to the record** | A **formula column** (`columnType: "F"`) or a roll-up — computed on read, visible on the card and in grids, filterable and sortable. |
+| The **verdict itself matters** (approvals, credit checks, compliance) | An action that **writes a result record** — e.g. `credit_check(customer, checked_at, limit, outstanding, projected, verdict, checked_by)`. Now it's auditable and reportable, and `info()` becomes a legitimate receipt with a link to the new row. |
+| The check must **block** something | A **trigger** with `async: false`, or a `canExecute:` guard on the action being gated — enforcement, not narration. |
+
+Messages stay correct for exactly two things, and both are short by nature:
+
+- a **receipt** for a mutation that just happened — `info('Created PO ' + po.po_number, { links: [...] })`
+- a **refusal** that prevented one — `error('Period is closed')`
+
 ## Structure
 
 A DSL file has up to three blocks. All are optional (but `execute:` is needed to actually do something).
@@ -126,6 +146,17 @@ var note = params[note]             // no quotes around param name in this DSL
 > `null` key **throws** (a `col = NULL` predicate can never match), and array keys are rejected —
 > loop and mutate per id instead.
 
+> **These writes raise no events.** `insert()`, `update()`, `delete()` and `query()` are the raw
+> write layer: by design they skip folder row-filters, closed-period checks and registry state, and
+> they raise no trigger or webhook events either. Only the **acted-on record's own**
+> `[field] = value` raises them — that one is indistinguishable from a user editing the same field,
+> and fires the entity's `update` / `status_change` triggers exactly as the grid does.
+>
+> So a trigger on `b` will not see `update('b', …)` from an action bound to `a`. If `b` must react,
+> put the trigger on `a` — the entity the action is bound to — or make the change through `b`'s own
+> action. The symptom when you get this wrong is a trigger that simply never fires, with nothing in
+> the log to say why.
+
 ### select() — structured multi-row reads
 
 The read counterpart to `insert()`/`update()`/`delete()`. Entity codes are metadata-validated,
@@ -174,7 +205,7 @@ var queued = select('comm.message', {
 |---|---|
 | `error('message')` | **Abort** the action and show an error to the user. Rolls back all changes. |
 | `warn('message')` | Show a warning but continue execution. |
-| `info('message')` | Show an informational message. |
+| `info('message')` | Show an informational message. A **receipt for work the action did** — not a way to publish a computed value; see *When an action is the wrong tool*. |
 | `exit('message'?, 'level'?)` | **Stop the script early without error** — changes made so far are kept. Level `'info'` (default) or `'warn'` styles the message. This is the DSL's early-return: a bare `return` is not valid at the top level of `execute:`. |
 | `notify(userId, 'message')` | Send an in-app notification to a specific user. First arg is a user ID (typically `[owner_id]` or similar). |
 
@@ -203,7 +234,7 @@ var queued = select('comm.message', {
 | `addDays(date, n)` | Date | Add `n` days to a date, e.g. `addDays(now(), 30)`. |
 | `nextNumber('entity')` | String | Generate next value from a number sequence. Usually not needed — platform auto-fills on `insert()`. Use for pre-generating numbers. |
 | `callProc('proc_name', { args })` | Result | Call a stored procedure. Args are passed as named parameters. |
-| `entityLink('entityCd', record, description?)` | Link value | Build a clickable link to any entity record, for storing in an `entitylink` (jsonb) column. `record` is a row object (e.g. the result of `insert()` or `getRecord()`); its PK columns are read and stored as **strings**, so snowflake/cuid ids (> 2^53) stay exact. Optional `description` sets the link's display text. |
+| `entityLink('entityCd', record, description?)` | Link value | Build a clickable link to any entity record, for storing in an `entitylink` (jsonb) column. `record` is a row object (e.g. the result of `insert()` or `getRecord()`); its PK columns are read and stored as **strings**, so snowflake/cuid ids (> 2^53) stay exact. The entity is resolved at build time and stored **by id** — `entity_cd` is only unique per module, so always pass a qualified code (`'fin.invoice'`). Omit `description` and the link is captioned with the entity's `toString` against `record`; an explicit `description` wins. |
 
 > **Dates: `now()` in `execute:`, `TODAY()`/`NOW()` in formulas.** The `execute:` block runs as
 > JavaScript (Jint) and exposes **lowercase `now()`** only — `TODAY()` and `NOW()` (uppercase) are
@@ -514,6 +545,7 @@ way.
 
 ## Common mistakes
 
+- Writing an action that only reads, computes and prints (`info('Balance: ' + total)`) — **wrong shape**, not just wrong formatting. Nothing is stored, so nobody can re-read the answer. Use a report, a formula column, or write a result record. → *When an action is the wrong tool* (top of this file)
 - Writing `params.note` instead of `params[note]` — **wrong**. Use bracket syntax for params.
 - Writing `params["note"]` — **also wrong in DSL syntax**. Use `params[note]` without quotes.
 - Writing `update [status] = 'Draft'` (declarative style) — **wrong**. Use `[status] = 'Draft'` (assignment).

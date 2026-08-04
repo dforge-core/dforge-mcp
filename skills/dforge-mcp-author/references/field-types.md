@@ -72,7 +72,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `user` | `cuid` | `D` | User picker. Writes a user ID directly, no paired FK needed. |
 | `grid` | `set` | `S` | Detail grid of related records (1:N backwards reference). Used with `link` declaring the relation. |
 | `list` | `set` | `S` | Detail list — same 1:N set as `grid`, rendered as a card list instead of a table. |
-| `entitylink` | `json` | `D` | Polymorphic link to any entity (stores `{entity, id}` pair). Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in (see `action-dsl.md`). |
+| `entitylink` | `json` | `D` | Polymorphic link to any entity — stores the **resolved entity id** plus the record's PK (as strings) and a display caption. Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in; pass a qualified entity code (see `action-dsl.md`). |
 
 ## JSON
 

@@ -23,6 +23,7 @@
 			"dbDatatype": "varchar",
 			"fieldTypeCd": "dropdown",
 			"flags": "VEM",
+			"formula": "'medium'",
 			"maxLen": 20,
 			"orderNum": 30,
 			"description": "Priority",

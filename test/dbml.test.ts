@@ -22,6 +22,7 @@ Table OrderLines {
   id integer [pk]
   title varchar
   user_id integer [ref: > Users.id]
+  owner_id integer [not null, ref: > Users.id]
 }
 `;
 
@@ -41,7 +42,13 @@ describe("parseDbml", () => {
 	});
 	it("turns an inline ref into a reference, remapped to the target's identity PK", () => {
 		const lines = tables.find((t) => t.name === "order_lines")!;
-		expect(lines.references).toEqual([{ column: "user_id", toTable: "users" }]); // toColumn omitted → defaults to users_id
+		// toColumn omitted → defaults to users_id. `required` is carried off the FK
+		// column, which is dropped from `columns` — without it every DBML relation
+		// would import as optional.
+		expect(lines.references).toEqual([
+			{ column: "user_id", toTable: "users" },
+			{ column: "owner_id", toTable: "users", required: true },
+		]);
 		expect(lines.columns.map((c) => c.name)).not.toContain("user_id"); // FK column not a plain field
 	});
 });
@@ -61,9 +68,18 @@ describe("dbmlImport — greenfield", () => {
 	});
 	it("builds the FK+Reference pair pointing at the identity PK", () => {
 		const lines = JSON.parse(res.files["entities/order_lines.json"]);
-		expect(lines.fields.user_id).toMatchObject({ dbDatatype: "cuid", flags: "EM" });
+		expect(lines.fields.user_id).toMatchObject({ dbDatatype: "cuid", flags: "E" });
 		expect(lines.fields.user.link).toEqual({ entity: "users", thisKey: "user_id", otherKey: "users_id" });
 		expect(lines.references.FK_OrderLines_user_id.to).toEqual({ entity: "users", field: "users_id" });
+	});
+
+	it("puts 'M' on both halves only for a [not null] FK", () => {
+		// 'M' resolves to isNullable:false at install, so it has to follow the DBML.
+		const lines = JSON.parse(res.files["entities/order_lines.json"]);
+		expect(lines.fields.user_id.flags).toBe("E"); // nullable in the DBML
+		expect(lines.fields.user.flags).toBe("VE");
+		expect(lines.fields.owner_id.flags).toBe("EM"); // [not null]
+		expect(lines.fields.owner.flags).toBe("VEM");
 	});
 	it("the imported module validates clean", () => {
 		for (const [rel, content] of Object.entries(res.files)) {

@@ -102,7 +102,10 @@ export const entityReferenceAddSchema = {
 	required: z
 		.boolean()
 		.default(true)
-		.describe("true → flags 'VEM' (required); false → 'VE' (optional). Mirrors the FK's nullability."),
+		.describe(
+			"Whether the relation is required. true → FK 'EM' + Reference 'VEM'; false → FK 'E' + Reference 'VE'. " +
+				"'M' resolves to isNullable:false at install, so this is what makes the FK column NOT NULL.",
+		),
 	targetPk: z
 		.string()
 		.regex(/^[a-z][a-z0-9_]*$/)
@@ -115,8 +118,12 @@ export const entityReferenceAddSchema = {
 
 /**
  * Emit the complete FK+Reference pair in one call:
- *   • hidden FK column  — dbDatatype 'cuid', flags 'EM', NO fieldTypeCd
+ *   • hidden FK column  — dbDatatype 'cuid', flags 'EM'/'E', NO fieldTypeCd
  *   • Reference column  — columnType 'R', fieldTypeCd 'lookup', flags VEM/VE, link{}
+ *
+ * Both halves take their 'M' from `required`. 'M' resolves to isNullable:false at
+ * install, so an unconditional 'EM' on the FK would make every optional relation
+ * NOT NULL — and contradict its own Reference half, which says 'VE'.
  *   • `references` entry — from.field → to.entity/to.field
  */
 export function entityReferenceAdd(
@@ -145,10 +152,11 @@ export function entityReferenceAdd(
 	// The HIDDEN FK may already exist — a DBML/table-spec import creates FK
 	// columns without their Reference half, and completing that half-built
 	// relation is exactly what this tool should do. But an existing column is
-	// only a valid hidden FK in one exact shape (dbDatatype 'cuid', flags E+M
-	// without V, no fieldTypeCd, no columnType); anything else would emit a pair
-	// that looks complete and fails at install. Refuse structural columns, and
-	// NORMALIZE the rest to the required shape rather than trusting it.
+	// only a valid hidden FK in one exact shape (dbDatatype 'cuid', flags 'E' plus
+	// 'M' iff the relation is required, no V, no fieldTypeCd, no columnType);
+	// anything else would emit a pair that looks complete and fails at install.
+	// Refuse structural columns, and NORMALIZE the rest to the required shape
+	// rather than trusting it.
 	const existingFk = fields[fkField];
 	if (existingFk && typeof existingFk.columnType === "string" && existingFk.columnType !== "D") {
 		throw new Error(
@@ -157,6 +165,15 @@ export function entityReferenceAdd(
 		);
 	}
 	const reusedFk = Boolean(existingFk);
+
+	// 'M' resolves to isNullable:false at install, so it is what makes the FK
+	// column NOT NULL — it belongs on the pair only when the relation really is
+	// required, and it has to say the same thing on both halves. ('M' is inert on
+	// the Reference, which is virtual, but a 'VEM' over a nullable FK reads as a
+	// required field to the next author.)
+	const fkFlags = args.required ? "EM" : "E";
+	const refFlags = args.required ? "VEM" : "VE";
+
 	/** What normalization had to change on the reused column, for the response. */
 	const fkFixes: string[] = [];
 	if (existingFk) {
@@ -166,8 +183,17 @@ export function entityReferenceAdd(
 				`dbDatatype ${existingFk.dbDatatype === undefined ? "(unset)" : `'${String(existingFk.dbDatatype)}'`} → 'cuid' (the target PK type)`,
 			);
 		}
-		if (flags !== "EM") {
-			fkFixes.push(`flags '${flags || "(unset)"}' → 'EM' (hidden, not user-visible)`);
+		if (flags !== fkFlags) {
+			fkFixes.push(
+				`flags '${flags || "(unset)"}' → '${fkFlags}' (hidden, not user-visible; ` +
+					`${args.required ? "'M' because the relation is required" : "no 'M' because the relation is optional"})`,
+			);
+		}
+		// 'M' together with an explicit isNullable:true is a contradiction the
+		// platform rejects at pack time. We are already forcing the flags, so drop
+		// the losing half rather than emitting a pair that cannot be packed.
+		if (args.required && existingFk.isNullable === true) {
+			fkFixes.push("dropped \"isNullable\": true (contradicts the 'M' flag on a required relation; pack rejects the pair)");
 		}
 		if (existingFk.fieldTypeCd !== undefined) {
 			fkFixes.push(
@@ -190,24 +216,26 @@ export function entityReferenceAdd(
 	}
 
 	const label = args.label ?? pascal(args.name).replace(/([a-z])([A-Z])/g, "$1 $2");
-	const flags = args.required ? "VEM" : "VE";
 	const base = args.orderNum ?? nextOrderNum(fields);
 
 	if (existingFk) {
 		// Keep the author's own metadata (orderNum, description, maxLen, …) but
-		// force the four keys that define a hidden FK.
-		const { fieldTypeCd: _ft, columnType: _ct, ...keep } = existingFk;
+		// force the keys that define a hidden FK. isNullable is dropped only on a
+		// required relation, where 'M' supersedes it; an optional FK keeps whatever
+		// the author declared, since 'E' alone leaves nullability to that field.
+		const { fieldTypeCd: _ft, columnType: _ct, isNullable: _in, ...rest } = existingFk;
+		const keep = args.required ? rest : { ...rest, ...(_in === undefined ? {} : { isNullable: _in }) };
 		fields[fkField] = {
 			...keep,
 			dbDatatype: "cuid",
-			flags: "EM",
+			flags: fkFlags,
 			orderNum: typeof existingFk.orderNum === "number" ? existingFk.orderNum : base,
 			description: typeof existingFk.description === "string" ? existingFk.description : `${label} ID`,
 		};
 	} else {
 		fields[fkField] = {
 			dbDatatype: "cuid",
-			flags: "EM",
+			flags: fkFlags,
 			orderNum: base,
 			description: `${label} ID`,
 		};
@@ -215,7 +243,7 @@ export function entityReferenceAdd(
 	fields[args.name] = {
 		columnType: "R",
 		fieldTypeCd: "lookup",
-		flags,
+		flags: refFlags,
 		orderNum: base + 5,
 		description: label,
 		link: { entity: args.targetEntity, thisKey: fkField, otherKey: targetPk },
@@ -368,7 +396,9 @@ export function entityRollupAdd(
 		fields[setField] = {
 			columnType: "S",
 			fieldTypeCd: "grid",
-			flags: "VEM",
+			// No 'M': a Set is virtual, so 'M' is inert on it — but it would read as
+			// "this grid must be non-empty", which nothing enforces.
+			flags: "VE",
 			orderNum: nextOrderNum(fields),
 			description: pascal(setField).replace(/([a-z])([A-Z])/g, "$1 $2"),
 			link: { entity: args.childEntity, thisKey: pkOf(args.entity), otherKey: childFk },

@@ -130,7 +130,7 @@
 				"flags": {
 					"type": "string",
 					"pattern": "^[VIEMH]*$",
-					"description": "Display flags: V=Visible, I=Identity, E=Editable, M=Mandatory, H=Hidden"
+					"description": "Display flags: V=Visible, I=Identity, E=Editable, M=Mandatory, H=Hidden. M is resolved into isNullable:false at install, so it makes the column NOT NULL; it is inert on virtual (R/S/F) and identity columns. Declaring M together with isNullable:true is rejected at pack time."
 				},
 				"isPk": {
 					"type": "boolean",
@@ -138,7 +138,7 @@
 				},
 				"isNullable": {
 					"type": "boolean",
-					"description": "Whether the column allows NULL values"
+					"description": "Whether the column allows NULL values. Omitted means true (nullable) — only an explicit false, or the M flag which resolves to it, makes the column NOT NULL. Adding it to a column that existing tenant rows leave empty aborts the upgrade."
 				},
 				"isIdentity": {
 					"type": "boolean",

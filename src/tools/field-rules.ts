@@ -105,8 +105,22 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 	// Flags letters must be from V/I/E/M/H (no U/S/P).
 	if (typeof v.flags === "string" && v.flags.length > 0 && !/^[VIEMH]+$/.test(v.flags)) {
 		err(
-			`flags '${v.flags}' contains invalid letters — use only V/I/E/M/H (e.g. VEM, VE, V, EM). ` +
+			`flags '${v.flags}' contains invalid letters — use only V/I/E/M/H (e.g. VEM, VE, V, E). ` +
 				"U/S/P are not flag letters.",
+		);
+	}
+
+	// 'M' resolves to isNullable:false at install, so declaring both is a
+	// contradiction — the platform's MandatoryFlagNormalizer rejects it and the
+	// whole pack fails. Catch it here, where the author can still see which field.
+	if (typeof v.flags === "string" && v.flags.includes("M") && v.isNullable === true) {
+		const virtual = typeof v.columnType === "string" && ["R", "S", "F"].includes(v.columnType);
+		err(
+			`flags '${v.flags}' includes 'M' (mandatory) while "isNullable": true — a contradiction that fails ` +
+				"at pack time. 'M' is resolved into isNullable:false at install. Drop 'M' if the column is " +
+				`optional, or remove "isNullable": true if it is required.${
+					virtual ? " (On a virtual column 'M' is inert anyway — drop it.)" : ""
+				}`,
 		);
 	}
 
@@ -219,7 +233,7 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 		if (v.dbDatatype !== undefined) {
 			err(
 				"reference column (columnType 'R') must NOT set 'dbDatatype' — the physical column is the " +
-					"paired hidden FK (flags 'EM'), not this one.",
+					"paired hidden FK (flags 'EM' when required, else 'E'), not this one.",
 			);
 		}
 	}
@@ -227,12 +241,17 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 	return issues;
 }
 
-/** True when the field spec is the hidden half of an FK+Reference pair. */
+/**
+ * True when the field spec is the hidden half of an FK+Reference pair.
+ *
+ * 'M' is NOT part of the shape: it resolves to isNullable:false at install, so it
+ * is present only on a *required* relation. Testing for it here would have made
+ * every optional hidden FK ('E') invisible to the rules that key off this.
+ */
 export function isHiddenFk(field: Record<string, unknown>): boolean {
 	return (
 		typeof field.flags === "string" &&
 		field.flags.includes("E") &&
-		field.flags.includes("M") &&
 		!field.flags.includes("V") &&
 		field.fieldTypeCd === undefined &&
 		field.columnType === undefined

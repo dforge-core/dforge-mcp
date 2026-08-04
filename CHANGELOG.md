@@ -4,6 +4,133 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.2
+
+Mirrors the platform change that gives the `M` column flag its meaning — in the
+docs, in the schemas, and in the tools that emit flags — and catches up the
+formula and `entityLink()` references with the platform work since 0.2.1.
+
+### Fixed — the relation tools emitted `NOT NULL` for every optional relation
+
+The `M` change turned an inert flag into a physical constraint, which made three
+places that hard-coded it actively wrong. All three now take `M` from whether the
+relation is actually required, and put it on **both** halves in step:
+
+- **`dforge_entity_reference_add`** emitted the hidden FK as `flags: "EM"`
+  unconditionally, whatever `required` said. Post-change that made every optional
+  relation's FK column `NOT NULL` while its own Reference half said `"VE"` — a pair
+  that contradicts itself. It now emits FK `"EM"` + Reference `"VEM"` when
+  `required`, and FK `"E"` + Reference `"VE"` when not. Reusing a half-built FK
+  normalizes to the same shape, and drops a lingering `"isNullable": true` when the
+  relation is required rather than emitting a pair the platform rejects at pack.
+- **`dforge_dbml_import` / `dforge_module_import`** did the same for every imported
+  FK. They now read the source column's nullability — a DBML `[not null]` on the FK
+  is carried onto the reference (the FK column itself is dropped from `columns`, so
+  it was being lost) and `required` is accepted explicitly on a table-spec reference.
+- **`isHiddenFk()`** required `M` to recognize the hidden half of a pair, so an
+  optional FK (`"E"`) became invisible to every rule keyed off it. `M` is not part
+  of the shape — it marks the relation required.
+- **Set columns** are emitted `"VE"`, not `"VEM"`: `M` is inert on a virtual column,
+  but it reads as "this grid must be non-empty", which nothing enforces.
+
+### Added — the validator catches the `M` / `isNullable` contradiction
+
+`dforge_module_validate` (and the authoring-time field schema) now error on a field
+declaring `M` together with `"isNullable": true`, naming the field. The platform
+rejects this at pack time; catching it here says which column while you can still
+see it. On a virtual column the message says so instead of offering both fixes.
+
+### Changed — the `M` column flag now means "required" (platform mirror)
+
+- **`M` resolves to `isNullable: false` at install.** The flag was documented as
+  "mandatory" but was inert — nothing on the server or the client read it, so a
+  column declared `"flags": "VEM"` rendered without a red asterisk and saved
+  empty. It is now folded into `isNullable`, the platform's single notion of
+  required, and everything downstream keys off that: `NOT NULL` in generated
+  DDL, the `data.insert` required-column check, the client asterisk.
+- **Declaring `M` together with `"isNullable": true` is now a hard error** at
+  pack time, naming the entity and every offending field — it is a contradiction
+  only the author can resolve. **This repo shipped exactly that combination** in
+  the extension example in `resources/docs/conventions.md` (`customer_id`, `"flags":
+  "EM"` with `"isNullable": true`), so a module authored from that pattern could
+  not pack. Corrected to `"flags": "E"`, matching the real `crm-fin` module.
+- **The FK+Reference rule no longer prescribes `M` by default.** A hidden FK is
+  `flags: "E"`, or `"EM"` when the relationship is genuinely required; omitting
+  both leaves the column nullable, which is the default — so the examples no
+  longer spell out `"isNullable": true` either. Keep the visible Reference in
+  step (`VE` / `VEM`): `M` is inert on a virtual column, so `VEM` over an
+  optional FK changes nothing but reads as a required field to the next author,
+  which is precisely how the broken example above went unnoticed.
+- **An upgrade now reconciles nullability in both directions.** Previously
+  neither direction reached an existing table: `ADD COLUMN IF NOT EXISTS` no-ops
+  on a column that is already there, and the only nullability statement emitted
+  was `DROP NOT NULL`, and that only for an *explicit* `isNullable: true`. So
+  adding `M` to a shipped field silently did nothing on upgraded tenants (it
+  worked on a fresh install, which goes through `CREATE TABLE`), and merely
+  deleting `M` left the constraint standing, failing later inserts with a raw
+  Postgres 23502.
+- **Authoring consequence:** adding `M` to a field that existing tenant rows
+  leave empty now **aborts the upgrade**, rolled back, naming the column and its
+  NULL row count — rather than committing a tenant whose API enforces a rule its
+  data already breaks. Give the column a `params.serverDefault` if the install
+  should backfill it. Removing `M` is always safe.
+- **`params.serverDefault` now works on a required column.** The platform's
+  required-for-insert check excluded `formula` and `numberSequence` but not
+  `serverDefault`, so an insert omitting such a column was rejected as missing
+  even though the INSERT would have supplied the value. An `on: "update"`
+  default stays required — it does not fire on insert.
+- **Also corrected in `conventions.md`:** the hidden-FK examples carried
+  `"fieldTypeCd": "hidden"`, which makes install warn that a `cuid` column
+  (group *number*) is bound to a *text* field type and can misbind filter/DML
+  values at runtime (`operator does not exist: bigint = text`). A hidden FK is
+  `dbDatatype: "cuid"` + `flags` — no `fieldTypeCd`.
+
+### Changed — formula navigation at SQL time is no longer single-hop
+
+`formulas.md` and `column-types.md` still described the report/query translator as
+single-hop-only, and told authors to keep report-bound formulas to one hop. That
+stopped being true upstream:
+
+- **Multi-hop `[a].[b].[c]` translates**, one `LEFT JOIN` per hop, each with the
+  same soft-deny rights check as a reference display column. A nav path may land on
+  a *formula* column of the referenced entity, whose own hops are joined off that
+  alias — which is what makes a two-level formula reachable through a reference.
+- **Hops are counted from the query's root** and capped at `MaxNavigationDepth`, so
+  the hops spent reaching a formula reduce the budget left for its own navigation.
+- **What is still unsupported changed shape:** `$[Setting]` references, paths past
+  the cap, **extension-table columns** (they live in a separate 1:1 table needing
+  its own JOIN), and misauthored paths. All come back NULL with a response warning.
+- **Warning wording follows the clause** — a SELECT slot goes empty, an ORDER BY
+  term is dropped so rows come back in a different order, a WHERE condition is
+  dropped so *more* rows come back than were asked for. Documented, because the
+  third one is the only failure that silently widens a result set.
+- **Comparison is null-safe and two-valued** in every context: `null = null` is
+  true, `[x] != null` is true for any non-null `x`, and SQL-time `=`/`!=` translate
+  to `IS NOT DISTINCT FROM` / `IS DISTINCT FROM` so a card and a report agree.
+- Corrected in both files: nav resolution walks N:1 references only, **never a 1:N
+  set**, however many hops it is given — the reason `SUM([set].[field])` in an `F`
+  column renders empty. That was previously attributed to the single-hop limit.
+
+### Changed — `entityLink()` stores the entity id and captions from `toString`
+
+`entity_cd` is only unique per module, so storing the bare code meant a link built
+as `entityLink('fin.invoice', …)` re-resolved at click time against the *reader's*
+folder module and could land on another module's `invoice`. It now stores the
+resolved entity id. The display caption comes from the entity's `toString`
+evaluated against the record (an explicit `description` still wins) — previously
+the entity's own description, which names the table, not the record. Documented in
+`action-dsl.md`, `field-types.md` and the `dforge://reference/dsl` resource, with
+the reminder to pass a qualified code.
+
+### Changed — dependencies
+
+- **`@dforge-core/metadata` `^0.0.10` → `^0.0.12`**, and the vendored schemas
+  re-generated from it. `entity.schema.json` and `triggers.schema.json` were stale:
+  they still described `M` as plain "Mandatory" with no mention of `isNullable`, and
+  omitted that DSL `insert()`/`update()`/`delete()`/`query()` writes to *other*
+  records raise no trigger events.
+- **`@dforge-core/dforge-cli` `^0.2.7` → `^0.2.10`.**
+
 ## 0.2.1
 
 Adds the column-domain schema that `dforge_module_inspect` already reported on,

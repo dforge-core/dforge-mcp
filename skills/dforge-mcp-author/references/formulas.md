@@ -26,6 +26,12 @@ The same grammar applies everywhere.
 `CONTAINS` / `STARTS_WITH` / `ENDS_WITH` are infix operators, not functions — write
 `[note] CONTAINS 'urgent'`, never `CONTAINS([note], 'urgent')`.
 
+**Comparison is null-safe and two-valued in every context.** `null = null` is true, and
+`[x] != null` is true for any non-null `x`. There is no SQL-style third "unknown" answer,
+so `IF([completed_date] != null, 100, 0)` gives the same result on the record card and in
+a report. At SQL time `=` / `!=` translate to `IS NOT DISTINCT FROM` / `IS DISTINCT FROM`
+to preserve that.
+
 ## Examples
 
 ```
@@ -156,8 +162,9 @@ like any other boolean. A bare `date` column is treated as a **local calendar da
 - `AVG`, `MIN`, `MAX` similarly
 
 > ⚠️ **Set aggregation is NOT a Formula (`F`) feature.** `SUM([set].[field])` in an `F` column is
-> unsupported by the engine — the formula runtime has no `SUM`/`COUNT`/`AVG`, and nav resolution
-> only walks single-hop N:1 references, never a 1:N set. It silently renders **empty** (no error).
+> unsupported by **either** engine — the formula runtime has no `SUM`/`COUNT`/`AVG`, and nav
+> resolution walks N:1 references only, never a 1:N set, however many hops it is given. It
+> silently renders **empty** (no error).
 
 Put set aggregations in a **Generated (`G`) column** instead. The installer detects the set
 navigation and maintains the value with a database trigger on the child table. The aggregated
@@ -186,9 +193,20 @@ and the JSON shape: `column-types.md` → "Roll-up totals over child rows — us
 [account].[primary_contact].[phone]      -- chained
 ```
 
-Navigation works through `columnType: "R"` columns (reference columns). Chains of length 1 are **synchronous** and resolved instantly. Chains of length ≥ 2 are **asynchronous** — the formula engine resolves them after the initial data load.
+Navigation works through `columnType: "R"` columns (reference columns) — every step except the last must be a Reference, and the last reads a field on the final referenced record. Chains of length 1 are **synchronous** and resolved instantly. Chains of length ≥ 2 are **asynchronous** — the formula engine resolves them after the initial data load.
 
-**SQL-time (reports, filters, sorts):** single-hop navigation (`[ref].[field]`) is translated to a `LEFT JOIN` and computes in reports and query datasets. Multi-hop chains and `$[Setting]` references are **not** available at SQL time — the column returns NULL there and the response carries a warning naming the column. Keep report-bound formulas to single-hop navigation.
+**SQL-time (reports, filters, sorts).** Multi-hop navigation works here too: QueryBuilder pre-scans the formula and registers one `LEFT JOIN` per hop, then the translator resolves the path against the final alias. A nav path may also land on a *formula* column of the referenced entity — that formula is translated against the referenced entity's alias, and its own hops are joined off that alias. The same nav map drives formula columns in filters and ORDER BY, so filtering and sorting a report by a nav-formula column works.
+
+Hops are counted from the query's **root** entity and capped at `MaxNavigationDepth`, whether they come from a dotted column, a formula's own navigation, or the combination — so the hops spent reaching a formula reduce the budget left for that formula's own navigation.
+
+Still unavailable at SQL time — the column comes back NULL and the **response carries a warning** naming the column and the reason:
+
+- Settings references `$[SettingName]`
+- Navigation past the hop cap
+- **Extension-table columns** — a column an extension module added lives in a separate 1:1 ext table needing its own JOIN, and every alias the translator emits is the entity's own base alias. Applies to the hidden FK and to the Reference built on it, on the query's own entity as well as a referenced one
+- **Misauthored nav paths** — a final segment that isn't a column of the referenced entity, or a dot after something that isn't a Reference (`account.account_name.foo`)
+
+Warning wording follows the clause, because the same unresolvable path costs a different thing in each: a SELECT slot goes NULL (*"could not be computed and will be empty"*), an ORDER BY term is dropped so rows come back in a different order (*"Sorting by … was skipped"*), and a WHERE condition is dropped so **more** rows come back than were asked for (*"Filter on … was ignored"*). Untranslatable formula filters are never dropped silently.
 
 ## Sync vs async formulas
 

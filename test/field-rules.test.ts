@@ -34,6 +34,29 @@ describe("checkFieldSpec", () => {
 		expect(checkFieldSpec("e.f", { fieldTypeCd: "text", flags: "VEM" })).toEqual([]);
 	});
 
+	it("rejects 'M' declared together with isNullable: true", () => {
+		// The platform's MandatoryFlagNormalizer fails the whole pack on this, naming
+		// the entity and fields. Catching it per-field here tells the author which one.
+		expect(messages({ fieldTypeCd: "text", flags: "VEM", isNullable: true })).toMatch(
+			/'M' \(mandatory\) while "isNullable": true/,
+		);
+		// 'M' is inert on a virtual column, so say so rather than offering both fixes.
+		expect(messages({ columnType: "R", fieldTypeCd: "lookup", flags: "VEM", isNullable: true })).toMatch(
+			/virtual column 'M' is inert/,
+		);
+		// Either half alone is fine.
+		expect(errorCount({ dbDatatype: "varchar", fieldTypeCd: "text", flags: "VEM" })).toBe(0);
+		expect(errorCount({ dbDatatype: "varchar", fieldTypeCd: "text", flags: "VE", isNullable: true })).toBe(0);
+	});
+
+	it("treats an optional hidden FK ('E', no 'M') as a hidden FK", () => {
+		// 'M' is not part of the shape — it marks the relation required. Requiring it
+		// here made every optional FK invisible to the rules that key off this.
+		expect(isHiddenFk({ dbDatatype: "cuid", flags: "E" })).toBe(true);
+		expect(isHiddenFk({ dbDatatype: "cuid", flags: "EM" })).toBe(true);
+		expect(isHiddenFk({ dbDatatype: "cuid", flags: "VE" })).toBe(false);
+	});
+
 	it("suggests the right fieldTypeCd for a common wrong one", () => {
 		expect(messages({ fieldTypeCd: "integer" })).toMatch(/Did you mean 'number'/);
 		expect(messages({ fieldTypeCd: "reference" })).toMatch(/Did you mean 'lookup'/);
