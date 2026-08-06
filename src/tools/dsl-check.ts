@@ -31,13 +31,23 @@ export interface DslCheckOpts {
 const BLOCKS = ["params", "canExecute", "onBeforeStart", "execute"] as const;
 type Block = (typeof BLOCKS)[number];
 
-/** Host globals exposed by ActionScriptEngine — see dforge://docs/dsl. */
+/**
+ * Host globals exposed by ActionScriptEngine — see dforge://docs/dsl.
+ *
+ * Mirrors `DslBuiltins.FunctionNames` in dForge.Core, plus `now`, which the
+ * compiler rewrites as a call via its own pattern rather than listing there.
+ *
+ * `userId` is deliberately absent: it is a bare identifier, not a function, so
+ * leaving it out is what makes the `userId()` mistake surface here instead of
+ * at runtime. Use `currentUserId()` for the call-shaped form.
+ */
 export const DSL_BUILTINS = new Set([
-	"addDays", "addSeconds", "callApi", "callProc", "callService", "delete",
-	"detectDocument", "download", "entityLink", "error", "exit", "flush",
-	"getFileInfo", "getFileUrl", "getRecord", "getRecordOrNull", "getSecret",
-	"getSetting", "info", "insert", "nextNumber", "notify", "now", "ocrExtract",
-	"preloadRef", "query", "select", "sendEmail", "tryParseJson", "update", "warn",
+	"addDays", "addMinutes", "addSeconds", "applyProfile", "callApi", "callProc",
+	"callService", "currentUserId", "delete", "detectDocument", "download",
+	"entityLink", "error", "exit", "flush", "getFileBase64", "getFileInfo",
+	"getFileUrl", "getRecord", "getRecordOrNull", "getSecret", "getSetting",
+	"info", "insert", "nextNumber", "notify", "now", "ocrExtract", "preloadRef",
+	"query", "select", "sendEmail", "tryParseJson", "update", "warn",
 ]);
 
 /** ES5 keywords and the globals Jint exposes — never "unknown functions". */
