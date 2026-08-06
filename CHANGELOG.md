@@ -4,6 +4,44 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.3
+
+Catches up with the platform's current-user work: `currentUserId()` exists now,
+and the three ways an author can get this wrong each get their own diagnostic
+instead of a generic "unknown function".
+
+### Fixed — `dforge_action_check` flagged real built-ins as unknown
+
+`DSL_BUILTINS` is a hand-maintained mirror of `DslBuiltins.FunctionNames` in
+dForge-core, and it had drifted: `addMinutes`, `applyProfile` and
+`getFileBase64` were missing, so a module using them was told its correct code
+was wrong. Nothing compared the two lists, which is why it went unnoticed.
+`test/dsl-builtins-drift.test.ts` now asserts they match in both directions,
+parsing the authoritative list out of a sibling dForge-core checkout.
+
+### Added — `userId()` and `CURRENT_USER_ID()` diagnostics
+
+- **`userId()`** is now an `error` (`user-id-called-as-function`) carrying the
+  platform's own sentence: *'userId' is a value, not a function — write 'userId'
+  without parentheses, or 'currentUserId()'*. It used to draw only a generic
+  `unknown-builtin` warning that called `userId` "not a DSL host function",
+  which is misleading — it is a host value, just not callable. The platform
+  rejects this at compile time now, so the checker matches its severity.
+- **`CURRENT_USER_ID()`** in `execute:` joins `TODAY()`/`NOW()` as formula-only.
+  The message is per-function rather than date-specific, so it points at
+  `currentUserId()` here and `now()` there.
+- **`currentUserId()`** and bare **`userId`** both check clean.
+
+### Changed — reference docs
+
+`dsl-reference.md` and the skill's `action-dsl.md` gain the full built-in list,
+the formula-vs-`execute:` split for `CURRENT_USER_ID()`, and the 64-bit id
+contract: ids are BigInt inside `execute:` and stay exact, arithmetic mixing
+BigInt and Number throws, and a large id written as a bare numeric literal
+rounds before the comparison runs. The skill reference also drops
+`IF(condition, trueVal, falseVal)`, which it listed as an `execute:` ternary
+helper — it is formula-only and the compiler rejects it.
+
 ## 0.2.2
 
 Mirrors the platform change that gives the `M` column flag its meaning — in the

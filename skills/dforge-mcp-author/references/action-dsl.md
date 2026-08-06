@@ -224,14 +224,31 @@ var queued = select('comm.message', {
 | `getFileBase64(fileFieldValue)` | String | Read a file from storage and return its content as a base64-encoded string. Use with `callApi()` to send files to AI APIs. Max 10 MB. Example: `getFileBase64([document_file])`. |
 | `getFileUrl(fileFieldValue)` | String | Generate a temporary signed download URL (relative path) for a file field. Use in email templates or notifications — not for `callApi()`. |
 | `getSecret('secret_cd')` | String | Retrieve a decrypted secret value (API keys, tokens). Secrets are managed in the admin UI. |
+| `getFileInfo(fileFieldValue)` | Object \| null | File metadata for a file field. |
+| `download(url, fileName?)` | — | Fetch a URL into tenant storage. |
+| `callService('name', { args })` | Any | Invoke a registered host service. |
+
+### Files, settings, document extraction
+
+| Function | Returns | Description |
+|---|---|---|
+| `getSetting('setting_cd')` | Any | Read a module setting, resolved through the folder chain (current folder → parents → module default). |
+| `ocrExtract(fileField, endpointBaseUrl, schema?, opts?)` | Object | Run OCR extraction against a document. `opts.profile` selects a registered extraction profile, e.g. `{ profile: 'proc.bill_of_lading' }`. |
+| `detectDocument(rawText)` | Object \| null | Score text against reachable extraction profiles; returns the best match `{ profile, docType, score }` or `null`. |
+| `applyProfile(json, 'module.profile_cd')` | Object | Map already-extracted JSON through a profile's field schema, without re-running OCR. |
 
 ### Utilities
 
 | Function | Returns | Description |
 |---|---|---|
 | `now()` | DateTime | Current date/time. Use for `date`, `datetime`, and `timestamp` fields. **Lowercase** — this is the execute-block date function. |
-| `IF(condition, trueVal, falseVal)` | Any | Ternary helper. |
 | `addDays(date, n)` | Date | Add `n` days to a date, e.g. `addDays(now(), 30)`. |
+| `addMinutes(date, n)` | DateTime | Add `n` minutes, e.g. `addMinutes(now(), 15)`. |
+| `addSeconds(date, n)` | DateTime | Add `n` seconds. |
+| `currentUserId()` | Long | The acting user's tenant user ID. |
+| `userId` | Long | Same value as `currentUserId()`, as a **bare identifier — no parentheses**. `userId()` is a compile error; there is no `current_user_id()`. |
+| `flush()` | — | Flush pending writes so a following read sees them. |
+| `tryParseJson(value)` | Any \| null | Parse JSON, returning `null` on failure instead of throwing. |
 | `nextNumber('entity')` | String | Generate next value from a number sequence. Usually not needed — platform auto-fills on `insert()`. Use for pre-generating numbers. |
 | `callProc('proc_name', { args })` | Result | Call a stored procedure. Args are passed as named parameters. |
 | `entityLink('entityCd', record, description?)` | Link value | Build a clickable link to any entity record, for storing in an `entitylink` (jsonb) column. `record` is a row object (e.g. the result of `insert()` or `getRecord()`); its PK columns are read and stored as **strings**, so snowflake/cuid ids (> 2^53) stay exact. The entity is resolved at build time and stored **by id** — `entity_cd` is only unique per module, so always pass a qualified code (`'fin.invoice'`). Omit `description` and the link is captioned with the entity's `toString` against `record`; an explicit `description` wins. |
@@ -242,6 +259,32 @@ var queued = select('comm.message', {
 > `'TODAY' is not defined` at install). Use `TODAY()`/`NOW()` only in `canExecute:`, formula
 > columns, and other formula contexts; use `now()` everywhere inside `execute:`. (Uppercase `NOW()`
 > is also fine *inside a raw SQL string* passed to `query()`, because that's SQL, not JS.)
+
+> **`IF()` is formula-only too.** It was previously listed here as a ternary helper — that was
+> wrong. `IF(cond, a, b)` is a **formula-engine** function, valid in `canExecute:` and formula
+> columns, and **undefined in `execute:`** (install fails with `'IF' is not defined`). Inside
+> `execute:` use the JavaScript conditional operator: `var x = cond ? a : b`.
+
+> **64-bit ids are BigInt in `execute:`.** JS numbers are doubles (53 mantissa bits) and dForge
+> ids are 58-bit snowflakes, so any `long` outside ±2^53 — user ids, PKs, FKs — reaches the script
+> as a JS **BigInt**. Ids stay exact through reads, writes and comparisons, including
+> `currentUserId() == [last_updated_by]`. Smaller `int8` values (counters, quantities) stay
+> ordinary numbers, so arithmetic on them is unchanged.
+>
+> Two operations throw rather than round silently, each with a working form:
+> `[owner_id] + 1` → use `Number([owner_id]) + 1` (explicit, and accepts the rounding);
+> `JSON.stringify([owner_id])` → assign the object instead (`[payload] = { id: [owner_id] }`),
+> which serializes correctly on the write path.
+>
+> Never write a large id as a bare numeric literal — the literal itself rounds before the
+> comparison runs. `[owner_id] == 2006…067` is **false**; quote it (`== '2006…067'`) or suffix
+> it with `n` (`== 2006…067n`). Comparing two id columns needs neither.
+>
+> For "who did this", the platform audit columns (`created_by` / `last_updated_by`) remain the
+> better answer — filled server-side, no script involved. For ownership predicates use
+> **`CURRENT_USER_ID()`** in `canExecute:` or a formula column — a *formula-engine* function
+> (undefined in `execute:`) that the server translates to an exact `::bigint` SQL literal.
+
 
 ## Real examples from the codebase
 

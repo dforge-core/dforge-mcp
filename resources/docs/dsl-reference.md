@@ -288,6 +288,68 @@ Fractional-unit arithmetic.
 [token_expires_at] = addMinutes(now(), 15)
 ```
 
+### Current user
+
+#### `currentUserId() → long`, `userId → long`
+The acting user's tenant user ID. Two spellings for the same value — `userId` is
+a **bare identifier**, `currentUserId()` is the call form. Both are always
+available; use whichever reads better.
+
+```dsl
+[approved_by_id] = userId
+[created_by_id] = currentUserId()
+notify(userId, 'Done')
+```
+
+`userId()` — the value spelled as a call — is **rejected at compile time**:
+
+```
+'userId' is a value, not a function — write 'userId' without parentheses, or 'currentUserId()'
+```
+
+`CURRENT_USER_ID()` is **not** available in `execute:` — it is a *formula* function,
+valid in `canExecute:`, formula columns, filters and reports, exactly like
+`TODAY()`/`NOW()` vs `now()`. Same split, same reason: `execute:` is JavaScript,
+the rest is the formula engine.
+
+#### 64-bit ids are BigInt
+
+JS numbers are doubles (53 mantissa bits); dForge ids are 58-bit snowflakes. Any
+`long` outside ±2^53 — user ids, PKs, FKs — reaches the script as a JS **BigInt**,
+so ids stay exact through reads, writes and comparisons. Smaller `int8` values
+(counters, quantities) stay ordinary numbers, so arithmetic on them is unchanged.
+
+```dsl
+[copy] = [owner_id]                            # exact round-trip
+[is_mine] = currentUserId() == [last_updated_by]   # exact — both sides BigInt
+[label] = '' + [owner_id]                      # "200650220910936067"
+```
+
+Two operations throw instead of rounding silently:
+
+```dsl
+[x] = [owner_id] + 1               # Cannot mix BigInt and other types
+[x] = Number([owner_id]) + 1       # explicit — and accepts the rounding
+
+[x] = JSON.stringify([owner_id])   # Do not know how to serialize a BigInt
+[payload] = { id: [owner_id] }     # assign the object; jsonb writes the number
+```
+
+Never write a large id as a bare numeric literal — the literal itself rounds
+before the comparison runs:
+
+| Comparison | Result |
+|---|---|
+| `[owner_id] == 200650220910936067` | ❌ literal rounded to `…064` |
+| `[owner_id] == '200650220910936067'` | ✅ string coerces to BigInt |
+| `[owner_id] == 200650220910936067n` | ✅ BigInt literal |
+| `[owner_id] === '200650220910936067'` | ❌ strict equality, different types |
+
+For "who did this", prefer the platform audit columns (`created_by` /
+`last_updated_by`) — filled server-side, no script involved. For ownership
+predicates in `canExecute:` or a formula column, use `CURRENT_USER_ID()`, which
+the server translates to an exact `::bigint` SQL literal.
+
 ### Messaging & notifications
 
 #### `info(message, opts?)`, `warn(message, opts?)`
@@ -457,6 +519,16 @@ Score a document's text against every reachable extraction profile's `detect` ru
 ```dsl
 var det = detectDocument(data.raw_text)     // { profile: 'proc.bill_of_lading', docType: 'bill_of_lading', score } | null
 if (det != null) { var r = ocrExtract([doc_file], getSetting('ocr_endpoint_url'), null, { profile: det.profile }) }
+```
+
+#### `applyProfile(json, profile) → object`
+Map an already-extracted JSON payload through a registered extraction profile's
+field schema, without re-running OCR. Use when the raw JSON came from somewhere
+other than `ocrExtract()` — a webhook payload, a stored response, a re-process of
+an earlier extraction.
+
+```dsl
+var mapped = applyProfile(tryParseJson([raw_payload]), 'proc.bill_of_lading')
 ```
 
 ### Utility

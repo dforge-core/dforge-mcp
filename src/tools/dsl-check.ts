@@ -31,13 +31,23 @@ export interface DslCheckOpts {
 const BLOCKS = ["params", "canExecute", "onBeforeStart", "execute"] as const;
 type Block = (typeof BLOCKS)[number];
 
-/** Host globals exposed by ActionScriptEngine — see dforge://docs/dsl. */
+/**
+ * Host globals exposed by ActionScriptEngine — see dforge://docs/dsl.
+ *
+ * Mirrors `DslBuiltins.FunctionNames` in dForge.Core, plus `now`, which the
+ * compiler rewrites as a call via its own pattern rather than listing there.
+ *
+ * `userId` is deliberately absent: it is a bare identifier, not a function, so
+ * leaving it out is what makes the `userId()` mistake surface here instead of
+ * at runtime. Use `currentUserId()` for the call-shaped form.
+ */
 export const DSL_BUILTINS = new Set([
-	"addDays", "addSeconds", "callApi", "callProc", "callService", "delete",
-	"detectDocument", "download", "entityLink", "error", "exit", "flush",
-	"getFileInfo", "getFileUrl", "getRecord", "getRecordOrNull", "getSecret",
-	"getSetting", "info", "insert", "nextNumber", "notify", "now", "ocrExtract",
-	"preloadRef", "query", "select", "sendEmail", "tryParseJson", "update", "warn",
+	"addDays", "addMinutes", "addSeconds", "applyProfile", "callApi", "callProc",
+	"callService", "currentUserId", "delete", "detectDocument", "download",
+	"entityLink", "error", "exit", "flush", "getFileBase64", "getFileInfo",
+	"getFileUrl", "getRecord", "getRecordOrNull", "getSecret", "getSetting",
+	"info", "insert", "nextNumber", "notify", "now", "ocrExtract", "preloadRef",
+	"query", "select", "sendEmail", "tryParseJson", "update", "warn",
 ]);
 
 /** ES5 keywords and the globals Jint exposes — never "unknown functions". */
@@ -49,7 +59,24 @@ const JS_RESERVED = new Set([
 ]);
 
 /** Formula-engine functions that are undefined inside `execute:`. */
-const FORMULA_ONLY = ["TODAY", "NOW"];
+/**
+ * `__ctx` members that are values, not functions. Deliberately absent from
+ * DSL_BUILTINS — that is what makes `userId()` reportable — but skipped by the
+ * unknown-builtin sweep, which has a dedicated, more accurate rule for them.
+ */
+const VALUE_MEMBERS = new Set(["userId"]);
+
+/**
+ * Formula-engine functions that are undefined in `execute:`, mapped to the
+ * execute-block spelling that does work. `execute:` is JavaScript (Jint); the
+ * rest of the DSL is the formula engine, and install rejects these with
+ * "'X' is not defined".
+ */
+const FORMULA_ONLY: Record<string, string> = {
+	TODAY: "now()",
+	NOW: "now()",
+	CURRENT_USER_ID: "currentUserId()",
+};
 
 /**
  * Strip string literals and `#`/`//` comments so scanners don't match inside
@@ -226,18 +253,34 @@ export function checkDsl(src: string, opts: DslCheckOpts = {}): DslIssue[] {
 	// ── execute: uses lowercase now(), never the formula-only TODAY()/NOW() ──
 	// Documented install failure: "'TODAY' is not defined".
 	if (execBlock) {
-		for (const fn of FORMULA_ONLY) {
+		for (const [fn, replacement] of Object.entries(FORMULA_ONLY)) {
 			const re = new RegExp(`\\b${fn}\\s*\\(\\s*\\)`, "g");
 			for (const m of execCode.matchAll(re)) {
 				add(
 					"error",
 					"execute-formula-date",
 					`the execute: block calls ${fn}(), which is undefined at runtime — install fails with ` +
-						`"'${fn}' is not defined". Use lowercase now() in execute:. ${fn}() is formula-only ` +
+						`"'${fn}' is not defined". Use ${replacement} in execute:. ${fn}() is formula-only ` +
 						"(canExecute:, formula columns).",
 					lineOf(src, execOffset + (m.index ?? 0)),
 				);
 			}
+		}
+
+		// ── `userId()` — the value spelled as a call ──
+		// The compiler's bare-identifier rewrite fires with or without
+		// parentheses, so this reaches Jint as `__ctx.userId()` — a call against
+		// a long. It used to pass pack AND install and die only at runtime;
+		// the platform rejects it at compile time now, so this must be an error,
+		// not a warning, and must carry the same wording the server emits.
+		for (const m of execCode.matchAll(/\buserId\s*\(/g)) {
+			add(
+				"error",
+				"user-id-called-as-function",
+				"'userId' is a value, not a function — write 'userId' without parentheses, " +
+					"or 'currentUserId()'.",
+				lineOf(src, execOffset + (m.index ?? 0)),
+			);
 		}
 	}
 
@@ -337,7 +380,8 @@ export function checkDsl(src: string, opts: DslCheckOpts = {}): DslIssue[] {
 			JS_RESERVED.has(fn) ||
 			local.has(fn) ||
 			reported.has(fn) ||
-			FORMULA_ONLY.includes(fn)
+			fn in FORMULA_ONLY ||
+			VALUE_MEMBERS.has(fn)
 		) {
 			continue;
 		}

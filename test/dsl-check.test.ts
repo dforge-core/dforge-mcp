@@ -134,3 +134,34 @@ describe("dsl-check — misc", () => {
 		expect(errors("execute:\n\t# [status] would be wrong here\n\tinfo('ok')\n", { viaJob: true })).toEqual([]);
 	});
 });
+
+describe("dsl-check — current user", () => {
+	const rulesOf = (body: string) => checkDsl(`execute:\n\t${body}\n`).map(i => `${i.level}/${i.rule}`);
+
+	it("rejects userId() with the platform's own wording", () => {
+		const issues = checkDsl("execute:\n\t[a] = userId()\n");
+		expect(issues.map(i => i.rule)).toEqual(["user-id-called-as-function"]);
+		expect(issues[0].level).toBe("error");
+		// Same sentence the compiler and the runtime emit, so the three agree.
+		expect(issues[0].message).toContain("'userId' is a value, not a function");
+		expect(issues[0].message).toContain("currentUserId()");
+	});
+
+	it("accepts both working spellings", () => {
+		expect(rulesOf("[a] = userId")).toEqual([]);
+		expect(rulesOf("[a] = currentUserId()")).toEqual([]);
+	});
+
+	it("rejects CURRENT_USER_ID() in execute: as formula-only", () => {
+		const issues = checkDsl("execute:\n\t[a] = CURRENT_USER_ID()\n");
+		expect(issues.map(i => i.rule)).toEqual(["execute-formula-date"]);
+		// Points at the execute: spelling, not at now() — the message is
+		// per-function now, not date-specific.
+		expect(issues[0].message).toContain("currentUserId()");
+	});
+
+	it("still points TODAY()/NOW() at now()", () => {
+		expect(checkDsl("execute:\n\t[a] = NOW()\n")[0].message).toContain("now()");
+		expect(checkDsl("execute:\n\t[a] = TODAY()\n")[0].message).toContain("now()");
+	});
+});
