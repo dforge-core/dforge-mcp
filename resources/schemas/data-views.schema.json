@@ -492,7 +492,20 @@
 				},
 				"o": {
 					"type": "string",
-					"description": "Operator: eq, neq, =, !=, gt, gtEq, grEq, lt, ltEq, in, nIn, like, isNull, isNotNull, etc."
+					"enum": [
+						"=", "eq", "!=", "notEq",
+						">", "gr", ">=", "grEq", "<", "less", "<=", "lessEq",
+						"eqRef",
+						"contains", "!contains", "nContain",
+						"start", "!start", "nStart",
+						"end", "!end", "nEnd",
+						"mask", "!mask", "nMask",
+						"null", "empty", "!null", "nEmpty",
+						"in", "!in", "nIn",
+						"between", "btw", "!between", "nBetween",
+						"f", "func"
+					],
+					"description": "Operator. Closed set — this is exactly what the server's FilterBuilder translates, and an operator outside it is rejected at install. Symbolic forms and their word aliases are equivalent ('=' / 'eq', '!=' / 'notEq', '>' / 'gr', '>=' / 'grEq', '<' / 'less', '<=' / 'lessEq'); a leading '!' negates, with 'n'-prefixed spellings as the alias ('!in' / 'nIn'). Null checks are 'null' / 'empty' and '!null' / 'nEmpty' (NOT 'isNull' / 'isNotNull'); substring matching is 'contains' (NOT 'like'). 'eqRef' compares against another column (v = column code), 'f' / 'func' takes v = {fn: 'isToday' | 'isYesterday' | 'isThisWeek' | 'isThisMonth' | 'isThisYear' | 'isPast' | 'isFuture' | 'isCurrentUser'}."
 				},
 				"v": {
 					"description": "Comparison value. Scalars, arrays (for in/nIn), or parameter references like '@param_code'."
@@ -506,8 +519,8 @@
 			"properties": {
 				"g": {
 					"type": "string",
-					"enum": ["and", "or"],
-					"description": "Group combinator"
+					"enum": ["and", "or", "!and", "nAnd", "!or", "nOr"],
+					"description": "Group combinator. '!and' / '!or' negate the whole group ('nAnd' / 'nOr' are the alias spellings). Closed set — an unknown combinator is rejected at install (at query time it would silently fall back to AND)."
 				},
 				"i": {
 					"type": "array",

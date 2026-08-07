@@ -61,7 +61,7 @@ A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...
     "query": {
         "entityCd": "opportunity",
         "columns": ["stage", "amount", "close_date", "customer.name"],
-        "filter": { "c": "stage", "o": "ne", "v": "Closed Lost" },
+        "filter": { "c": "stage", "o": "!=", "v": "Closed Lost" },
         "sort": [ { "c": "close_date", "d": "desc" } ]
     },
     "columnsDef": { "amount": { "label": "Deal Value" }, "customer.name": { "label": "Account" } }

@@ -366,7 +366,23 @@
 			"required": ["c", "o"],
 			"properties": {
 				"c": { "type": "string" },
-				"o": { "type": "string" },
+				"o": {
+					"type": "string",
+					"enum": [
+						"=", "eq", "!=", "notEq",
+						">", "gr", ">=", "grEq", "<", "less", "<=", "lessEq",
+						"eqRef",
+						"contains", "!contains", "nContain",
+						"start", "!start", "nStart",
+						"end", "!end", "nEnd",
+						"mask", "!mask", "nMask",
+						"null", "empty", "!null", "nEmpty",
+						"in", "!in", "nIn",
+						"between", "btw", "!between", "nBetween",
+						"f", "func"
+					],
+					"description": "Operator — same closed set as data_views.json. Null checks are 'null' / '!null' (NOT 'isNull' / 'isNotNull'); substring matching is 'contains' (NOT 'like'). An operator outside this set is rejected at install; at query time it would be dropped, silently widening the dataset."
+				},
 				"v": {}
 			},
 			"additionalProperties": false
@@ -375,7 +391,7 @@
 			"type": "object",
 			"required": ["g", "i"],
 			"properties": {
-				"g": { "type": "string", "enum": ["and", "or"] },
+				"g": { "type": "string", "enum": ["and", "or", "!and", "nAnd", "!or", "nOr"] },
 				"i": {
 					"type": "array",
 					"items": { "$ref": "#/$defs/filter" }
