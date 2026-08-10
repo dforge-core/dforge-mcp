@@ -144,19 +144,25 @@ Parameters prompt the user before running the report. Declare them per-report (`
 ```json
 "parameters": {
     "start_date": { "fieldTypeCd": "date", "label": "Start Date", "required": true, "default": "=STARTMONTH()" },
-    "region": { "fieldTypeCd": "dropdown", "label": "Region", "params": { "options": ["All", "North", "South"] } },
+    "status":   { "domain": "fin.doc_status", "label": "Status" },
+    "region": { "fieldTypeCd": "dropdown", "label": "Region", "params": { "options": [
+        { "value": "north", "label": "North" }, { "value": "south", "label": "South" }
+    ] } },
     "customer": { "fieldTypeCd": "lookup", "label": "Customer", "params": { "entityCd": "account" } }
 }
 ```
 
 | Property | Description |
 |---|---|
-| `fieldTypeCd` | Control type: `date`, `datetime`, `text`, `number`, `dropdown`, `lookup`, `user`, `checkbox` |
+| `fieldTypeCd` | Control type: `date`, `datetime`, `text`, `number`, `dropdown`, `lookup`, `user`, `checkbox`. Omit when `domain` is set. |
+| `domain` | Column domain (`domain_cd` or `module_cd.domain_cd`) supplying the control **and** the option list. Mutually exclusive with `fieldTypeCd` — declaring both is rejected at install. |
 | `label` | Display label in the parameter dialog |
 | `required` | Whether the user must fill this before running |
 | `default` | Plain value or `=`-prefixed formula (`"=NOW()"`, `"=STARTMONTH()"`, `"=TODAY()"`) |
 | `params` | Extra config — `options` for dropdowns, `entityCd` for lookups |
 | `orderNum` | Display order in the parameter form (falls back to declaration order) |
+
+**Dropdown params: prefer `domain`, and never ship bare codes.** A list shared with a column belongs on a `column_domain` — bind the param to it and the options plus their translations are authored once (`column-domains.md`). For a list that exists only for this report, write the rich option form (`{ "value": "north", "label": "North" }`); a bare `"options": ["north", "south"]` renders the raw codes in **every** locale, English included. Per-locale labels go under `reports.<cd>.params.<param_cd>.options` (`translations.md`).
 
 Reference a parameter with `@param_code` inside a query filter value:
 

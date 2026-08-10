@@ -82,8 +82,8 @@ Translation files mirror the module's content structure. Each translatable objec
 | `roles` | Role display labels | Role codes (keys from `security/roles.json`, already module-qualified — e.g. `crm.admin`) → `{ label }` |
 | `views` | Data view labels | View codes (keys from `ui/data_views.json`) |
 | `menus` | Menu node labels (root + nested items) | Menu root key → `{ label, items: { item_code: { label } } }` matching `ui/menus.json` structure |
-| `actions` | Action labels, descriptions, and param labels | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label } } }` |
-| `reports` | Report dataset captions and param labels | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label } } }` |
+| `actions` | Action labels, descriptions, param labels **and param dropdown option labels** | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label, options: { value: … } } } }` |
+| `reports` | Report dataset captions, param labels **and param dropdown option labels** | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label, options: { value: … } } } }` |
 | `entities.<e>.constraints` | Check/unique constraint violation messages (opt-in — warned, not enforced) | Constraint codes → `{ message }` under the owning entity |
 | `entities.<e>.fields.<f>.options` | Dropdown/radio/flags **option labels** (opt-in) | Option `value` → localized label (string) or `{ label, icon, color }` |
 | `domains` | Column domain labels **and** their shared option labels (opt-in) | Domain codes → `{ label, options: { value: … } }` |
@@ -146,7 +146,33 @@ If a column uses a **domain** (see `column-domains.md`), translate the domain **
 ```
 
 - Keys are domain codes from this module's `domains.json`. The `options` map uses the same value-keyed, partial-override shape as field options above.
-- This is the whole point of domains for localization: the shared option list is authored and translated in one place. Don't also translate the consuming columns' options — they inherit from the domain.
+- This is the whole point of domains for localization: the shared option list is authored and translated in one place. Don't also translate the consuming columns' options — they inherit from the domain. **Nor the params bound to it** — an action or report parameter declared as `domain <domainCd>` inherits from the same place.
+
+### Action / report PARAM option labels ARE translatable (opt-in)
+
+A `dropdown` **parameter** carries per-value labels exactly like a column, and translates them under an `options` map next to the param's `label`:
+
+```json
+"actions": {
+    "distribute_payment": {
+        "params": {
+            "payment_method": {
+                "label": "Zahlungsart",
+                "options": {
+                    "bank_transfer": { "label": "Überweisung" },
+                    "cash": "Bar"
+                }
+            }
+        }
+    }
+}
+```
+
+- Same shape and rules as field options: value-keyed, partial override merged over the base, bare string = `{ "label": … }`, only `label`/`icon`/`color` translatable, `value` never.
+- The same section works for `reports.<report_cd>.params.<param_cd>.options`.
+- A param may translate **only** its options and keep the authored caption — omit `label`.
+- **This requires base labels in the DSL.** `options=bank_transfer,cash` stores bare codes, and the dialog shows `bank_transfer` in *every* locale including English until you write `options=[bank_transfer:Bank transfer, cash:Cash]` (or the JSON object form). See `action-dsl.md`.
+- **Prefer a domain.** If the param's choices are the same list a column uses — which they usually are, since the value normally ends up written to that column — declare the param as `domain <domainCd>` and skip this section entirely: it inherits the domain's translated options. Reach for per-param `options` only when the list belongs to that one parameter and matches no column.
 
 ### Roles ARE translated — and completeness is enforced
 

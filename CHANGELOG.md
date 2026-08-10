@@ -4,6 +4,87 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.5
+
+Catches up with the platform's parameter-options work (dForge-core 1.20.0). A dropdown
+parameter can now carry real labels, and — better — borrow the shared list its target
+column already uses. Both were undocumented here, and one reference actively said the
+first was impossible.
+
+### Changed — `translations.md` said param option labels didn't exist
+
+The section table listed `actions` / `reports` params as translating `{ label }` and
+nothing else, which was accurate when written: parameters had no schema location for a
+per-choice label at all. An author who followed it concluded — correctly, at the time —
+that a dropdown param showing `bank_transfer` instead of "Bank transfer" was unfixable.
+The platform added the slot, so the table now shows
+`params: { param_cd: { label, options: { value: … } } }` for both sections, and a new
+**"Action / report PARAM option labels ARE translatable"** section documents the
+value-keyed, partial-override shape (identical to field options) plus the two things that
+trip authors up: base labels must exist in the DSL first, and a domain-backed param
+shouldn't be translated here at all.
+
+### Added — `domain <domainCd>` param form
+
+`action-dsl.md` and `dsl-reference.md` gain the parameter form that borrows a column
+domain:
+
+```
+params:
+    payment_method: domain payment_method required "Payment method for this batch"
+    status:         domain fin.doc_status optional "Status"
+```
+
+Both now lead with it and frame inline `options=` as the narrow case. The reason is
+duplication, not typing: a param whose value gets written to a domain-backed column used
+to restate that column's enum, so the same list was authored twice, translated twice, and
+free to drift — and a param option whose code isn't on the column is a value the grid
+can't label. `column-domains.md` gains a matching **"Using a domain in an action / report
+param"** section, and `reports.md` documents the JSON equivalent
+(`{"domain": "fin.doc_status"}`, mutually exclusive with `fieldTypeCd`).
+
+Also documented: the param keeps its **own** caption (only the choices come from the
+domain), install materializes just the domain's `fieldTypeCd` (a parameter has no
+storage, so datatype and sizing don't apply), and nothing may follow the description —
+`options=`, `min=` and friends are a compile error there, the same authority rule columns
+already had.
+
+### Changed — labeled `options=` in the DSL references
+
+The dropdown row in `dsl-reference.md` showed only `options=low,medium,high`, which is
+exactly the shape that renders raw codes in every locale. It now shows the labeled forms
+(`options=[low:Low, medium:Medium, high:High]`, and the JSON object form for icon/colour),
+with the wrapping rule spelled out: the trailing `key=value` scan is whitespace-delimited,
+so a label containing a space needs `[ ]` or quotes around the list.
+
+`resources/docs/conventions.md` (vendored from dForge-core) gains the same guidance
+inline. It was **not** re-synced wholesale: the vendored copy has diverged *forward* from
+core in ~15 places — seed-data `cuid`-is-int8 warnings, mandatory-flag `M` semantics,
+rights characters — so a straight `cp` (what `VENDOR_REFS=1` does) would silently drop
+them. That drift is worth reconciling deliberately, in its own pass.
+
+### Fixed — `dforge_module_validate` rejected a domain-backed report param
+
+`resources/schemas/reports.schema.json` required `fieldTypeCd` and had no `domain` key, so
+the very form the docs above now recommend failed validation. `@dforge-core/metadata` is
+bumped to `^0.0.14` and the 16 vendored schemas re-synced, which lands the new `paramDef`:
+`domain` is accepted (`domain_cd` or `module_cd.domain_cd`), `fieldTypeCd` is no longer
+required — a param declaring neither installs as `text` — and the one rejected combination
+is declaring both. Action params were never affected (the DSL has no JSON schema).
+
+### Changed — dependency bumps
+
+`@dforge-core/dforge-cli` `^0.2.12` → `^0.2.13`, `@dforge-core/metadata` `^0.0.13` →
+`^0.0.14`, and the dev toolchain moves to `vitest` 4 and `@types/node` 26. A
+`pnpm-workspace.yaml` pins the pnpm build allowlist and exempts the freshly-published
+dForge packages from `minimumReleaseAge`, which otherwise blocks installing them the day
+they ship.
+
+### Known gap
+
+`dforge_translation_sync` doesn't seed `options` maps for fields, domains or params —
+authors write those keys by hand.
+
 ## 0.2.3
 
 Catches up with the platform's current-user work: `currentUserId()` exists now,

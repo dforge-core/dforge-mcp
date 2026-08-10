@@ -314,11 +314,16 @@
 
 		"paramDef": {
 			"type": "object",
-			"required": ["fieldTypeCd"],
+			"not": { "required": ["fieldTypeCd", "domain"] },
 			"properties": {
 				"fieldTypeCd": {
 					"type": "string",
-					"description": "Field type code (see settings.schema.json for the common list)"
+					"description": "Field type code (see settings.schema.json for the common list). Omit when `domain` is set — the domain supplies the control. May also be omitted entirely: a param declaring neither key installs as `text` (ReportRegistrar.DefaultParamFieldTypeCd). The one rejected combination is declaring both."
+				},
+				"domain": {
+					"type": "string",
+					"description": "Column domain (`domain_cd` or `module_cd.domain_cd`) the parameter borrows its control and option list from. The options and their translations stay on the domain, so a list shared with an entity column is authored once. The DSL equivalent for action params is `paramCd: domain <domainCd>`.",
+					"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)?$"
 				},
 				"label": { "type": "string" },
 				"orderNum": {

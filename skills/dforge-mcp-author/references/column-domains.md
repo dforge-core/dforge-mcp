@@ -8,7 +8,7 @@ Schema: `dforge://schema/domains`.
 
 ## Why
 
-Without domains, every "status" column restates the same `fieldTypeCd: "dropdown"` + the full `params.options` list — and, if you localize, the same option translations, once per column. A domain declares that once; every consuming column inherits the type, the control, the options, **and** their translations. Localize `fin.doc_status` a single time and all its uses update together.
+Without domains, every "status" column — and every action param that writes to one — restates the same `fieldTypeCd: "dropdown"` + the full `params.options` list, and, if you localize, the same option translations, once per consumer. A domain declares that once; every consuming column **and parameter** inherits the type, the control, the options, **and** their translations. Localize `fin.doc_status` a single time and all its uses update together.
 
 ## `domains.json`
 
@@ -54,6 +54,24 @@ A column swaps its whole type block for a single `domain` key — qualified as `
 
 The column keeps what is genuinely its own — `description` (its label), `flags`, `orderNum`, `isNullable`, `isPk`, `columnGroupCd`. The domain supplies the rest.
 
+## Using a domain in an action / report param
+
+Parameters consume the same domain, so an action that writes to a domain-backed column offers exactly that column's choices instead of restating them:
+
+```
+params:
+    status: domain fin.doc_status required "New status"
+```
+
+```json
+"status": { "domain": "fin.doc_status", "label": "New status", "required": true }
+```
+
+- **Prefer this over inline `options=`** whenever the param's value ends up on a domain-backed column — otherwise the same enum is authored twice, translated twice, and free to drift (a param option whose code isn't on the column is a value the grid can't label).
+- Install materializes the domain's `fieldTypeCd` onto the param; its datatype and sizing don't apply, because a parameter has no storage. A domain with no `fieldTypeCd` is rejected — the param would have no control to render.
+- The param keeps its **own caption** (`"New status"` above) and translates it under `actions.<cd>.params.<param_cd>.label` as usual. Only the choices come from the domain, options translations included.
+- Nothing may follow the description in the DSL form — `options=`, `min=` and friends are a compile error there, same authority rule columns get. A report param declaring both `domain` and `fieldTypeCd` is rejected for the same reason.
+
 ## Rules (these fail the install)
 
 1. **Don't restate what the domain owns.** Declaring `dbDatatype`, `fieldTypeCd`, `maxLen`, `precision`, `baseDatatypeCd` or `params` alongside `domain` is rejected, naming the conflicting key — it is never silently overridden. Domains are authoritative.
@@ -78,7 +96,7 @@ An option override is a partial merged over the base — a bare string is shorth
 ## How it resolves (mental model)
 
 - **Install** materializes the domain's structural fields (datatype/control/sizing) onto each consuming column, because DDL generation needs them locally.
-- **Runtime** resolves `params` (the options) — and their per-culture overrides — from the domain, not the column. That is what lets a shared list be authored and translated once.
+- **Runtime** resolves `params` (the options) — and their per-culture overrides — from the domain, not the column *or the param*. That is what lets a shared list be authored and translated once.
 
 You don't act on this split; just know that the option list stays on the domain, so **don't** paste `params.options` onto a domain-backed column (the install rejects it).
 
@@ -90,5 +108,6 @@ You don't act on this split; just know that the option list stays on the domain,
 ## Common mistakes
 
 - Putting `params.options` on the column **and** naming a `domain` → install error. Options belong on the domain.
+- Restating a domain's list inline on an action param (`options=…`) instead of binding the param to the domain → compiles, but you now maintain and translate the same enum twice.
 - Using a cross-module domain without declaring the dependency → "unknown column domain" at install.
 - Expecting per-column option overrides — the domain is authoritative in v1; narrow with `optionSets` (which filters by `value`) if you need a conditional subset.

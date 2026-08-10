@@ -48,7 +48,7 @@ Each param is one line: `name: type [required] ["Label"]`
 
 ```
 params:
-    new_stage: dropdown required "New Stage"
+    new_stage: dropdown required "New Stage" options=[open:Open, won:Won, lost:Lost]
     note: textarea "Follow-up Note"
     adjustment_qty: number required "Adjustment Quantity"
     reason: text required "Reason"
@@ -57,6 +57,41 @@ params:
 Types are a subset of column field types: `text`, `textarea`, `number`, `currency`, `percent`, `checkbox`, `date`, `datetime`, `dropdown`, `lookup`, `user`.
 
 Access in execute block: `params[param_name]` (bracket syntax, NOT dot syntax).
+
+#### Dropdown params: label the options, or borrow a domain
+
+A bare `options=open,won,lost` stores codes with no labels, and the dialog shows `open` /
+`won` / `lost` in **every** locale, English included. Two ways to do better, in order of
+preference:
+
+1. **`domain <domainCd>`** — the param borrows a shared `column_domain`:
+
+   ```
+   params:
+       payment_method: domain payment_method required "Payment method for this batch"
+       status:         domain fin.doc_status optional "Status"   // module-qualified
+   ```
+
+   Use this whenever the choices are the same list a column uses — the usual case, since
+   the param's value normally ends up written to that column. Control and options come off
+   the domain, so the list and its translations live in **one** place instead of being
+   restated here and drifting from the column's. The param keeps its own caption. Nothing
+   may follow the description (`options=`, `min=` … are a compile error — the domain owns
+   them), and an unknown domain code fails the install.
+
+2. **Inline labels** — for a list that belongs to this parameter alone (a run mode, an
+   export format) and matches no column:
+
+   ```
+   params:
+       method:   dropdown required "Method" options=[bank_transfer:Bank transfer, cash:Cash]
+       priority: dropdown required "Priority" options=[{"value":"high","label":"High","color":"#c00"},"normal"]
+   ```
+
+   `value:Label` splits on the first colon; wrap the list in `[ ]` (or `" "`) when a label
+   contains a space, since the trailing `key=value` scan is whitespace-delimited. An option
+   object needs a non-empty string `value` — the stored code, and the key translations match
+   on. Per-locale labels: `actions.<cd>.params.<param_cd>.options` (`translations.md`).
 
 ### `canExecute:` — availability formula
 

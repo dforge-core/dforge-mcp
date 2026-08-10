@@ -869,6 +869,10 @@ For `dropdown` fields, define available options in `params.options`:
 
 Both formats can be mixed in the same array, but this is not recommended.
 
+**Action / report parameters carry the same option list.** A `dropdown` param declares its choices in the DSL (`method: dropdown required "Method" options=[bank_transfer:Bank transfer, cash:Cash]`) or, for report params, under `params.options` in JSON — the identical `{value, label, icon, color}` shape. Bare codes (`options=bank_transfer,cash`) render as raw codes in **every** locale, English included, so label them. Per-locale labels go under `actions.<cd>.params.<param_cd>.options` / `reports.<cd>.params.<param_cd>.options`.
+
+**Prefer a shared column domain over restating a list.** When the choices are the same set a column uses — the usual case, since the param's value normally ends up written to that column — bind the param to the domain instead: `method: domain payment_method required "Method"` in the DSL, `{"domain": "fin.payment_method"}` for a report param. The options and their translations then live in exactly one place for the column and every parameter on it. Keep inline `options=` for a list that belongs to one parameter and matches no column. See the `column-domains.md` and `translations.md` skill references.
+
 ---
 
 ## Version Management

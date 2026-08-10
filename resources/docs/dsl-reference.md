@@ -59,9 +59,55 @@ Common field types + their extra keys:
 | `date` | (none) | `due_date: date required "Due"` |
 | `dateTime` | (none) | `scheduled_at: dateTime required "Scheduled at"` |
 | `boolean` | (none) | `urgent: boolean optional "Urgent?"` |
-| `dropdown` | `options` | `priority: dropdown required "Priority" options=low,medium,high` |
+| `dropdown` | `options` | `priority: dropdown required "Priority" options=[low:Low, medium:Medium, high:High]` |
 | `lookup` | (use ref form instead — see below) | |
 | `file` | `accept` | `attachment: file optional "Attachment" accept=.pdf,.png` |
+
+### Dropdown options — label them, or prefer a domain
+
+`options=low,medium,high` stores bare codes, and the dialog then shows `low` / `medium` /
+`high` in **every** locale, English included. Give each choice a label:
+
+```dsl
+params:
+    // value:Label — wrap the list in [ ] (or " ") when a label contains a space,
+    // because the trailing key=value scan is whitespace-delimited.
+    method:   dropdown required "Method" options=[bank_transfer:Bank transfer, cash:Cash]
+
+    // JSON form — for values with commas, or to set icon/color.
+    priority: dropdown required "Priority" options=[{"value":"high","label":"High","color":"#c00"},"normal"]
+```
+
+An option object must carry a non-empty string `value` — that's the stored code and the key
+translations match on. Per-locale labels go under
+`actions.<cd>.params.<param_cd>.options` (see `translations.md`).
+
+### Domain form (borrow a shared option list)
+
+```
+paramName: domain domainCd [required|optional] ["description"]
+```
+
+```dsl
+params:
+    payment_method: domain payment_method required "Payment method for this batch"
+    status:         domain fin.doc_status optional "Status"   // module-qualified
+```
+
+**Prefer this whenever the choices are (or could be) the same list a column uses** — which
+is the usual case, since the param's value normally ends up written to that column. The
+param takes its control and options from the `column_domain`, so the list and its
+translations are authored **once** instead of restated in the DSL and drifting from the
+column's.
+
+- The param keeps its **own caption**; only the choices come from the domain.
+- Nothing may follow the description: `options=`, `min=` and friends are a compile error
+  here — the domain owns them.
+- An unknown domain code fails the install; it never degrades to an empty dropdown.
+- Report params take the same binding as JSON: `{"domain": "fin.payment_method", "label": "…"}`.
+
+Use inline `options=` only when the list belongs to that one parameter and matches no
+column (a run mode, an export format).
 
 ### Reference form (FK to another entity)
 
