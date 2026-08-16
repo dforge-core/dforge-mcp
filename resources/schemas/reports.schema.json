@@ -24,10 +24,42 @@
 					"description": "Map of dataset code → dataset definition. Panels reference datasets by code via `datasetCd`.",
 					"additionalProperties": { "$ref": "#/$defs/dataset" }
 				},
+				"reloadInterval": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Auto-refresh interval in seconds. Omit (or 0) for no auto-refresh."
+				},
 				"parameters": {
 					"type": "object",
-					"description": "Report-level parameters (alternative to per-dataset `params`). Map of param code → param definition.",
+					"description": "Report-level parameter declarations — the canonical home for a parameter, and the only one that fits a parameter several datasets use. Parameters are report-scoped throughout the platform: one `param_set` per report, `report.params.save` in the authoring API, and `report.get` flattens per-dataset defaults report-wide before use. A parameter declared under a dataset's `params` is shorthand for declaring it here; the installer merges both into one set, with this block winning on a code collision.",
 					"additionalProperties": { "$ref": "#/$defs/paramDef" }
+				},
+				"entities": {
+					"type": "array",
+					"description": "Record-report attachments: entities this report can be opened from, with the mapping from report parameter to source column on that entity. Each entry becomes one `dForge.entity_report` row. See docs/business-logic/record-reports.md.",
+					"items": { "$ref": "#/$defs/entityAttachment" }
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"entityAttachment": {
+			"type": "object",
+			"description": "One (entity, report) attachment. The binding is per-attachment, not per-report — the same report can attach to several entities with different parameter mappings.",
+			"required": ["entityCd"],
+			"properties": {
+				"entityCd": {
+					"type": "string",
+					"description": "Entity the report attaches to, qualified `module.entity` for anything outside the declaring module. The owning module must be this module or a declared dependency."
+				},
+				"params": {
+					"type": "object",
+					"description": "Parameter mapping: report param code → source column on the entity. Stored as `entity_report.param_map` and resolved server-side from the record's PK. Source columns are limited to the PK, reference (`R`) columns, and bounded scalars (number, date/datetime, bool, dropdown/radio/flags code); source and target must be type-compatible. Params left unmapped keep their normal behaviour (default value, or prompt the user).",
+					"additionalProperties": { "type": "string" }
+				},
+				"orderNum": {
+					"type": "integer",
+					"description": "Sort position in the record's combined action + report menu."
 				}
 			},
 			"additionalProperties": false
@@ -228,7 +260,7 @@
 				},
 				"params": {
 					"type": "object",
-					"description": "Dataset-level parameters (alternative to top-level `parameters`)",
+					"description": "Parameters declared on this dataset — shorthand for the report-level `parameters` block, convenient when exactly one dataset uses the parameter. Either way the parameter is REPORT-scoped: `ReportRegistrar` merges the report-level block and every dataset's `params` into the report's one `param_set`, so a parameter declared here serves the whole report (the param bar, saved param sets, `@param` filters in any dataset, and record-report `entities[].params` mappings). On a code collision the report-level block wins. Declare a parameter used by several datasets at report level — there is no meaningful dataset to attribute it to.",
 					"additionalProperties": { "$ref": "#/$defs/paramDef" }
 				}
 			},
@@ -330,30 +362,22 @@
 					"type": "integer",
 					"description": "Display order of the parameter in the report's parameter form. Read by ReportRegistrar (paramDef.OrderNum); falls back to declaration order when omitted."
 				},
+				"columnType": {
+					"type": "string",
+					"enum": ["R"],
+					"description": "Declares a REFERENCE parameter: its submitted value is the whole picked record rather than the bare key. The JSON counterpart of the action DSL's `paramCd: ref <entityCd>`, stored in the same `param.column_type`. Optional — omitting it (a plain `lookup`) submits the key, which is what a filter comparing against a reference column needs, since the server destructures a key object across every key column and ignores non-key fields. Declare \"R\" when the report wants the record itself, not just its identity."
+				},
 				"required": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the user must provide a value (older modules also use `isRequired`)"
-				},
-				"isRequired": {
-					"type": "boolean",
-					"description": "Alternate spelling of `required` used by some modules. Prefer `required` for new code."
+					"description": "Whether the user must provide a value. Stored inverted as `param.is_nullable`. There is no `isRequired` spelling — `ReportParamDef` reads this key only."
 				},
 				"default": {
 					"description": "Default value applied if the user doesn't provide one"
 				},
-				"link": {
-					"type": "object",
-					"description": "Entity link for lookup-type params (alternative to nesting under `params.link`). Shape: { entity: '<code>', otherKey?: '<column>' }.",
-					"properties": {
-						"entity": { "type": "string" },
-						"otherKey": { "type": "string" }
-					},
-					"additionalProperties": false
-				},
 				"params": {
 					"type": "object",
-					"description": "Field-type-specific params (e.g. lookup → { link: { entity, otherKey } })"
+					"description": "Field-type-specific params, nested under this key — there is no top-level `link`. A `lookup` param needs `{ \"link\": { \"entity\": \"<code>\", \"otherKey\": \"<column>\" } }`; `otherKey` auto-fills from the target's PK when omitted. Without `params.link` a lookup param installs, warns, and has no autocomplete."
 				}
 			},
 			"additionalProperties": false

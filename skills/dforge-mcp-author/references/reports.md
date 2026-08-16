@@ -7,7 +7,7 @@ SP files: `logic/reports/rpt_*.sql`
 
 ## Structure
 
-A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...] }`), and optional `parameters`. Panels reference datasets by code via `datasetCd`.
+A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...] }`), optional per-dataset `params`, and an optional `entities` array (record-report attachments). Panels reference datasets by code via `datasetCd`.
 
 ```json
 {
@@ -17,12 +17,18 @@ A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...
             "pipeline": {
                 "caption": "Pipeline Data",
                 "datasetType": "Q",
+                "params": {
+                    "min_amount": { "fieldTypeCd": "number", "label": "Min Amount", "required": false, "default": 0 }
+                },
                 "query": {
                     "entityCd": "opportunity",
                     "columns": ["stage", "amount", "lead_source", "customer.name"],
                     "filter": {
                         "g": "and",
-                        "i": [ { "c": "stage", "o": "nIn", "v": ["Closed Won", "Closed Lost"] } ]
+                        "i": [
+                            { "c": "stage", "o": "nIn", "v": ["Closed Won", "Closed Lost"] },
+                            { "c": "amount", "o": "grEq", "v": "@min_amount" }
+                        ]
                     },
                     "sort": [ { "c": "amount", "d": "desc" } ]
                 }
@@ -38,9 +44,6 @@ A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...
                 },
                 { "vizType": "table", "datasetCd": "pipeline", "title": "Pipeline Detail" }
             ]
-        },
-        "parameters": {
-            "min_amount": { "fieldTypeCd": "number", "label": "Min Amount", "required": false, "default": 0 }
         }
     }
 }
@@ -85,7 +88,7 @@ For SQL the query builder can't express — window functions, CTEs, cross-schema
     "spCd": "rpt_ar_aging",
     "params": {
         "as_of_date": { "fieldTypeCd": "date", "label": "As of Date", "required": true, "default": "=NOW()" },
-        "customer_id": { "fieldTypeCd": "lookup", "label": "Customer", "required": false, "params": { "entityCd": "account" } }
+        "customer_id": { "fieldTypeCd": "lookup", "label": "Customer", "required": false, "params": { "link": { "entity": "account" } } }
     },
     "columnsDef": {
         "customer_name": { "label": "Customer", "fieldTypeCd": "text", "baseDatatypeCd": "string", "width": 200 },
@@ -99,7 +102,7 @@ Key differences from entity datasets:
 - `datasetType: "S"`.
 - `spCd` — the stored-procedure code (the function name **without** the schema prefix; resolved to `sp_id` at install). (**Not** `sp` or `procedureName`.)
 - `columnsDef` — **required** — the platform can't infer columns from a function.
-- Params can be per-dataset or per-report.
+- Params work exactly as they do for an entity dataset, and `datasetType` makes no difference: declare them at report level (`parameters`) or on the dataset (`params`). Report level wins on a code collision.
 
 **Multi-result-set SPs** map extra datasets to the same function via `parentDatasetCd` (the dataset that owns the SP call) + `parentRef` (the named refcursor):
 
@@ -139,16 +142,33 @@ $$;
 
 ## Parameters
 
-Parameters prompt the user before running the report. Declare them per-report (`parameters`) or per-dataset (`params`).
+Parameters prompt the user before running the report.
+
+**Parameters are report-scoped**, so there are two legal declaration sites and they mean the same thing:
+
+- **`parameters`** at report level — the canonical home, and the only one that fits a param several datasets use.
+- **`datasets.<cd>.params`** — shorthand, fine when exactly one dataset uses it. Every module written before this existed uses it, and it stays fully supported.
+
+The installer merges both into the report's single param set (**report level wins** on a code collision), so either way the param serves the whole report: the param bar, saved param sets, `@param` filters in *any* dataset, and record-report mappings.
+
+> Why report-scoped: the declaration is stored once per report (`report.param_set_id` → `param_set`), the authoring API is `report.params.save`, and `report.get` flattens per-dataset defaults report-wide before use. There is no dataset-scoped parameter behaviour to choose between.
 
 ```json
 "parameters": {
-    "start_date": { "fieldTypeCd": "date", "label": "Start Date", "required": true, "default": "=STARTMONTH()" },
-    "status":   { "domain": "fin.doc_status", "label": "Status" },
-    "region": { "fieldTypeCd": "dropdown", "label": "Region", "params": { "options": [
-        { "value": "north", "label": "North" }, { "value": "south", "label": "South" }
-    ] } },
-    "customer": { "fieldTypeCd": "lookup", "label": "Customer", "params": { "entityCd": "account" } }
+    "customer": { "fieldTypeCd": "lookup", "label": "Customer", "params": { "link": { "entity": "account" } } }
+},
+"datasets": {
+    "sales": {
+        "datasetType": "Q",
+        "params": {
+            "start_date": { "fieldTypeCd": "date", "label": "Start Date", "required": true, "default": "=STARTMONTH()" },
+            "status":   { "domain": "fin.doc_status", "label": "Status" },
+            "region": { "fieldTypeCd": "dropdown", "label": "Region", "params": { "options": [
+                { "value": "north", "label": "North" }, { "value": "south", "label": "South" }
+            ] } }
+        },
+        "query": { "entityCd": "invoice", "columns": ["invoice_number", "total"] }
+    }
 }
 ```
 
@@ -159,8 +179,10 @@ Parameters prompt the user before running the report. Declare them per-report (`
 | `label` | Display label in the parameter dialog |
 | `required` | Whether the user must fill this before running |
 | `default` | Plain value or `=`-prefixed formula (`"=NOW()"`, `"=STARTMONTH()"`, `"=TODAY()"`) |
-| `params` | Extra config — `options` for dropdowns, `entityCd` for lookups |
+| `params` | Extra config — `options` for dropdowns, `link: { entity, otherKey? }` for lookups |
 | `orderNum` | Display order in the parameter form (falls back to declaration order) |
+
+Two spellings that look right and are silently ignored: **`isRequired`** (the key is `required`, so the param installs as optional) and a **top-level `link`** (it must be nested under `params`, so the lookup installs with no autocomplete). Both are validator errors.
 
 **Dropdown params: prefer `domain`, and never ship bare codes.** A list shared with a column belongs on a `column_domain` — bind the param to it and the options plus their translations are authored once (`column-domains.md`). For a list that exists only for this report, write the rich option form (`{ "value": "north", "label": "North" }`); a bare `"options": ["north", "south"]` renders the raw codes in **every** locale, English included. Per-locale labels go under `reports.<cd>.params.<param_cd>.options` (`translations.md`).
 
@@ -260,13 +282,71 @@ Dashboard KPI/chart *tiles* get the same support via a `sources` map in the tile
 
 `config.chartSize` ∈ `sm | m | l | xl` controls the default chart height (`m` when omitted).
 
-## Grants
+## Record reports (`entities`)
 
-Grant report access with the `E` right:
+A report can be **attached to an entity** so it opens from a record — the way a print template does — with the record's values feeding its parameters. Add an `entities` array to the report:
 
 ```json
-"rights": { "report.sales_pipeline": "E" }
+"credit_check": {
+    "description": "Customer Credit Check — limit against outstanding AR and open quotes",
+    "entities": [
+        { "entityCd": "parties.party", "params": { "customer_id": "party_id" }, "orderNum": 45 },
+        { "entityCd": "crm.quote",     "params": { "customer_id": "customer_id" }, "orderNum": 45 }
+    ],
+    "parameters": {
+        "customer_id": {
+            "label": "Customer",
+            "fieldTypeCd": "lookup",
+            "params": { "link": { "entity": "parties.party" } },
+            "required": true
+        }
+    },
+    "layout": { "panels": [ { "vizType": "table", "datasetCd": "open_invoices" } ] },
+    "datasets": {
+        "open_invoices": {
+            "caption": "Open Invoices",
+            "datasetType": "Q",
+            "query": {
+                "entityCd": "invoice",
+                "columns": ["invoice_number", "due_date", "amount_due"],
+                "filter": { "g": "and", "i": [ { "c": "customer_id", "o": "eq", "v": "@customer_id" } ] }
+            }
+        }
+    }
+}
 ```
+
+Each entry becomes one attachment row, and the report gains a toolbar entry on that entity's record. Note the two different `params` keys:
+
+- `entities[].params` — the **mapping**: report param code → **source column on the attached entity**.
+- `parameters` / `datasets.<cd>.params` — the param **declaration**. The mapping can only name codes declared in one of those.
+
+| Rule | Detail |
+|---|---|
+| `entityCd` | Qualified `module.entity` for anything outside this module, and that module must be a **declared dependency**. |
+| Source columns | The entity PK, a reference (`R`) column, or a bounded scalar (number, date/datetime, bool, dropdown/radio/flags code). `text`, `json`, `file`/`image` are rejected. |
+| Types | Source and target must be compatible; only `lookup`↔`number` and `date`↔`datetime` widen. A names-only match like `{ "customer_id": "created_date" }` is an error, not a runtime surprise. |
+| One per pair | One attachment per (entity, report). Two entries for the same entity overwrite each other. |
+| Unmapped params | Keep their normal behaviour — default value, or prompt the user. |
+| Mapped params | Are **hidden** on the record-report page. The URL is about this record; pivoting means going back to a record. |
+| Dependency | Declare `"metadata": ">=1.5.0"` — the attachment table ships with the metadata system module, so this is the gate that fails loudly on an older platform instead of the attachment quietly doing nothing. This is metadata's **`version`**; dependency ranges are never checked against `dbSchemaVersion`, so do not use the `1.4.0` of the migration that creates the table. |
+| Rights | Report `E` is still required. A bridge role must grant `E` on the report **and** `S` on the dataset entities. |
+
+There is no `canExecute` on an attachment: if the record exists the report is meaningful for it, and an empty report is a legitimate answer.
+
+> **Prefer a record report over an action that calculates.** See *When an action is the wrong tool* in `references/action-dsl.md`. If the `execute:` block only reads, computes and `info()`s a number, it is not an action — a printed number is never stored, can't be re-read, and shows the verdict without the working. Attach a report instead: it gets you KPI tiles, charts, the underlying rows, drill-through, saved layouts and row caps for free, and the DSL you don't write is DSL that can't drift from the data.
+>
+> Keep it an action when it **changes** something — writing the result to a column, creating a record, or *blocking* a transition. "Explain the number" is a report; "refuse the over-limit quote" is an action or trigger.
+
+## Grants
+
+Grant report access with the `E` right — a **colon** prefix, never a dot:
+
+```json
+"rights": { "report:sales_pipeline": "E" }
+```
+
+A dependency's report is granted with the qualified form, `"report:fin.ar_aging": "E"` — bridge modules need this to grant on a report they attach but do not own.
 
 ## Common mistakes
 
@@ -276,5 +356,11 @@ Grant report access with the `E` right:
 - Using `sp` / `procedureName` for an SP dataset — the field is `spCd`.
 - Forgetting `columnsDef` on an SP dataset — **required**.
 - Forgetting to grant `E` on the report in at least one role — it becomes invisible.
+- Writing the rights key as `report.<code>` — actions/reports/folders take a **colon**: `report:<code>`.
+- Writing `isRequired` instead of `required`, or a top-level `link` instead of `params.link` — both are ignored at install.
+- Declaring both `fieldTypeCd` and `domain` on one param — install rejects the pair rather than picking a winner.
+- Mapping a record-report attachment onto a param no dataset declares, or from a `text`/`json` column — both are rejected.
+- Attaching a report to another module's entity without declaring that module as a dependency.
 - Forgetting `p_folder_uid` / `p_user_id` as the first two SP function params — the call fails.
 - Referencing a parameter as `$param` — use `@param_code` in filters.
+- Writing an action that computes a number and `info()`s it, where a record report would show the working.

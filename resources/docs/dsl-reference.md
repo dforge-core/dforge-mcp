@@ -401,7 +401,7 @@ the server translates to an exact `::bigint` SQL literal.
 #### `info(message, opts?)`, `warn(message, opts?)`
 Queue user-facing toast. `opts.links: [{entity, id}]` adds "open record" buttons.
 
-A message is a **receipt for work the action did**, not a way to publish a computed value. An action whose only output is `info('<some computed number>')` stores nothing — it can't be audited, re-read or reported on, and the value arrives unformatted. Build a report, a formula column, or an action that writes a result record instead. See `dforge://reference/action-dsl`, *When an action is the wrong tool*.
+A message is a **receipt for work the action did**, not a way to publish a computed value. An action whose only output is `info('<some computed number>')` stores nothing — it can't be audited, re-read or reported on, and the value arrives unformatted. Build a **record report** (a report with an `entities` attachment: it lands on the same record toolbar, but shows the numbers *and* the rows behind them, re-read live on every open), a formula column, or an action that writes a result record instead. Do not compute in DSL what a report dataset already aggregates. See `dforge://reference/action-dsl`, *When an action is the wrong tool*, and `dforge://reference/reports`.
 
 ```dsl
 info('Created PO ' + po.po_number, {

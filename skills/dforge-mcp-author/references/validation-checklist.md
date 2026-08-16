@@ -73,6 +73,9 @@ For each entity:
 - [ ] Each source has `entityCode` and `columns`
 - [ ] `entityCode` points to an entity that exists
 - [ ] Column codes in `columns` all exist on the entity
+- [ ] No `columns` entry is a **set** (`columnType: "S"`) — a 1:N collection has no per-row value to put in a column; show it on the record card instead. **Rejected at validate/pack**
+- [ ] No `columns` entry is a **dotted navigation path** (`owner.email`, `account.company_name`) — a view's column list is matched against the entity's own columns, so a dotted entry resolves to nothing. Add a Reference (`R`) or Formula (`F`) column to the entity and list that. **Rejected at validate/pack**
+- [ ] A listed column does **not** need `V` in its flags — the renderer promotes anything the list names (that is how trait-contributed `created_by_user`, flagged `I`, appears). Listing a non-`V` column is valid intent, not a mistake
 - [ ] The rendered entity has **at least one visible scalar column** (a field with `V` in `flags`, `columnType` not `S`) — a grid/list/kanban/etc. view over an entity whose fields are all hidden (or only sets) is **rejected** at validate/pack and would render "No visible columns configured for this entity." `diagram`/`matrix`/`library` are exempt
 - [ ] If set, `viewType` is from the supported list (`grid`, `list`, `kanban`, `calendar`, `gallery`, `tree-grid`, `diagram`, `master-detail`, `library`, `matrix`)
 - [ ] A `matrix` view has a `viewConfig` with `rowAxis`, `colAxis`, and `cell` (cell `entity` matches the primary `dataSources` entity; `rowKey`/`colKey` are real cell columns)
@@ -88,6 +91,16 @@ For each entity:
 - [ ] Every `dataViewCode` points to a data view that exists
 - [ ] Every `reportCode` points to a report that exists
 - [ ] `orderNum` is set on each node for deterministic ordering
+
+## Reports (`ui/reports.json`)
+
+- [ ] Params are declared in the report-level `parameters` block, or under `datasets.<cd>.params` — a param several datasets use belongs at report level (the installer merges both; report level wins on a collision)
+- [ ] Params use `required` (not `isRequired`), and a lookup nests its binding as `params: { link: { entity } }` (not a top-level `link`)
+- [ ] No param declares both `fieldTypeCd` and `domain`
+- [ ] `layout` is an object (`{ "panels": [...] }`), and the chart kind is `config.chartType` with `vizType: "chart"`
+- [ ] Record-report attachments (`entities`): every mapped param code is declared at report level or on a dataset; every source column is the PK, a reference (`R`) column, or a bounded scalar; cross-module `entityCd` is qualified and its module is a declared dependency
+- [ ] A module with attachments declares `"metadata": ">=1.5.0"`
+- [ ] No `check_…` / `calculate_…` action exists that a record report should be
 
 ## Security
 

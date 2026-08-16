@@ -71,6 +71,35 @@ The manifest lists every file in the package by logical key. The installer reads
 | `supportedLocales` | string[] | IETF locale tags that the module ships translations for, e.g. `["de-DE", "uk-UA"]`. Files are **auto-discovered** at `./translations/{locale}.json` — there is no per-file manifest entry. English (`en`/`en-*`) is the default and must not be listed. |
 | `printTemplates` | object | `{ "template_code": "./print_templates/template.scriban" }` |
 | `webhooks` | string | path to `./webhooks.json` |
+| `features` | string[] | Opt-in platform behaviours this package was authored for, e.g. `["report-security"]`. Absent/empty = the pre-feature behaviour. See **Feature opt-ins** below. |
+
+## Feature opt-ins
+
+`dependencies` answers "does the platform have this?". `features` answers "should this behaviour apply to **my** module?".
+
+They exist for opposite failure modes. A dependency is a hard gate — the module will not install without it. A feature is the reverse: the platform already has the behaviour, but switching it on for every installed module at once would break every package written before it existed. So it stays off per module until the author asks for it.
+
+```json
+"features": ["report-security"]
+```
+
+| Feature | Effect |
+|---|---|
+| `report-security` | This module's reports require the `E` right on their security object — checked when running or opening a report and when reading or changing its saved presets and panel layouts. Without it, a report is reachable by anyone who can read the underlying data. |
+
+**Adopting one is two releases, in order:**
+
+1. Add `"report:<report_code>": "E"` to every role in `security/roles.json` that should reach each report. Bump `version`, install.
+2. Add `"features": ["report-security"]`. Bump `version` again, install.
+
+Do it in the other order and every report in the module denies for every role until the grants land. Both steps need a version bump — a same-version install is skipped, so the tenant would keep the old manifest.
+
+**Rules:**
+
+- Unknown names are **rejected** at package load, not ignored. A misspelled `report-securty` would otherwise leave the old behaviour in place while the manifest claims the protection is on.
+- Casing and surrounding whitespace are normalised; the canonical spelling is lowercase.
+- Removing a feature genuinely removes it on the next install — an opt-in is a migration window, not a one-way door.
+- Installing against an older platform that predates the feature is safe: unknown manifest keys are ignored there, so the module runs the old behaviour.
 
 ## Dependencies
 

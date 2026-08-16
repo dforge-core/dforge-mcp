@@ -19,6 +19,12 @@
 #   scripts/publish.sh 0.1.0 --otp 123456             # if your npm account has 2FA on publish
 #   scripts/publish.sh 0.1.0 --dry-run                # see what would happen
 #   scripts/publish.sh 0.1.0 --yes                    # skip the confirmation prompt
+#
+# 2FA / one-time passwords:
+#   You rarely need --otp. If your account requires 2FA on publish the script
+#   asks for the 6-digit code right before uploading (codes expire in ~30s, so
+#   asking late beats asking early), and re-asks if the registry rejects it.
+#   NPM_OTP=123456 works too, for non-interactive runs.
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -33,7 +39,7 @@ VERSION="$1"; shift
 NPM_TAG="latest"
 DRY_RUN=0
 ASSUME_YES=0
-OTP=""
+OTP="${NPM_OTP:-}"
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -66,6 +72,54 @@ d=json.load(open(p))
 d["version"]=v
 with open(p,"w",encoding="utf-8") as f: json.dump(d, f, indent="\t", ensure_ascii=False); f.write("\n")
 ' "$pj" "$v"
+}
+
+# ── 2FA helpers ──────────────────────────────────────────────────────
+# npm prompts for the OTP itself, but only when stdout is a TTY. We pipe
+# publish output through tee/sed for the log + indentation, which makes it
+# a non-TTY, so npm skips its prompt and fails with EOTP instead. Good:
+# a hard failure is recoverable, a silent hang is not. We do the asking.
+
+# Reads the code off the controlling terminal, not stdin — stdin may be
+# redirected, and we want this to work under `| tee` too.
+read_otp() {
+	local code=""
+	# /dev/tty exists even with no controlling terminal (cron, CI, a pipe),
+	# where opening it fails — probe it rather than trusting the node.
+	{ : >/dev/tty; } 2>/dev/null || return 1
+	printf "  npm one-time password (6 digits, blank to abort): " >/dev/tty 2>/dev/null
+	read -r code </dev/tty 2>/dev/null || return 1
+	echo
+	[ -n "$code" ] || return 1
+	# Strip spaces some authenticator apps show in the code ("123 456").
+	code="${code//[[:space:]]/}"
+	if ! [[ "$code" =~ ^[0-9]{6,}$ ]]; then
+		echo "  ${C_DIM}(that doesn't look like a 6-digit code — sending it anyway)${C_OFF}"
+	fi
+	OTP="$code"
+}
+
+# True when the account has 2FA armed for writes, so we can ask for the
+# code up front instead of burning a failed upload. Any hiccup here
+# (granular token, offline, npm version without --json) falls through to
+# the retry-on-EOTP path below.
+otp_required() {
+	local profile
+	profile=$(npm profile get --json 2>/dev/null) || return 1
+	python3 -c '
+import json,sys
+try: tfa = json.loads(sys.stdin.read()).get("tfa")
+except Exception: sys.exit(1)
+if isinstance(tfa, dict): mode = "" if tfa.get("pending") else tfa.get("mode", "")
+else: mode = tfa or ""
+sys.exit(0 if "auth-and-writes" in str(mode) else 1)
+' <<<"$profile"
+}
+
+# Did the last publish fail *because* of the OTP, as opposed to a version
+# clash, a network error, or a 403? Only then is re-prompting the fix.
+otp_rejected() {
+	grep -qiE "EOTP|one-time pass|otp required|Invalid.*one.?time|code is invalid" "$PUBLISH_LOG"
 }
 
 cd "$REPO_ROOT"
@@ -117,15 +171,47 @@ fi
 
 # ── 5. Publish ───────────────────────────────────────────────────────
 section "Publishing"
-set --
-if [ -n "$OTP" ]; then set -- "$@" --otp "$OTP"; fi
+PUBLISH_ARGS=(--access public --tag "$NPM_TAG")
 # --provenance only works in CI with id-token: write (npm exchanges the
 # GitHub OIDC token for sigstore). Locally it errors out — only pass it
 # when the env var is present.
 if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-	set -- "$@" --provenance
+	PUBLISH_ARGS+=(--provenance)
 fi
-npm publish --access public --tag "$NPM_TAG" "$@" 2>&1 | sed 's/^/  /'
+
+PUBLISH_LOG=$(mktemp -t dforge-mcp-publish)
+trap 'rm -f "$PUBLISH_LOG"' EXIT
+
+# Ask up front only if we know 2FA is on — a wasted tarball upload is a
+# slow way to discover it, and the code would be stale by the retry.
+if [ -z "$OTP" ] && [ -z "${CI:-}" ] && otp_required; then
+	echo "  ${C_DIM}2FA is enabled for publishes on this account.${C_OFF}"
+	read_otp || fail "no one-time password given"
+fi
+
+for attempt in 1 2 3; do
+	args=("${PUBLISH_ARGS[@]}")
+	if [ -n "$OTP" ]; then args+=(--otp "$OTP"); fi
+
+	set +e
+	npm publish "${args[@]}" 2>&1 | tee "$PUBLISH_LOG" | sed 's/^/  /'
+	status=${PIPESTATUS[0]}
+	set -e
+	[ "$status" -eq 0 ] && break
+
+	# Anything that isn't a 2FA complaint won't be fixed by another code.
+	otp_rejected || exit "$status"
+	[ "$attempt" -lt 3 ] || fail "npm still rejected the one-time password"
+
+	echo
+	if [ -n "$OTP" ]; then
+		echo "  ${C_RED}✗${C_OFF} npm rejected that code (they expire in ~30s) — try again."
+	else
+		echo "  ${C_RED}✗${C_OFF} npm wants a one-time password for this publish."
+	fi
+	OTP=""
+	read_otp || fail "no one-time password given"
+done
 
 # ── 6. Verify ────────────────────────────────────────────────────────
 section "Verifying against registry"

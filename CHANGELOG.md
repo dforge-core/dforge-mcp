@@ -4,6 +4,108 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.6
+
+Record reports — a report attached to an entity so it opens **from a record**, with the
+record's values feeding its parameters — plus a report-level home for report parameters,
+and the removal of two parameter spellings the installer never read.
+
+Requires `@dforge-core/metadata` ≥ 0.0.15 (bumped): the vendored
+`resources/schemas/reports.schema.json` served as `dforge://schema/reports` comes from
+there.
+
+### Added — record-report attachments
+
+A report in `ui/reports.json` gains an `entities` array. Each entry attaches the report to
+one entity, mapping report parameters to source columns on it:
+
+```jsonc
+"credit_check": {
+    "entities": [
+        { "entityCd": "parties.party", "params": { "customer_id": "party_id" }, "orderNum": 45 },
+        { "entityCd": "crm.quote",     "params": { "customer_id": "customer_id" }, "orderNum": 45 }
+    ]
+}
+```
+
+The report then appears on that record's toolbar and opens on a record-scoped route with
+the mapped params resolved server-side and hidden. `dforge_report_add` accepts and
+documents the block; `references/reports.md` gains a **Record reports** section with the
+rules (source-column allowlist, type compatibility, one attachment per (entity, report)
+pair, the `"metadata": ">=1.5.0"` gate, and the cross-module dependency bound).
+
+Note the two different `params` keys, which the tool description now calls out: on an
+attachment it is the *mapping* (param code → column); on the report or a dataset it is the
+*declaration*.
+
+### Added — `dforge_module_validate` checks reports
+
+Mirrors the server's new pack-time `ReportAttachmentValidator`, so these fail offline
+instead of at install against a live tenant:
+
+- a mapped param code neither the report-level `parameters` block nor any dataset declares;
+- a source column the entity doesn't have, or one that's a set / formula / free-text column;
+- two attachments to the same entity in one report (the second overwrites the first);
+- an attachment to a cross-module entity whose module isn't a declared dependency;
+- `isRequired`, a top-level `link`, or `fieldTypeCd` + `domain` together on a param;
+- a warning when a module ships attachments with no `metadata` dependency.
+
+### Added — report-level `parameters`
+
+Report parameters are **report-scoped**: the declaration is stored once per report
+(`report.param_set_id` → `param_set`), the authoring API is `report.params.save`, and
+`report.get` flattens per-dataset defaults report-wide before use. The installer had only
+ever read the per-dataset shorthand, so a report-level block was silently dropped and the
+report installed with no parameters at all — which is what made
+`crm-fin.customer_statement` and `wms-fin.vendor_statement` ship parameterless.
+
+Both declaration sites are now legal and mean the same thing; the installer merges them,
+**report level winning** on a code collision:
+
+```jsonc
+"customer_statement": {
+    "parameters": {
+        "customer_id": { "label": "Customer", "fieldTypeCd": "lookup",
+                         "params": { "link": { "entity": "parties.party" } }, "required": true }
+    },
+    "datasets": { "statement_invoices": { }, "statement_payments": { } }
+}
+```
+
+Declare at report level when several datasets use the parameter — `customer_statement` is
+exactly that case, and there is no meaningful dataset to attribute it to.
+`datasets.<cd>.params` stays the right shorthand for a single-dataset parameter, and every
+module written before this keeps working.
+
+`dforge_module_validate` merges both sites when resolving a record-report mapping, so a
+mapping onto a report-level parameter resolves exactly as install will resolve it.
+
+### Fixed — two report-param spellings that are silently ignored
+
+Unlike `parameters`, these are simply misspellings of keys that already exist, so they are
+gone from the schema rather than implemented — and the validator flags them at either
+declaration site:
+
+- **`isRequired`** — the key is `required`; the parameter installed as optional.
+- **top-level `link`** on a lookup parameter — it belongs under `params`; the parameter
+  installed with no autocomplete.
+
+`references/reports.md` also corrects the rights-key example from `report.<code>` to the
+colon form `report:<code>`, and the lookup parameter config from `params.entityCd` to
+`params.link.entity`.
+
+### Changed — steer calculation toward reports, not the DSL
+
+`action-dsl.md`'s *When an action is the wrong tool* now names the record report as the
+direct replacement for a `check_…` action — same toolbar entry point, but the user sees
+the open invoices and the ageing rather than just "FAILED" — and adds the general rule:
+**do not compute in the DSL what a report dataset already aggregates.** Sums, ratios,
+ageing buckets and exposure get formatting, drill-through, row caps and live re-reads for
+free from a report; DSL arithmetic over `select()` reproduces that badly, once, somewhere
+nothing else can reuse. Write DSL when the number must be *written down* or must *stop*
+something. The same steer is in `dsl-reference.md`, Phase 2a and Phase 3c of the
+`dforge-module-build` skill, and the validation checklist.
+
 ## 0.2.5
 
 Catches up with the platform's parameter-options work (dForge-core 1.20.0). A dropdown

@@ -270,3 +270,219 @@ describe("module_validate — broken fixture", () => {
 		expect(msgs).not.toContain("'name'");
 	});
 });
+
+describe("module_validate — reports: param declaration site", () => {
+	const make = (report: Record<string, unknown>) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-rptparams-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { order: "./entities/order.json" } }));
+		writeFileSync(
+			join(dir, "entities", "order.json"),
+			JSON.stringify({ description: "Order", traits: ["identity"], fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } }),
+		);
+		writeFileSync(join(dir, "ui", "reports.json"), JSON.stringify({ rpt: report }));
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	const base = {
+		description: "R",
+		layout: { panels: [{ vizType: "table", datasetCd: "rows" }] },
+	};
+
+	it("accepts a report-level `parameters` block", () => {
+		const res = make({
+			...base,
+			parameters: { customer_id: { fieldTypeCd: "lookup", params: { link: { entity: "order" } } } },
+			datasets: { rows: { datasetType: "Q", query: { entityCd: "order" } } },
+		});
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+
+	it("flags `isRequired` / top-level `link` at report level too", () => {
+		const res = make({
+			...base,
+			parameters: { p: { fieldTypeCd: "lookup", isRequired: true, link: { entity: "order" } } },
+			datasets: { rows: { datasetType: "Q", query: { entityCd: "order" } } },
+		});
+		const msgs = JSON.stringify(res.errors);
+		expect(msgs).toContain("isRequired");
+		expect(msgs).toContain("params.link");
+		expect(msgs).toContain("parameters.p");
+	});
+
+	it("accepts params declared on a dataset", () => {
+		const res = make({
+			...base,
+			datasets: {
+				rows: {
+					datasetType: "Q",
+					params: { customer_id: { label: "C", fieldTypeCd: "lookup", params: { link: { entity: "order" } }, required: true } },
+					query: { entityCd: "order" },
+				},
+			},
+		});
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+
+	it("flags `isRequired`, which the installer does not read", () => {
+		const res = make({
+			...base,
+			datasets: { rows: { datasetType: "Q", params: { p: { fieldTypeCd: "text", isRequired: true } }, query: { entityCd: "order" } } },
+		});
+		expect(JSON.stringify(res.errors)).toContain("isRequired");
+	});
+
+	it("flags a top-level `link` on a param — it belongs under `params.link`", () => {
+		const res = make({
+			...base,
+			datasets: { rows: { datasetType: "Q", params: { p: { fieldTypeCd: "lookup", link: { entity: "order" } } }, query: { entityCd: "order" } } },
+		});
+		expect(JSON.stringify(res.errors)).toContain("params.link");
+	});
+});
+
+describe("module_validate — record-report attachments", () => {
+	const make = (entitiesBlock: unknown, opts: { dependencies?: Record<string, unknown> } = {}) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-rptattach-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(
+			join(dir, "manifest.json"),
+			JSON.stringify({ code: "t", dependencies: opts.dependencies ?? { metadata: ">=1.5.0" }, entities: { order: "./entities/order.json" } }),
+		);
+		writeFileSync(
+			join(dir, "entities", "order.json"),
+			JSON.stringify({
+				description: "Order",
+				traits: ["identity"],
+				fields: {
+					notes: { fieldTypeCd: "textarea", dbDatatype: "text", flags: "VE" },
+					customer_id: { dbDatatype: "int8", flags: "EM" },
+					customer: { columnType: "R", fieldTypeCd: "lookup", flags: "VEM", link: { entity: "order", thisKey: "customer_id", otherKey: "order_id" } },
+				},
+			}),
+		);
+		writeFileSync(
+			join(dir, "ui", "reports.json"),
+			JSON.stringify({
+				rpt: {
+					description: "R",
+					entities: entitiesBlock,
+					layout: { panels: [{ vizType: "table", datasetCd: "rows" }] },
+					datasets: {
+						rows: {
+							datasetType: "Q",
+							params: { customer_id: { fieldTypeCd: "lookup", params: { link: { entity: "order" } }, required: true } },
+							query: { entityCd: "order" },
+						},
+					},
+				},
+			}),
+		);
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	// Same fixture, but the param is declared in the report-level `parameters`
+	// block and NO dataset declares it.
+	const makeWithReportLevelParam = (entitiesBlock: unknown) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-rptattach-rl-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(
+			join(dir, "manifest.json"),
+			JSON.stringify({ code: "t", dependencies: { metadata: ">=1.5.0" }, entities: { order: "./entities/order.json" } }),
+		);
+		writeFileSync(
+			join(dir, "entities", "order.json"),
+			JSON.stringify({ description: "Order", traits: ["identity"], fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } }),
+		);
+		writeFileSync(
+			join(dir, "ui", "reports.json"),
+			JSON.stringify({
+				rpt: {
+					description: "R",
+					entities: entitiesBlock,
+					parameters: { customer_id: { fieldTypeCd: "lookup", params: { link: { entity: "order" } }, required: true } },
+					layout: { panels: [{ vizType: "table", datasetCd: "rows" }] },
+					datasets: { rows: { datasetType: "Q", query: { entityCd: "order" } } },
+				},
+			}),
+		);
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	it("accepts a mapping from the entity PK", () => {
+		const res = make([{ entityCd: "order", params: { customer_id: "order_id" }, orderNum: 10 }]);
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+
+	it("accepts a mapping from a reference column", () => {
+		const res = make([{ entityCd: "order", params: { customer_id: "customer" } }]);
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+
+	it("resolves a mapping against a REPORT-level param declaration", () => {
+		// The attachment maps `customer_id`, which is declared on the report rather
+		// than on any dataset. Install merges both, so pack time must too.
+		const res = makeWithReportLevelParam([{ entityCd: "order", params: { customer_id: "order_id" } }]);
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+
+	it("flags a param code no dataset declares", () => {
+		const res = make([{ entityCd: "order", params: { client_id: "order_id" } }]);
+		expect(JSON.stringify(res.errors)).toContain("not a declared parameter");
+	});
+
+	it("flags a source column the entity does not have", () => {
+		const res = make([{ entityCd: "order", params: { customer_id: "buyer_id" } }]);
+		expect(JSON.stringify(res.errors)).toContain("not a column of that entity");
+	});
+
+	it("flags a free-text source column", () => {
+		const res = make([{ entityCd: "order", params: { customer_id: "notes" } }]);
+		expect(JSON.stringify(res.errors)).toContain("not a valid record-report parameter source");
+	});
+
+	it("flags an attachment to an undeclared cross-module entity", () => {
+		const res = make([{ entityCd: "parties.party", params: { customer_id: "party_id" } }]);
+		expect(JSON.stringify(res.errors)).toContain("parties.party");
+	});
+
+	it("accepts a cross-module attachment to a declared dependency, skipping its columns", () => {
+		const res = make([{ entityCd: "parties.party", params: { customer_id: "party_id" } }], {
+			dependencies: { metadata: ">=1.5.0", parties: ">=0.1.0" },
+		});
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+
+	it("flags two attachments to the same entity", () => {
+		const res = make([
+			{ entityCd: "order", params: { customer_id: "order_id" } },
+			{ entityCd: "t.order", params: { customer_id: "customer" } },
+		]);
+		expect(JSON.stringify(res.errors)).toContain("twice");
+	});
+
+	it("flags an entry with no entityCd", () => {
+		const res = make([{ params: { customer_id: "order_id" } }]);
+		expect(JSON.stringify(res.errors)).toContain("missing 'entityCd'");
+	});
+
+	it("warns when attachments exist without a metadata dependency", () => {
+		const res = make([{ entityCd: "order", params: { customer_id: "order_id" } }], { dependencies: {} });
+		expect(JSON.stringify(res.warnings)).toContain("metadata");
+	});
+});

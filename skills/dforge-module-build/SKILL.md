@@ -172,9 +172,12 @@ to fill a sub-step** — a pure CRUD module skips Phase 2 entirely (record it wi
 
 **2a Actions.** First check the action is an action at all: it must **change**
 something. If the `execute:` block would only read, compute and `info()` the
-answer, build a report, a formula column, or an action that writes a result
-record instead — a printed number is never stored and can't be re-read
-(`dforge://reference/action-dsl`, *When an action is the wrong tool*). Then load
+answer, build a **record report** (a report with an `entities` attachment — same
+toolbar entry point, but it shows the working and re-reads live data), a formula
+column, or an action that writes a result record instead — a printed number is
+never stored and can't be re-read (`dforge://reference/action-dsl`, *When an
+action is the wrong tool*). Do not compute in DSL what a report dataset already
+aggregates. Then load
 all four resources in the action row — the wrong-field-access /
 wrong-batch-flag / wrong-`ui/actions.json`-property mistakes only surface when
 you cross-check them. Draft the DSL, run
@@ -219,10 +222,31 @@ pointing at the views.
 
 If none fire, skip specialized views for that entity.
 
-**3c. Reports** only when aggregation/grouping isn't covered by views.
+**3c. Reports** only when aggregation/grouping isn't covered by views — or when
+Phase 2a sent you here because the "action" only wanted to show a number.
+
+Params are **report-scoped**: declare them in the report-level `parameters`
+block, or as shorthand under `datasets.<cd>.params` when exactly one dataset uses
+the param. The installer merges both into the report's one param set, report level
+winning on a collision — so a param several datasets share belongs at report level.
+Grant with a **colon** key: `"report:<code>": "E"`.
+
+A report that answers a question *about one record* takes an `entities`
+attachment, which puts it on that record's toolbar with the record's values
+feeding its params:
+
+```json
+"entities": [ { "entityCd": "parties.party", "params": { "customer_id": "party_id" }, "orderNum": 45 } ]
+```
+
+`entities[].params` is the **mapping** (report param → source column), not a
+param declaration. Qualify a cross-module `entityCd` and declare that module as a
+dependency; add `"metadata": ">=1.5.0"` too. Source columns are limited to the
+PK, a reference column, or a bounded scalar. Full rules:
+`dforge://reference/reports`.
 
 **Exit:** every entity has a grid and a menu entry; every specialized view has a
-stated trigger.
+stated trigger; every report's params sit on a dataset.
 
 ## Phase 4 — Polish (mostly optional)
 

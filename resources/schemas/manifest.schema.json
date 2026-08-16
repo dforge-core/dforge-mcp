@@ -133,6 +133,12 @@
 			"items": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$" },
 			"description": "Non-English locales the package promises to translate. Each entry MUST match a translations/<locale>.json file, and every translatable resource (entity/field labels, folders, views, menus + items, actions + params, reports + datasets + params, settings) MUST have a label in that file. English is the default — don't list 'en' or 'en-US'."
 		},
+		"features": {
+			"type": "array",
+			"items": { "type": "string", "enum": ["report-security"] },
+			"uniqueItems": true,
+			"description": "Opt-in platform behaviours this package was authored for. Absent or empty = the pre-feature behaviour for all of them, so a module written before a feature existed keeps working until its author declares it and republishes. Unknown names are REJECTED at package load, never ignored — a misspelled feature would silently leave the old behaviour in place while the manifest claims otherwise. Values: 'report-security' = this module's reports require 'E' on their sec_object; declare the matching \"report:<code>\": \"E\" grants in security/roles.json first, or the reports go dark for every role."
+		},
 		"created": {
 			"type": "string",
 			"format": "date",

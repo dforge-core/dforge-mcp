@@ -34,11 +34,30 @@ export const reportAddSchema = {
 			description: z.string(),
 			layout: z.record(z.string(), z.unknown()),
 			datasets: z.record(z.string(), z.unknown()),
-			parameters: z.record(z.string(), z.unknown()).optional(),
+			parameters: z
+				.record(z.string(), z.unknown())
+				.optional()
+				.describe(
+					"Report-level parameter declarations — the canonical home for a param, and the only one that fits a param several datasets use. Merged with each dataset's `params` into the report's one param set; this block wins on a code collision.",
+				),
+			entities: z
+				.array(
+					z
+						.object({
+							entityCd: z.string(),
+							params: z.record(z.string(), z.string()).optional(),
+							orderNum: z.number().int().optional(),
+						})
+						.passthrough(),
+				)
+				.optional()
+				.describe(
+					"RECORD-REPORT attachments — entities this report can be opened FROM, so it appears on the record's toolbar with the record's values feeding its params. Each entry: { entityCd, params: { <reportParamCd>: <sourceColumnOnThatEntity> }, orderNum? }. NOTE `params` here is the MAPPING (param → column), not a param declaration. Qualify a cross-module entityCd ('parties.party') and declare that module as a dependency. Source columns: the PK, a reference ('R') column, or a bounded scalar — never text/json/file. Requires 'metadata': '>=1.5.0' in the manifest.",
+				),
 		})
 		.passthrough()
 		.describe(
-			"Full report spec per reports.schema.json: { description, layout: { panels: [...] }, datasets: { code: {...} }, parameters? }.",
+			"Full report spec per reports.schema.json: { description, layout: { panels: [...] }, datasets: { code: {...} }, parameters?, entities?, reloadInterval? }. PARAMS ARE REPORT-SCOPED: declare them in the top-level `parameters` block, or as shorthand under `datasets.<cd>.params` when exactly one dataset uses the param — the installer merges both into the report's single param set, report level winning on a collision. A param several datasets use belongs at report level; there is no meaningful dataset to attribute it to. Within a param, use `required` (not `isRequired`) and nest a lookup's binding as `params: { link: { entity } }` (not a top-level `link`).",
 		),
 };
 

@@ -247,11 +247,51 @@
 			"additionalProperties": false
 		},
 
+		"calculatedMember": {
+			"type": "object",
+			"description": "A synthetic, read-only member of a pivot-like view — a row (default) or column derived by a formula over other members at each cross-axis position. Platform-generic: any pivot-like surface consumes the same shape, so a module declares the metric in config with no platform code change. Pure presentation — no storage, evaluated client-side by the stock formula engine.",
+			"required": ["key", "label", "refs", "formula"],
+			"properties": {
+				"key": { "type": "string", "description": "Stable render key. Must not collide with a real member key." },
+				"axis": { "type": "string", "enum": ["row", "column"], "default": "row", "description": "Which axis the member is added to. A calculated ROW is a formula over other rows evaluated once per column; a calculated COLUMN is the transpose." },
+				"label": { "type": "string", "description": "Member label shown in the row/column head." },
+				"field": { "type": "string", "description": "Value field the refs read. Defaults to the surface's first value field." },
+				"refs": {
+					"type": "object",
+					"description": "Formula bracket-alias → referenced member identity on the same axis.",
+					"additionalProperties": { "type": "string" }
+				},
+				"formula": { "type": "string", "description": "Formula over the aliases, e.g. `[gp] / [rev] * 100`. Same `[name]` syntax as column formulas. A non-finite result (÷0, missing denominator) renders empty." },
+				"position": {
+					"description": "Placement on the axis. Defaults to the end.",
+					"oneOf": [
+						{ "type": "object", "required": ["after"], "properties": { "after": { "type": "string", "description": "Key of the member to place this one after." } }, "additionalProperties": false },
+						{ "type": "object", "required": ["at"], "properties": { "at": { "type": "string", "enum": ["end"] } }, "additionalProperties": false }
+					]
+				},
+				"depth": { "type": "integer", "minimum": 0, "description": "Indent depth (row members only; 0 = top level)." },
+				"format": {
+					"type": "object",
+					"description": "Display format for the result.",
+					"properties": {
+						"style": { "type": "string", "enum": ["number", "percent"], "default": "number" },
+						"decimals": { "type": "integer", "minimum": 0, "default": 1 }
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		},
 		"matrixViewConfig": {
 			"type": "object",
 			"description": "Matrix (pivot) view: rowAxis × colAxis grid with a value-source cell entity holding one record per (rowKey, colKey).",
 			"required": ["rowAxis", "colAxis", "cell"],
 			"properties": {
+				"calculatedMembers": {
+					"type": "array",
+					"description": "Synthetic read-only members derived by formula over OTHER members' values (e.g. a Gross Margin % row). Spliced into the rendered axis; never loaded or saved.",
+					"items": { "$ref": "#/$defs/calculatedMember" }
+				},
 				"rowAxis": {
 					"description": "Row axis values: an entity's records ('dataset') or a column's dropdown options ('dropdown').",
 					"oneOf": [

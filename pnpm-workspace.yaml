@@ -1,11 +1,11 @@
 allowBuilds:
   esbuild: set this to true or false
 minimumReleaseAgeExclude:
-  - '@dforge-core/dforge-cli-darwin-arm64@0.2.13'
-  - '@dforge-core/dforge-cli-darwin-x64@0.2.13'
-  - '@dforge-core/dforge-cli-linux-arm64@0.2.13'
-  - '@dforge-core/dforge-cli-linux-x64@0.2.13'
-  - '@dforge-core/dforge-cli-win32-arm64@0.2.13'
-  - '@dforge-core/dforge-cli-win32-x64@0.2.13'
-  - '@dforge-core/dforge-cli@0.2.13'
-  - '@dforge-core/metadata@0.0.14'
+  - '@dforge-core/dforge-cli-darwin-arm64@0.2.13 || 0.2.14'
+  - '@dforge-core/dforge-cli-darwin-x64@0.2.13 || 0.2.14'
+  - '@dforge-core/dforge-cli-linux-arm64@0.2.13 || 0.2.14'
+  - '@dforge-core/dforge-cli-linux-x64@0.2.13 || 0.2.14'
+  - '@dforge-core/dforge-cli-win32-arm64@0.2.13 || 0.2.14'
+  - '@dforge-core/dforge-cli-win32-x64@0.2.13 || 0.2.14'
+  - '@dforge-core/dforge-cli@0.2.13 || 0.2.14'
+  - '@dforge-core/metadata@0.0.14 || 0.0.15'

@@ -11,11 +11,14 @@ An action exists to **change something**. Its message is a receipt for work that
 
 Do **not** write an action whose `execute:` block only reads data, computes a value and reports it with `info()`. The result is a line of text that is never stored: it can't be audited, referenced, re-read or reported on, and every reader has to re-run the action to see it again. The value also reaches the user unformatted — a raw `query()` result carries no column metadata, so money renders as `1000.0099999999999` instead of `1,000.01`.
 
+**Do not compute in the DSL what a report can compute.** Sums, ratios, ageing buckets, exposure, "how much is outstanding" — a report dataset already does aggregation, formatting, drill-through and row caps, and it re-reads live data every time it opens. DSL arithmetic over `select()` results reproduces that badly, once, in a place nothing else can reuse. Reach for the DSL when the number has to be **written down** or has to **stop** something; reach for a report when it has to be **looked at**.
+
 If you are about to write a `check_…`, `calculate_…` or `show_…` action, build one of these instead:
 
 | What's actually needed | Build this |
 |---|---|
-| The user needs to **see** current numbers | A **report** or a data view — both are metadata-driven, so values format correctly, and the user can return to them any time without re-running anything. |
+| The user needs to **see** current numbers **for the record they're on** | A **record report** — a report with an `entities` attachment, which puts it on that record's toolbar and feeds its params from the record. This is the direct replacement for a `check_…` action: same entry point, but the user sees the open invoices and the ageing, not just "FAILED". See `references/reports.md`. |
+| The user needs to **see** current numbers generally | A **report** or a data view — both are metadata-driven, so values format correctly, and the user can return to them any time without re-running anything. |
 | A derived value **belongs to the record** | A **formula column** (`columnType: "F"`) or a roll-up — computed on read, visible on the card and in grids, filterable and sortable. |
 | The **verdict itself matters** (approvals, credit checks, compliance) | An action that **writes a result record** — e.g. `credit_check(customer, checked_at, limit, outstanding, projected, verdict, checked_by)`. Now it's auditable and reportable, and `info()` becomes a legitimate receipt with a link to the new row. |
 | The check must **block** something | A **trigger** with `async: false`, or a `canExecute:` guard on the action being gated — enforcement, not narration. |
