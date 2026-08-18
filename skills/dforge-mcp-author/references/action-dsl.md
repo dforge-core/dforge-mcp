@@ -98,7 +98,68 @@ preference:
 
 ### `canExecute:` — availability formula
 
-A formula expression (same grammar as formula columns) that evaluates to true/false. When false, the action button is hidden or disabled in the UI.
+A formula expression (same grammar as formula columns) that evaluates to true/false.
+
+**It is enforced on both sides.** The client evaluates it to decide whether the
+button is **enabled** — the action stays in the toolbar either way, greyed out
+rather than hidden. `action.execute` evaluates it again server-side over every
+targeted record, before any write, and refuses the call with
+`ACTION_EXECUTION_FAIL` when a record is in the wrong state. So it is a real gate,
+not a UI hint — a caller hitting the API directly cannot approve an
+already-rejected record.
+
+Two consequences worth designing around:
+
+- **`canExecute: false` is the idiom for an action only automation may fire.** The
+  server refuses it through `action.execute`; triggers and scheduled jobs invoke
+  the script engine directly and are unaffected.
+- **Both evaluators have gaps, and both fail open.** The server is a scalar walker
+  — comparisons between fields and literals, combined with `AND` / `OR` / `NOT`,
+  nothing else — and lets anything richer through. The client implements the full documented formula
+  function set, so ordinary functions are fine there; it throws (and its `catch`
+  **enables** the button) on **ref navigation** (`[ref].target`), on the set
+  aggregates **`SUM` / `COUNT` / `AVG`** (deliberately not formula functions —
+  counting is a Generated `G` column's job), and on **any name it does not know, a
+  typo included** — a `canExecute` is never validated against the function set at
+  install, so `TOADY()` ships and enables the button for every record.
+- **`$[setting]` references are a separate case.** They do not throw: the client's
+  resolver is stubbed to `null`, so the predicate resolves however that operator
+  treats null (an ordered comparison against null is `false`, so it tends to
+  *disable* the button), while the server has no settings resolver and fails open.
+  Keep settings out of `canExecute` and read them in `execute:` instead.
+
+| tier | construct | client | server |
+|---|---|---|---|
+| 1 | **comparisons** (`=` `!=` `<` `<=` `>` `>=`) between fields and literals, combined with `AND` / `OR` / `NOT`; a bare `true` / `false` | evaluates | **enforces** |
+| 2 | arithmetic, `IN`, `BETWEEN`, any formula function | evaluates | fail-open |
+| 3 | ref navigation, `SUM` / `COUNT` / `AVG`, any unknown function (a typo included) | **fail-open (throws)** | fail-open |
+| — | `$[setting]` references | **evaluates as null** (no throw) | fail-open |
+
+**A bare boolean column is not tier 1.** The walker evaluates conditions, not
+values — a field is only resolvable as an operand of a comparison — so
+`canExecute: [is_active]` and `canExecute: NOT [is_blocked]` fail open. Write
+`[is_active] = true` and `NOT ([is_blocked] = true)`. (`canExecute: false` is fine:
+a bare literal is a complete condition.)
+
+Mixing tier 1 and tier 2 is the normal, healthy shape: the client evaluates the
+whole thing so the button state is right, and the server short-circuits `AND` /
+`OR` so the tier-1 half is still enforced.
+
+**Tier 3 is what breaks.** The server short-circuits, the client does not — so
+`[status] = 'Pending' AND COUNT([lines]) > 0` on a non-`Pending` record still
+evaluates `COUNT` in the browser, throws, and the button is **enabled**, then the
+server refuses the call: an error where a greyed-out button was wanted. And a
+`canExecute` is not validated against the function set at install, so that spelling
+ships silently. Count with a `G` column and compare the scalar
+(`[detail_count] > 0`); denormalise instead of navigating; put anything genuinely
+unexpressible in `execute:` behind `error()`.
+
+> Never make `canExecute` the *only* guard for something that must hold. Between
+> the fail-open rules on both sides, the enqueue-only check on background runs, and
+> the fact that the client evaluates over the grid row (which does not carry
+> extension columns) while the server evaluates over a full record load, the
+> authoritative check belongs in `execute:` — validate and `error()` before the
+> first write.
 
 ```
 canExecute:
@@ -117,7 +178,7 @@ canExecute:
     [quantity] >= 0
 ```
 
-Uses formula syntax: `[field]` for field access, `=` / `!=` / `<` / `>` / `AND` / `OR` operators, `TODAY()`, etc.
+Uses formula syntax: `[field]` for field access, `=` / `!=` / `<` / `>` / `AND` / `OR` operators, `TODAY()`, etc. — but see the fail-open note above: only the scalar comparison subset is enforced server-side.
 
 **Note**: `canExecute` uses single `=` for equality (formula syntax), NOT `==` (JS syntax).
 
@@ -535,7 +596,9 @@ In `batch` mode, access individual records with `__records.get(i)`, the count wi
 
 ## Async actions
 
-For long-running actions, set `"isAsync": true` in `ui/actions.json`. The action runs in the background via Hangfire, and the user gets a completion notification via SSE. The DSL syntax is the same.
+For long-running actions, set `"isAsync": true` in `ui/actions.json`. That **permits** background execution: the call is queued as a `background_action` row and picked up by `BackgroundActionService` (a hosted `BackgroundService` polling every ~10s — there is no Hangfire in dForge), and the user gets a completion notification via SSE. The DSL syntax is the same.
+
+`isAsync` does not force it. `action.execute` carries its own `async` argument and the server branches on that, so a parameterless action is queued directly while one with parameters is offered to the user as both "Run" (inline) and "Run in Background". Note that a queued run has **no wrapping transaction** — see *Atomicity* below.
 
 ## Registering the action
 
@@ -576,37 +639,58 @@ In `ui/actions.json`:
 | `entityCode` | Yes | Which entity this action applies to |
 | `executionMode` | Yes | `"single"` (default) or `"each"` — runs per record, DSL uses `[field]`; or `"batch"` — runs once, DSL uses `for x in records { ... }` with `__records` |
 | `script` | Yes | DSL script name (without path or extension — matches filename in `logic/actions/`) |
-| `isTransacted` | Recommended | `true` = the first record that fails aborts the run; `false` = the failure is reported and the loop moves to the next record. It does **not** open a transaction — see *Don't assume your action is atomic* below |
+| `isTransacted` | Recommended | `true` = the whole run is **one transaction**: the first failure aborts it *and* rolls back everything already written. `false` = no transaction, and what happens next depends on the mode — `single`/`each` report the failure and carry on with the next record, keeping what succeeded; a `batch` script is one invocation, so a failure just ends the run there with its earlier writes committed and its `[field]` assignments never flushed. **Defaults to `true`** when omitted — see *Atomicity* below |
 | `orderNum` | Recommended | Display order in the action menu |
-| `isAsync` | Optional | `true` = runs in background via Hangfire, user gets completion notification |
+| `isAsync` | Optional | `true` **permits** background execution — it does not force it. A parameterless action is queued directly; one with params is offered to the user as both "Run" and "Run in Background". Queued runs get a completion notification |
 
-## Don't assume your action is atomic
+## Atomicity
 
-An action is **not** reliably one transaction, and `isTransacted: true` does not
-make it one — it only decides whether the first failing record aborts the run.
-Whether the writes made before a failure survive depends on the execution path:
+`isTransacted: true` makes the run **one transaction**, in both execution modes.
+The first failing record aborts the run and every write the run made — including
+those for records that already succeeded — is rolled back. It covers the script's
+own `insert()` / `update()` / `query()` calls as well as the flush of `[field] = …`
+assignments. It does not depend on the entity carrying `auditHistory`.
 
-| path | mode | writes before the failure |
+`isTransacted: false` is the opposite contract — no transaction — and what it means
+depends on the mode:
+
+- **`single` / `each`**: each record stands alone. The failure is reported, the loop
+  carries on with the next record, and what the earlier records wrote is kept.
+- **`batch`**: there is one script invocation and no loop to continue, so a failure
+  simply ends the run. Whatever the script had already written with `insert()` /
+  `update()` is committed, and the pending `[field] = …` assignments are never
+  flushed. There is nothing "independent" about it — which is why `batch` +
+  `isTransacted: false` is a shape to avoid.
+
+| path | `isTransacted: true` | `isTransacted: false` |
 |---|---|---|
-| Sync execute, entity **with** `auditHistory` | `single` | rolled back |
-| Sync execute, entity **with** `auditHistory` | `batch` | **stay committed** |
-| Sync execute, entity without it | either | **stay committed** |
-| Scheduled job | — | rolled back |
-| Background (`isAsync: true`) action | either | **stay committed** |
+| Sync execute, `single` | whole selection rolled back | writes stay committed |
+| Sync execute, `batch` | whole run rolled back | writes stay committed |
+| Scheduled job | rolled back | rolled back (the dispatcher owns the transaction) |
+| **Queued to background**, `single` / `each` | **stays committed** (run still aborts at the first failure) | **stays committed** (run continues) |
+| **Queued to background**, `batch` | **stays committed** (flag not read at all) | **stays committed** (same) |
 
-Both "rolled back" rows are a side effect of the audit machinery opening a
-transaction the action then inherits — and in `batch` mode it opens only after the
-script has finished, so it doesn't cover the script at all. Adding or removing
-`auditHistory`, or switching between `single` and `batch`, changes whether a failed
-action leaves partial writes behind, with no change to the action itself.
+**The background row is the exception and it is a known platform gap.** The
+background worker opens no transaction, so an action that is atomic when run
+inline is not when the same call is queued. The rollback half is lost outright;
+what survives depends on the mode. The worker's `single` / `each` loop still reads
+`isTransacted` to decide whether to abort after the first failed record or carry
+on, so there `true` means "stop here", not "undo". Its `batch` path never reads the
+flag — one invocation, ending on failure either way — so a queued `batch` action
+gets nothing from `isTransacted` at all. And which one happens is decided by
+the *request*, not by the manifest: `isAsync: true` only permits queuing, and an
+action with parameters is offered to the user as both "Run" (inline, transactional)
+and "Run in Background" (queued, not). So an `isAsync` action cannot be assumed to
+be either.
 
-**This is a platform defect, not a contract** — actions are intended to be atomic,
-and this table is what happens until that lands. So don't design around either
-outcome, and don't reach for `auditHistory` as an atomicity switch.
+**Two things that follow for how you write actions:**
 
-**Write actions that don't depend on it:** do all validation up front and call
-`error()` before any `insert()` / `update()`, so there is nothing to unwind either
-way.
+1. **Declare `isTransacted: true`** — which is also the default — for anything that
+   writes more than one row. Do *not* reach for `auditHistory` as an atomicity
+   switch; that was a workaround for a defect that no longer exists.
+2. **Still validate up front.** Call `error()` before the first `insert()` /
+   `update()` where you can, so a background-queued run has nothing to unwind
+   either. This is the only guard that holds on every path.
 
 ## SQL in query() — important notes
 

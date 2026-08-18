@@ -74,7 +74,10 @@ execute:
     }
 ```
 
-Hide the action from the UI with `canExecute: false` — the scheduler bypasses the check:
+Gate the action to automation only with `canExecute: false`. The button is left in
+the toolbar but permanently **disabled**, and `action.execute` refuses the call
+server-side, while the scheduler — which invokes the script engine directly — is
+unaffected:
 
 ```
 canExecute:

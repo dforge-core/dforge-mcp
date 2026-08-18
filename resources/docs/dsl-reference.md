@@ -14,7 +14,8 @@ params:
 
 canExecute:
     # Single-expression formula returning boolean
-    # Determines whether the action button is enabled for current record(s)
+    # Enables/disables the button AND is re-checked server-side on execute
+    # (see "canExecute is enforced, with a fail-open subset")
 
 onBeforeStart:
     # Pre-queue initialization (async / background actions only)
@@ -395,6 +396,62 @@ For "who did this", prefer the platform audit columns (`created_by` /
 `last_updated_by`) — filled server-side, no script involved. For ownership
 predicates in `canExecute:` or a formula column, use `CURRENT_USER_ID()`, which
 the server translates to an exact `::bigint` SQL literal.
+
+> **The table above is about `execute:` (JavaScript).** The *formula* engine —
+> `canExecute:`, formula columns, filters, reports — keeps large integer literals
+> exact: the parser holds them as 64-bit integers and serializes anything past
+> 2^53 as text so the browser cannot round it. `canExecute: [owner_id] = 215117312238288897`
+> compares against the id you wrote. `CURRENT_USER_ID()` is still the better way to
+> say "mine" — it does not hard-code an id — but a literal is no longer a
+> correctness trap on that side.
+
+## canExecute is enforced, with a fail-open subset
+
+`canExecute:` is evaluated **twice**: by the browser to decide whether the button
+is **enabled** (the action stays in the toolbar, greyed out — it is not hidden),
+and by `action.execute` over every targeted record before any write. A
+record in the wrong state is refused with `ACTION_EXECUTION_FAIL`, so the predicate
+is a gate rather than a UI hint, and `canExecute: false` is the way to make an
+action fireable only by a trigger or a scheduled job (both invoke the script engine
+directly and bypass the check).
+
+**Both evaluators have gaps, and both fail open**, but not the same gaps. The
+server is a scalar walker and lets anything richer through. The client implements
+the whole documented formula function set, so ordinary functions evaluate there
+normally; it throws — and its `catch` **enables** the button — on ref navigation,
+on the set aggregates `SUM` / `COUNT` / `AVG` (deliberately not formula functions;
+counting belongs in a Generated `G` column), and on any name it does not know, a
+typo included — a `canExecute:` is never validated against the function set at
+install, so `TOADY()` ships and enables the button for every record.
+`$[setting]` references are a separate case again: they do not throw, the client
+resolver is stubbed to `null`, and the server has no settings resolver — so a
+settings-dependent guard is unenforced server-side and resolves unpredictably in
+the browser. Read settings in `execute:` instead.
+
+| tier | construct | client | server |
+|---|---|---|---|
+| 1 | **comparisons** (`=` `==` `!=` `<>` `>` `>=` `<` `<=`) between `[field]`s and literals, combined with `AND` / `OR` / `NOT`; a bare `true` / `false` | evaluates | **enforces** |
+| 2 | arithmetic, `IN`, `BETWEEN`, any formula function (`TODAY`, `IF`, `DATEADD`, `REGEX_MATCH`, `CURRENT_USER_ID`, …) | evaluates | fail-open |
+| 3 | ref navigation, `SUM` / `COUNT` / `AVG`, any unknown function (a typo included) | **fail-open (throws)** | fail-open |
+| — | `$[setting]` references | **evaluates as null** (no throw) | fail-open |
+
+**A bare boolean column is not tier 1.** The walker evaluates conditions, not
+values — a `[field]` resolves only as an operand of a comparison — so
+`canExecute: [is_active]` and `canExecute: NOT [is_blocked]` fail open. Write
+`[is_active] = true` and `NOT ([is_blocked] = true)`. A bare `false` is fine: it is
+a complete condition, which is what makes the `canExecute: false` idiom work.
+
+Tier 1 + tier 2 is the normal shape and behaves correctly: the client evaluates the
+whole predicate so the button state is right, and the server short-circuits `AND` /
+`OR` so the tier-1 half is still enforced.
+
+**Tier 3 is what breaks.** The server short-circuits, the client does not, so
+`[status] = 'Pending' AND COUNT([lines]) > 0` on a non-`Pending` record still
+evaluates `COUNT` in the browser, throws, and the button is **enabled** — then the
+server refuses the call. A `canExecute:` is not validated against the function set
+at install, so that spelling ships silently. Count with a `G` column and compare the
+scalar; denormalise instead of navigating; put the rest in `execute:` behind
+`error()`.
 
 ### Messaging & notifications
 

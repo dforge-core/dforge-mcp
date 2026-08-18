@@ -4,7 +4,89 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
-## 0.2.6
+## 0.2.15
+
+`canExecute` became a real server-side gate and `isTransacted` began opening a real
+transaction (platform change `5398a48b0`). Both had been documented here as the
+opposite — "a UI hint" and "does not open a transaction" — so this release is a
+correction pass across the authoring guidance, with no tool or schema changes.
+
+### Changed — `canExecute` is enforced, with a fail-open subset
+
+`action.execute` now evaluates the stored `can_execute_parsed` AST over every targeted
+record before any write and refuses the call with `ACTION_EXECUTION_FAIL`. So
+`canExecute: false` is a genuine "only automation may fire this" — the scheduler and
+triggers invoke the script engine directly and still bypass it.
+
+The server evaluator is a scalar walker, not the formula engine, and the client has its
+own separate gaps, so `references/action-dsl.md` and `dsl-reference.md` now carry a tier
+table instead of a single list:
+
+| tier | construct | client | server |
+|---|---|---|---|
+| 1 | **comparisons** (`=` `!=` `<` `<=` `>` `>=`) between fields and literals, combined with `AND` / `OR` / `NOT`; a bare `true` / `false` | evaluates | **enforces** |
+| 2 | arithmetic, `IN`, `BETWEEN`, any formula function | evaluates | fail-open |
+| 3 | ref navigation, `SUM` / `COUNT` / `AVG`, any unknown function (a typo included) | **fail-open (throws)** | fail-open |
+| — | `$[setting]` references | **evaluates as null** (no throw) | fail-open |
+
+Four things in there are easy to get wrong and are called out explicitly:
+
+- **A bare boolean field is not enforced.** The walker evaluates conditions, not values —
+  a field resolves only as an operand of a comparison — so `canExecute: [is_active]` and
+  `NOT [is_blocked]` fail open. Write `[is_active] = true` and `NOT ([is_blocked] = true)`.
+- **A misspelled function ships silently.** A `canExecute` is never validated against the
+  function set at install (`FindUnknownFunctions` is wired only into the formula-column
+  path), so `TOADY()` installs and enables the button for every record.
+- **Tier 3 mixed into a predicate is worse than useless**, because the two sides disagree
+  about short-circuiting: the server's `AND` / `OR` short-circuit, the client's evaluator
+  does not. `[status] = 'Pending' AND COUNT([lines]) > 0` on a non-`Pending` record throws
+  in the browser, is caught, and **enables** the button — then the server refuses the call.
+  An error where a greyed-out button was wanted. Count with a Generated (`G`) column and
+  compare the scalar. Mixing tier 1 with tier 2 is fine and is the normal shape.
+- **Settings do not work in `canExecute` at all** — the client resolver is stubbed to
+  `null` and the server has none, so the guard is unenforced server-side and tends to jam
+  the button *shut* client-side. Read them in `execute:`.
+
+`references/jobs.md` also stops promising that `canExecute: false` hides the button: the
+action stays in the toolbar, permanently disabled.
+
+### Changed — `isTransacted` opens a transaction, and defaults to `true`
+
+The *Don't assume your action is atomic* section is replaced by *Atomicity*. `true` now
+makes the whole run one transaction in both execution modes, covering the script's own
+`insert()` / `update()` / `query()` calls as well as the flush of `[field] = …`
+assignments, and it no longer depends on the entity carrying `auditHistory` — advice to
+reach for that trait as an atomicity switch is gone.
+
+`false` is documented per mode, because "failures are isolated" only ever made sense where
+there is a loop: `single` / `each` report the failure and continue with the next record,
+while a `batch` script is one invocation, so a failure just ends the run with its earlier
+writes committed and its `[field]` assignments never flushed.
+
+The background path is the exception, and it splits by mode too: the worker opens no
+transaction, so nothing is ever undone; its `single` / `each` loop still reads the flag for
+control flow, while its `batch` path never reads it at all — a queued `batch` action gets
+nothing from `isTransacted` in either direction.
+
+### Fixed — `isAsync` does not force background execution, and there is no Hangfire
+
+`isAsync: true` only *permits* queuing. The server branches on the `async` argument the
+request carries, so a parameterless action is queued directly while one with parameters is
+offered to the user as both "Run" (inline, transactional) and "Run in Background". Whether
+an action is atomic is therefore not answerable from the manifest alone.
+
+Two claims that dForge runs background actions "via Hangfire" are removed — the platform
+uses a hosted `BackgroundService` polling `background_action`, and `FileCleanupService`
+says so in as many words.
+
+### Changed — validation checklist
+
+Two new items under actions: that a `canExecute` meant to *gate* is written in the
+server-enforced subset, and that no bare boolean field is used as a whole condition. The
+`references/formulas.md` entry for `canExecute:` blocks now summarises the same rules and
+points at `action-dsl.md`.
+
+## 0.2.14
 
 Record reports — a report attached to an entity so it opens **from a record**, with the
 record's values feeding its parameters — plus a report-level home for report parameters,

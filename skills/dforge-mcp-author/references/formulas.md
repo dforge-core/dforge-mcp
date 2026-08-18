@@ -3,7 +3,12 @@
 Formulas are used in:
 
 - **Formula columns** (`columnType: "F"`) — computed values
-- **Action `canExecute:` blocks** — availability checks
+- **Action `canExecute:` blocks** — availability checks. Evaluated on both sides
+  and **enforced** by `action.execute`, but only over a narrow subset: comparisons
+  between fields and literals combined with `AND` / `OR` / `NOT`. Functions,
+  arithmetic, ref navigation, `$[setting]` reads and a bare boolean field all fail
+  open server-side, and some of them throw client-side. See the `canExecute:`
+  section in [action-dsl.md](action-dsl.md).
 - **Default values** — a setting's `formula` (e.g. `"formula": "TODAY()"`) or a formula (`F`) column. Note: entity *data* columns have **no** `default`/`defaultValue` key — model a default with an `F` column or set it in action/trigger logic.
 - **Filter expressions** (partially)
 - **Validation expressions** (partially)

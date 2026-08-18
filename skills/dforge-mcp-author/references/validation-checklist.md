@@ -119,6 +119,16 @@ For each action:
 - [ ] DSL file exists at `logic/actions/<script>.dsl`, where `<script>` is the bare filename in the action's `script` field (no path, no `.dsl` extension)
 - [ ] DSL file has `params:`, `canExecute:`, and `execute:` blocks
 - [ ] `canExecute:` is a valid formula expression
+- [ ] If `canExecute:` is meant to **gate** and not just grey out a button, its
+      guard is expressed in the server-enforced subset — **comparisons** between
+      fields and literals, combined with `AND` / `OR` / `NOT`. Function calls
+      (`TODAY()`, `COUNT()`, `CURRENT_USER_ID()`), arithmetic, ref navigation and
+      `$[setting]` reads are fail-open server-side and are advisory only
+- [ ] No **bare boolean field** as a whole condition — `[is_active]` and
+      `NOT [is_blocked]` are not enforced (a field is only an operand). Write
+      `[is_active] = true` / `NOT ([is_blocked] = true)`
+- [ ] Anything that MUST hold is also checked in `execute:` with `error()` — a
+      `canExecute` alone is never the authoritative guard
 - [ ] `execute:` uses only documented built-in functions
 - [ ] Referenced entities exist
 - [ ] Referenced parameters are declared in `params:`
