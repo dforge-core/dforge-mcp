@@ -31,6 +31,7 @@ flags, or column patterns.
 | Add a grid / list view | `dforge://reference/data-views`, `dforge://example/ui/data_views.json` | — |
 | Add a matrix (pivot) view | `dforge://reference/data-views` (§Matrix), `dforge://example/matrix-budget/ui/data_views.json`, `dforge://example/matrix-budget/entities/budget_line.json` | — |
 | Add kanban / calendar / tree-grid / master-detail | `dforge://reference/data-views` | `dforge://schema/data-views` |
+| Hide columns from a user type (column-level security) | `dforge://reference/security` (§Column-level security), `dforge://example/column-security/entities/product.json`, `dforge://example/column-security/ui/folders.json` | — |
 | Add a menu | `dforge://reference/menus`, `dforge://example/ui/menus.json` | — |
 | Add an action | `dforge://reference/action-dsl`, `dforge://example/logic/actions/mark_done.dsl`, `dforge://example/ui/actions.json` | `dforge://docs/dsl` |
 | Add a trigger | — | `dforge://schema/triggers`; condition syntax in `dforge://docs/dsl` |
@@ -204,8 +205,11 @@ per entity, so you'll often `view_modify` rather than `view_add`.
 
 View codes are semantic — the entity name (`feedback_item`), a plural
 (`invoices`), or descriptive (`invoices_kanban`). **Never use the literal code
-`default`**; `ui/folders.json`'s `viewName: "default"` is a fallback alias the
-platform resolves to the entity's first declared view.
+`default`.** Note that `ui/folders.json`'s `viewName` is a different axis
+entirely: it binds an *entity view* (column-level security, declared under
+`views` on the entity file), not a data view code. `"default"` there means "no
+entity view — show the full column set", and any other name the entity does not
+declare **fails the install**. See `references/security.md`.
 
 Then wire menus with `dforge_menu_add` — a section node per group, leaves
 pointing at the views.
@@ -273,6 +277,13 @@ stated trigger; every report's params sit on a dataset.
 4. **Show the rights matrix as a table** (rows = entities/actions/reports,
    columns = roles, cells = rights strings), each cell explained by the verb it
    maps to. Get sign-off.
+5. **Column-level security only when the intake asks for it.** Roles grant rights
+   per entity, not per field. When a user type must not see specific *columns*
+   (salaries, cost prices, personal data), that is an **entity view**: declare
+   `views.<name>.columns` on the entity and bind it with `viewName` on the folder
+   that user type works in. Don't reach for it otherwise — a view is the complete
+   column list, so it is one more list to keep in step with the fields. Rules and
+   the worked example: `references/security.md` → Column-level security.
 5. `dforge_role_add` for new roles; `dforge_role_right_set` per grant when
    amending an existing one.
 

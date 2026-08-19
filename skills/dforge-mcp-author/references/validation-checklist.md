@@ -105,6 +105,8 @@ For each entity:
 ## Security
 
 - [ ] `security/roles.json` exists (at least one role)
+- [ ] Every entity view (`views.<v>.columns` on an entity) lists the entity's **primary key**, names only real columns, and has at least one column — each of these fails the install
+- [ ] Every `viewName` in `ui/folders.json` is either `"default"` (= no view) or a view that entity actually declares — an unresolved name fails the install rather than falling back
 - [ ] Every role has `description` and `rights` (both required; no `label` field in `roles.json` — the `roles.schema.json` sets `additionalProperties: false`, so any extra field including `label` is rejected here). `description` is the English display-name fallback; **localized role labels live in the translation files** (`roles.<code>.label`) and are completeness-enforced — see Translations below.
 - [ ] The field name is `rights`, NOT `entityRights`
 - [ ] Rights strings use only valid letters: `SIUDC` for entities, `E` for actions/reports/folders

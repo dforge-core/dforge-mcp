@@ -20,6 +20,19 @@ describe("module_validate — canonical example", () => {
 	});
 });
 
+describe("module_validate — column-security example", () => {
+	// The worked example for entity views. It is served as MCP resources and told
+	// to agents as a shape to copy, so it must validate clean — errors AND
+	// warnings, since a copied warning propagates into every module built from it.
+	const dir = join(process.cwd(), "skills", "dforge-mcp-author", "examples", "column-security");
+
+	it("validates with no errors and no warnings", () => {
+		const res = run(dir);
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+		expect(res.warnings ?? [], JSON.stringify(res.warnings)).toEqual([]);
+	});
+});
+
 describe("module_validate — cross-module references", () => {
 	const make = (dependencies: Record<string, unknown>) => {
 		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-xmod-"));
@@ -484,5 +497,135 @@ describe("module_validate — record-report attachments", () => {
 	it("warns when attachments exist without a metadata dependency", () => {
 		const res = make([{ entityCd: "order", params: { customer_id: "order_id" } }], { dependencies: {} });
 		expect(JSON.stringify(res.warnings)).toContain("metadata");
+	});
+});
+
+// ── Entity views (column-level security) ────────────────────────────────────
+// Every failure below is an install-time error on the platform, and every one is
+// silent at runtime if it slips through — an unresolved binding shows EVERY
+// column, which is the opposite of what naming a view asks for.
+
+describe("module_validate — entity views", () => {
+	const make = (views: unknown, folderViewName?: string) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-views-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { invoice: "./entities/invoice.json" } }));
+		writeFileSync(
+			join(dir, "entities", "invoice.json"),
+			JSON.stringify({
+				description: "Invoice",
+				traits: ["identity"],
+				fields: {
+					qty: { fieldTypeCd: "number", dbDatatype: "int4", flags: "VEM" },
+					price: { fieldTypeCd: "currency", dbDatatype: "numeric(18,2)", flags: "VEM" },
+					total: { columnType: "F", baseDatatypeCd: "number", flags: "V", formula: "[qty] * [price]" },
+				},
+				views,
+			}),
+		);
+		if (folderViewName !== undefined) {
+			writeFileSync(
+				join(dir, "ui", "folders.json"),
+				JSON.stringify({ label: "Root", entities: { invoice: { viewName: folderViewName } } }),
+			);
+		}
+		try {
+			return run(dir);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	const ok = { accountant: { columns: { invoice_id: {}, qty: {}, total: {} } } };
+
+	it("accepts a well-formed view", () => {
+		expect(make(ok).errors, JSON.stringify(make(ok).errors)).toEqual([]);
+	});
+
+	it("flags a column the entity does not have", () => {
+		const res = make({ accountant: { columns: { invoice_id: {}, nope: {} } } });
+		expect(JSON.stringify(res.errors)).toContain("'nope' is not a field");
+	});
+
+	it("flags a view that omits the primary key", () => {
+		// Records are addressed by the PK — without it the client cannot open a row.
+		const res = make({ accountant: { columns: { qty: {} } } });
+		expect(JSON.stringify(res.errors)).toContain("omits the primary key");
+	});
+
+	it("flags a view with no columns", () => {
+		const res = make({ accountant: { columns: {} } });
+		expect(JSON.stringify(res.errors)).toContain("lists no columns");
+	});
+
+	it("flags two views differing only by case", () => {
+		// A folder binds case-insensitively, so only one could ever be reached.
+		const res = make({ accountant: { columns: { invoice_id: {} } }, Accountant: { columns: { invoice_id: {} } } });
+		expect(JSON.stringify(res.errors)).toContain("differ only by case");
+	});
+
+	it("flags one column listed twice under different casing", () => {
+		const res = make({ accountant: { columns: { invoice_id: {}, qty: {}, QTY: {} } } });
+		expect(JSON.stringify(res.errors)).toMatch(/lists column '(qty|QTY)' more than once/i);
+	});
+
+	it("flags a formula override on a non-Formula column", () => {
+		// Elsewhere that field is the SQL default, so the override is inert.
+		const res = make({ accountant: { columns: { invoice_id: {}, qty: { formula: "[price]" } } } });
+		expect(JSON.stringify(res.errors)).toContain("only evaluated on a Formula");
+	});
+
+	it("accepts a formula override on an F column", () => {
+		const res = make({ accountant: { columns: { invoice_id: {}, total: { formula: "[qty] * [price] * 2" } } } });
+		expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+	});
+});
+
+describe("module_validate — folder viewName bindings", () => {
+	const make = (views: unknown, folderViewName?: string) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-bind-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { invoice: "./entities/invoice.json" } }));
+		writeFileSync(
+			join(dir, "entities", "invoice.json"),
+			JSON.stringify({
+				description: "Invoice",
+				traits: ["identity"],
+				fields: { qty: { fieldTypeCd: "number", dbDatatype: "int4", flags: "VEM" } },
+				...(views ? { views } : {}),
+			}),
+		);
+		writeFileSync(
+			join(dir, "ui", "folders.json"),
+			JSON.stringify({ label: "Root", children: { billing: { label: "Billing", entities: { invoice: { viewName: folderViewName } } } } }),
+		);
+		try {
+			return run(dir);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	const declared = { accountant: { columns: { invoice_id: {}, qty: {} } } };
+
+	it("flags a viewName no view declares", () => {
+		const res = make(declared, "accountnat");
+		expect(JSON.stringify(res.errors)).toContain("accountnat");
+	});
+
+	it("accepts a viewName that resolves", () => {
+		expect(make(declared, "accountant").errors).toEqual([]);
+	});
+
+	it("matches case-insensitively, like the installer", () => {
+		expect(make(declared, "Accountant").errors).toEqual([]);
+	});
+
+	it("exempts the conventional 'default' placeholder", () => {
+		// Every shipped module writes it and it declares nothing — flagging it would
+		// fire on every folder of every module.
+		expect(make(undefined, "default").errors).toEqual([]);
 	});
 });

@@ -4,6 +4,113 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.16
+
+Entity views — the platform's **column-level security** — became reachable from a
+module package (platform change `e6e29b604`). A view is a named subset of an
+entity's columns declared under `views` on the entity file; a folder binds one per
+entity with `entities.<code>.viewName`, and users working there see only the
+columns that view lists. The schema had gained the property while nothing here
+knew about it, so authoring one meant an editor error on valid metadata and a
+refactor that could quietly break the module.
+
+### Added — entity views are validated offline
+
+`dforge_module_validate` now mirrors what the platform installer rejects, all of
+which is silent at runtime if it slips through:
+
+| Check | Why it matters |
+|---|---|
+| Column exists on the entity | A stale name is simply not in the view |
+| View lists the primary key | Records are addressed by it — the client cannot open a row without it |
+| View has at least one column | A view is the COMPLETE visible set, so an empty one would hide every field |
+| No two views differing only by case | A folder binds case-insensitively; only one could ever be reached |
+| No column listed twice under different casing | Both name one column and the later would silently win |
+| `formula` override only on a `columnType: "F"` column | Elsewhere that field is the SQL default, so the override is inert |
+| `folders.json` `viewName` resolves to a declared view | **Fails the install** — it does not fall back, because falling back shows every column |
+
+`"default"` is exempt from the last check and means "no view": every shipped module
+writes it, and the platform auto-creates a column-less row under that name for any
+entity reached without a folder binding.
+
+### Fixed — refactors reach into views
+
+`dforge_entity_field_rename` and `dforge_entity_field_remove` rewrote fields, links,
+formulas, data views and seed data but never touched `views.<v>.columns.<cd>`. Since
+the platform now rejects a view naming a column the entity does not have, a rename
+handed back a module that no longer installs. Both cascade into entity views now,
+including per-view `formula` overrides, preserving the view's column order (which is
+its display order). Removal warns when a view is left with no columns, or when a
+per-view formula still names a removed field — the same judgement-call warnings the
+tool already emitted for entity formulas.
+
+### Fixed — `viewName` was documented as a data view code
+
+It is not, and the mistake ran from `schemas/folders.schema.json` through
+`references/security.md` to `dforge-module-build`'s Phase 3, which claimed
+`"default"` was "a fallback alias the platform resolves to the entity's first
+declared view". It resolves to *no view* (the full column set), and any other
+undeclared name now fails the install — so the wrong mental model produced a hard
+error rather than a shrug. Data view codes are what a menu's `dataViewCode`
+references.
+
+### Changed
+
+- `@dforge-core/metadata` → `0.0.16`; `resources/schemas/` re-vendored, so
+  `entity.schema.json` carries `views` (with the per-column `formula` override) and
+  the editor stops flagging a valid `views` block as an unknown property.
+- `references/security.md` gains a **Column-level security** section — the layer the
+  3-layer model named but never documented — with the rules, the empty-override trap
+  (`COALESCE` skips NULL only, so `"flags": ""` means "no flags", not "inherit"), and
+  a table disambiguating the platform's three "views": entity views, data views, and
+  `isView`/`viewSql` SQL-backed entities.
+- Cross-references in `references/flags.md` (the same letters override per view),
+  `references/formulas.md` (the per-view override and its `"F"`-only rule) and
+  `references/data-views.md` (the name collision); two new lines in
+  `references/validation-checklist.md`; `dforge-module-build` Phase 5 gains guidance
+  on when column-level security is the right answer instead of more roles.
+- `dforge_module_inspect` reports `entityViews` per entity (name → column count).
+
+### Added — a worked example module
+
+`examples/column-security/` (served as `dforge://example/column-security/…`): one
+`product` entity carrying both stock and pricing, two folders showing two different
+column sets of it. It is the first bundled example with a `ui/folders.json` at all,
+so the *binding* half of column-level security had no example anywhere before.
+
+Its `accountant` view demonstrates both override kinds — `{ "flags": "V" }` making a
+column read-only in that view only, and a per-view `formula` computing margin as a
+percentage where the entity computes an amount — while `storekeeper` shows the plain
+case where the price columns are simply absent. The README lists the five ways a view
+fails the install, and a test pins the module at zero errors AND zero warnings, since
+a warning copied out of an example propagates into every module built from it.
+
+Note its manifest declares no `dataViews`/`menus`/`security` pointers: those files are
+found by convention and the manifest schema is `additionalProperties: false`.
+
+### Fixed — `simple-todo`'s manifest was not schema-valid
+
+It declared `dataViews`, `menus`, `actions`, `security` and `seedData` pointers. None
+of those are manifest properties, the schema is `additionalProperties: false`, and no
+shipped module declares them — every path is resolved by convention from the module
+root (`ui/data_views.json`, `security/roles.json`, …), here and in the platform alike.
+Removed. This matters more than a stray key usually would: the examples are served as
+resources and described to agents as mandatory structures to copy, so an invalid shape
+in one propagates into every module built from it.
+
+### Note — the view-column flag vocabulary
+
+`entity.schema.json` described a view column's `flags` as `I/E/V/O/G/S/F/X/W`, with the
+example `'VO'` "to expose it read-only". No such letters: the canonical set is
+`V/I/E/M/H` (`flagDefs`), the client honours `V`/`E`/`I`, and the installer resolves
+`M` into `isNullable`. Read-only is plain `"V"`.
+
+`references/flags.md` here was already correct, and the guidance and the
+`column-security` example both use only `V`/`VE`. The schema text is fixed upstream in
+`@dforge-core/metadata` **0.0.17**; the vendored copy under `resources/schemas/` still
+carries the old description until that release lands and the dep is bumped past
+`^0.0.16` (a caret on `0.0.x` pins the patch, so it does not float).
+
 ## 0.2.15
 
 `canExecute` became a real server-side gate and `isTransacted` began opening a real

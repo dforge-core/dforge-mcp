@@ -34,6 +34,12 @@ interface InspectSummary {
 		fields: string[];
 		hasNumberSequence: boolean;
 		toString: unknown;
+		/**
+		 * Entity views (column-level security) as `name → column count`. Empty when
+		 * the entity declares none, which means every folder shows its full column
+		 * set. Distinct from `views` below, which are ui/data_views.json.
+		 */
+		entityViews: Record<string, number>;
 	}>;
 	views: Array<{ code: string; viewType: string; sources: string[] }>;
 	folders: { tree: Record<string, unknown>; depth: number };
@@ -76,6 +82,11 @@ export function moduleInspect(
 			fieldCount: Object.keys(fields).length,
 			fields: Object.keys(fields),
 			hasNumberSequence: Boolean(e.numberSequence),
+			entityViews: Object.fromEntries(
+				Object.entries((e.views as Record<string, Record<string, unknown>> | undefined) ?? {}).map(
+					([vname, v]) => [vname, Object.keys((v?.columns as Record<string, unknown>) ?? {}).length],
+				),
+			),
 			// Read as an OWN property — `toString` is inherited from
 			// Object.prototype, so a plain `e.toString` reports the built-in
 			// function (which JSON.stringify then silently drops) for every

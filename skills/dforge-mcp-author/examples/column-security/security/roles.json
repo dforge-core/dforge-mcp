@@ -1,0 +1,16 @@
+{
+	"column_security.storekeeper": {
+		"description": "Counts stock; never sees cost or price",
+		"rights": {
+			"product": "SIU",
+			"folder:warehouse": "E"
+		}
+	},
+	"column_security.accountant": {
+		"description": "Owns costing and pricing",
+		"rights": {
+			"product": "SIU",
+			"folder:finance": "E"
+		}
+	}
+}

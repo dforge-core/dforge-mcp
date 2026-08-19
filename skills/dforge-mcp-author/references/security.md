@@ -213,7 +213,7 @@ Lives in: `ui/folders.json`
 
 | Property | Type | Description |
 |---|---|---|
-| `viewName` | string | Default data view (usually `"default"`) |
+| `viewName` | string | Entity view to bind — a key under the entity's `views` (see [Column-level security](#column-level-security-entity-views)), **not** a `ui/data_views.json` code. `"default"` means "no view" (full column set). |
 | `quickAdd` | boolean | Show "+" quick-add button (`true` for main entities, `false` for detail/line items) |
 | `rowFilter` | object | Row-level filter scoping which records are visible in this folder |
 
@@ -225,6 +225,80 @@ Row filters use a compact filter object with:
 - `v` — value to compare against
 
 This is how **row-level security** works in the module package — subfolders with `rowFilter` restrict which rows are visible. Users assigned to "Central Warehouse" only see stock where `warehouse_id = 2001`.
+
+## Column-level security (entity views)
+
+> Worked example: `dforge://example/column-security/` — one entity, two folders, two
+> column sets. Its README walks the overrides and the ways a view fails the install.
+
+Layer 2 of the model. A **entity view** is a named subset of an entity's columns, declared on the entity itself; a folder binds one per entity. Users working in that folder see **only** the columns the view lists — the rest are neither visible nor queryable there.
+
+Two halves, both required:
+
+| File | Key | Effect |
+|---|---|---|
+| `entities/<entity>.json` | `views.<viewName>.columns` | Declares the view and its column set |
+| `ui/folders.json` | `entities.<code>.viewName` | Binds that view for this entity in this folder |
+
+```json
+{
+    "fields": { "product_id": {}, "name": {}, "price": {}, "cost": {}, "quantity": {} },
+    "views": {
+        "accountant": {
+            "columns": {
+                "product_id": {},
+                "name": { "flags": "V" },
+                "price": { "flags": "VE" },
+                "cost": { "flags": "V" }
+            }
+        },
+        "storekeeper": {
+            "columns": {
+                "product_id": {},
+                "name": { "flags": "V" },
+                "quantity": { "flags": "VE" }
+            }
+        }
+    }
+}
+```
+
+```json
+"entities": { "product": { "viewName": "accountant", "quickAdd": true } }
+```
+
+The storekeeper folder cannot see `price` or `cost` at all — not on screen, not through a filter, not in an export.
+
+**Per-column overrides** (all optional, each falls back to the entity-level value): `flags`, `orderNum`, `isNullable`, `editMask`, `displayFmt`, `refFilter`, `params`, `formula`. `{}` means "expose this column, override nothing".
+
+> **An empty override is a value, not an absence.** The runtime merges view over entity with `COALESCE`, which skips NULL only — so `"flags": ""` means "no flags in this view" (a column neither visible nor editable) and `"params": {}` suppresses the entity-level params rather than inheriting them. Omit the key entirely to inherit. See `flags.md` for the flag letters.
+
+`formula` lets one view compute a column differently from the entity — same DSL as a field's `formula`, and **only on a column the entity declares as `columnType: "F"`** (elsewhere that field holds the SQL default, so the override would be inert). See `formulas.md`.
+
+### Rules the installer enforces
+
+Each of these is an install-time error, and each is silent at runtime if it slips through — which is why `dforge_module_validate` checks them offline:
+
+- A column absent from `columns` is **hidden**. That is the mechanism, not an oversight.
+- A view must list the entity's **primary key** — records are addressed by it. To keep it off screen, drop `V` from its flags instead of omitting it.
+- A column code that doesn't exist on the entity, a view with **no columns**, the same column listed twice under different casing, or two views on one entity whose names differ only by case (a folder binds case-insensitively, so only one could ever be reached).
+- Views must be declared on the entity's **own** module. An `extends` extension declaring `views` is rejected — a view enumerates the complete column set, which an extension does not own.
+- A `viewName` that no view declares, or one naming a view with no columns, **fails the install**. It does not fall back: the fallback is the entity's full column set, so a typo would quietly *unrestrict* the folder.
+- Columns removed from a view are reaped on upgrade — that is the security change the author asked for. Whole views are not: `entity_view` also holds tenant views from the card-layout editor, and the installer cannot tell them apart.
+
+### `"default"` is the one exempt name
+
+`"viewName": "default"` means **no view** (full column set) and declares nothing. It is what every shipped module writes, and what the runtime auto-creates for an entity reached without a folder binding — so it is exempt from the checks above. A module that really declares a view named `default` still gets it bound.
+
+### Don't confuse the three "views"
+
+| Term | Where | What it is |
+|---|---|---|
+| **Entity view** | `entities/*.json` → `views` | Column-level security (this section) |
+| **Data view** | `ui/data_views.json` | A grid / kanban / calendar over an entity (`data-views.md`) |
+| **SQL view** | `entities/*.json` → `isView` + `viewSql` | An entity backed by a SQL view instead of a table |
+
+`viewName` in `folders.json` binds the first. Menus' `dataViewCode` references the second.
 
 ### When to use subfolders
 

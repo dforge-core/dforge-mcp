@@ -1,0 +1,23 @@
+{
+	"packageFormat": 1,
+	"moduleId": "20000000-0000-0000-0000-000000000003",
+	"code": "column_security",
+	"version": "0.1.0",
+	"dbSchemaVersion": "0.0.1",
+	"displayName": "Column Security",
+	"description": "Example module demonstrating entity views — column-level security",
+	"author": { "name": "dForge Examples" },
+	"license": "MIT",
+	"category": "Examples",
+	"tags": ["example", "security", "entity-views"],
+	"icon": "bi-eye-slash",
+	"dependencies": {
+		"admin": ">=0.0.1"
+	},
+	"supportedLocales": ["en-US"],
+	"created": "2026-08-19",
+	"updated": "2026-08-19",
+	"entities": {
+		"product": "./entities/product.json"
+	}
+}

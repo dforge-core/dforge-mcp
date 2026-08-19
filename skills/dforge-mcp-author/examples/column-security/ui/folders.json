@@ -1,0 +1,23 @@
+{
+	"label": "Products",
+	"description": "Product master data",
+	"icon": "bi-box-seam",
+	"children": {
+		"warehouse": {
+			"label": "Warehouse",
+			"description": "Stock keeping — no pricing",
+			"color": "#0ea5e9",
+			"entities": {
+				"product": { "viewName": "storekeeper", "quickAdd": true }
+			}
+		},
+		"finance": {
+			"label": "Finance",
+			"description": "Costing and pricing",
+			"color": "#f59e0b",
+			"entities": {
+				"product": { "viewName": "accountant", "quickAdd": false }
+			}
+		}
+	}
+}

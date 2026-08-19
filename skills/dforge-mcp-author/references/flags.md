@@ -16,6 +16,8 @@ Valid flags regex: `^[VIEMH]*$`
 
 **Only these 5 letters are valid.** The platform rejects any other characters.
 
+> **The same letters override per entity view.** `views.<v>.columns.<cd>.flags` re-flags a column for the folders bound to that view — `{ "flags": "V" }` exposes it read-only there (visible, not editable) while the entity keeps its own flags everywhere else. An **empty** string is a real override meaning "no flags here" (neither visible nor editable), not "inherit": the runtime merges view over entity with `COALESCE`, which skips NULL only. Omit the key to inherit. See `security.md` → Column-level security.
+
 ## `M` is the platform's one notion of "required"
 
 At install, `MandatoryFlagNormalizer` folds `M` into `isNullable: false` before DDL

@@ -1,0 +1,35 @@
+{
+	"entities": {
+		"product": {
+			"label": "Product",
+			"fields": {
+				"name": { "label": "Product Name" },
+				"sku": { "label": "SKU" },
+				"quantity": { "label": "Quantity On Hand" },
+				"cost_price": { "label": "Cost Price" },
+				"sale_price": { "label": "Sale Price" },
+				"margin": { "label": "Margin" }
+			}
+		}
+	},
+	"folders": {
+		"warehouse": { "label": "Warehouse" },
+		"finance": { "label": "Finance" }
+	},
+	"roles": {
+		"column_security.storekeeper": { "label": "Storekeeper" },
+		"column_security.accountant": { "label": "Accountant" }
+	},
+	"views": {
+		"product_grid": { "label": "Products" }
+	},
+	"menus": {
+		"product_menu": {
+			"label": "Products",
+			"items": {
+				"catalog": { "label": "Catalog" },
+				"all_products": { "label": "Products" }
+			}
+		}
+	}
+}

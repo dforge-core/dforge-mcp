@@ -89,6 +89,30 @@ export function entityFieldRename(
 			changes.push(`references.${rname}.from.field`);
 		}
 	}
+	// 2b. Entity views (column-level security, `views.<v>.columns.<cd>`): the column
+	// key itself, plus any per-view formula override that names the field. A stale
+	// key here is not cosmetic — the platform installer rejects a view listing a
+	// column the entity does not have, so a rename would leave a module that no
+	// longer installs. Note `views` on the entity is unrelated to ui/data_views.json,
+	// handled separately in step 4.
+	const entityViews = (entity.views as Record<string, Record<string, unknown>> | undefined) ?? {};
+	for (const [vname, v] of Object.entries(entityViews)) {
+		const cols = v.columns as Record<string, Record<string, unknown> | null> | undefined;
+		if (!cols) continue;
+		if (oldName in cols) {
+			v.columns = renameKey(cols, oldName, newName);
+			changes.push(`views.${vname}.columns.${oldName}`);
+		}
+		for (const [cn, ov] of Object.entries(
+			v.columns as Record<string, Record<string, unknown> | null>,
+		)) {
+			if (ov && typeof ov.formula === "string" && ov.formula.includes(oldToken)) {
+				ov.formula = ov.formula.split(oldToken).join(newToken);
+				changes.push(`views.${vname}.${cn}.formula`);
+			}
+		}
+	}
+
 	files[rel(paths.root, entityPath)] = jsonText(entity);
 
 	// 3. OTHER entities whose FK targets this field (otherKey / references.to.field).
@@ -230,6 +254,38 @@ export function entityFieldRemove(
 			changes.push(`references.${rn}`);
 		}
 	}
+	// Entity views: drop the removed columns from every view that lists them. Left
+	// behind, the view names a column the entity no longer has and the platform
+	// installer rejects it — the module would stop installing.
+	const entityViews = (entity.views as Record<string, Record<string, unknown>> | undefined) ?? {};
+	for (const [vname, v] of Object.entries(entityViews)) {
+		const cols = v.columns as Record<string, Record<string, unknown> | null> | undefined;
+		if (!cols) continue;
+		const kept: Record<string, unknown> = {};
+		for (const [k, val] of Object.entries(cols)) if (!removed.has(k)) kept[k] = val;
+		if (Object.keys(kept).length !== Object.keys(cols).length) {
+			v.columns = kept;
+			changes.push(`views.${vname}.columns`);
+		}
+		// A view is the complete set of columns visible in a folder bound to it, so
+		// an empty one is rejected at install rather than treated as "show nothing".
+		if (Object.keys(kept).length === 0) {
+			warnings.push(
+				`view '${vname}' has no columns left — delete the view, or give it columns ` +
+					"(an empty view fails the install)",
+			);
+		}
+		for (const [cn, ov] of Object.entries(kept as Record<string, Record<string, unknown> | null>)) {
+			if (ov && typeof ov.formula === "string") {
+				for (const r of removed) {
+					if (ov.formula.includes(`[${r}]`)) {
+						warnings.push(`formula in view '${vname}'.${cn} still references removed '[${r}]'`);
+					}
+				}
+			}
+		}
+	}
+
 	files[rel(paths.root, entityPath)] = jsonText(entity);
 
 	// Formula columns (still present) that reference a removed field → warn.

@@ -4,6 +4,8 @@ Data views define how users see and interact with entity data. One entity can ha
 
 Lives in: `ui/data_views.json`
 
+> **Not to be confused with entity views.** An *entity view* (`views` on an entity file) is column-level **security** — which columns a folder may see at all — and is what `folders.json`'s `viewName` binds. A *data view* is a presentation of an entity, referenced by a menu's `dataViewCode`. A third thing, `isView` + `viewSql` on an entity, means the entity is backed by a SQL view. See `security.md` → Column-level security.
+
 ## Structure
 
 ```json

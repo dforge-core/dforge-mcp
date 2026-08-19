@@ -95,10 +95,87 @@
 				}
 			},
 			"additionalProperties": true
+		},
+		"views": {
+			"type": "object",
+			"description": "Entity views keyed by view name — column-level security. Unrelated to 'isView'/'viewSql' (a SQL-view-backed entity) and to ui/data_views.json (grids, kanban, calendars). A folder binds one view per entity via ui/folders.json (entities.<code>.viewName); users working in that folder see ONLY the columns the view lists. Entities without views (or folders naming a view that isn't declared here) show the entity's full column set.",
+			"propertyNames": {
+				"pattern": "^[a-zA-Z_][a-zA-Z0-9_-]*$",
+				"maxLength": 100
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/entityView"
+			}
 		}
 	},
 	"additionalProperties": false,
 	"$defs": {
+		"entityView": {
+			"type": "object",
+			"description": "One entity view: the columns it exposes, plus optional per-view overrides on each.",
+			"required": ["columns"],
+			"properties": {
+				"columns": {
+					"type": "object",
+					"description": "Column code -> per-view overrides. Columns absent from this map are hidden in a folder bound to this view. Use {} (or null) to expose a column with no overrides. Must include the entity's primary key column(s) — records are addressed by them; hide the key from the UI by omitting 'V' from its flags instead.",
+					"minProperties": 1,
+					"propertyNames": {
+						"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/entityViewColumn"
+					}
+				},
+				"params": {
+					"type": "object",
+					"description": "Free-form view configuration, stored on entity_view.params.",
+					"additionalProperties": true
+				}
+			},
+			"additionalProperties": false
+		},
+		"entityViewColumn": {
+			"description": "Per-view overrides for one column. Every property is optional; anything omitted falls back to the entity-level value on the column itself.",
+			"type": ["object", "null"],
+			"properties": {
+				"flags": {
+					"type": "string",
+					"maxLength": 10,
+					"description": "Flag letters for this column in this view (I/E/V/O/G/S/F/X/W), e.g. 'VO' to expose it read-only."
+				},
+				"orderNum": {
+					"type": "integer",
+					"description": "Display order within this view."
+				},
+				"isNullable": {
+					"type": "boolean",
+					"description": "Nullability override for this view."
+				},
+				"editMask": {
+					"type": "string",
+					"maxLength": 100
+				},
+				"displayFmt": {
+					"type": "string",
+					"maxLength": 100
+				},
+				"refFilter": {
+					"type": "object",
+					"description": "Lookup filter override for a reference column in this view.",
+					"additionalProperties": true
+				},
+				"formula": {
+					"type": "string",
+					"description": "Formula override for this column in this view, in the same DSL as a field's 'formula'. Allowed only on a column the entity declares as columnType 'F' — on any other column that field holds the SQL default, so a per-view override there would be inert. The runtime prefers it over the entity-level formula, so one view can compute a column differently from the entity. The parsed AST is regenerated at install; a formula that does not parse, calls an unimplemented function, or aggregates over a 1:N set fails the install (each renders empty at runtime)."
+				},
+				"params": {
+					"type": "object",
+					"description": "Control-specific configuration override for this view.",
+					"additionalProperties": true
+				}
+			},
+			"additionalProperties": false
+		},
 		"field": {
 			"type": "object",
 			"description": "Entity column/field definition",

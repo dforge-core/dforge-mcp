@@ -79,6 +79,19 @@ function matrixExample(relPath: string, description: string): ResourceDef {
 	};
 }
 
+// A file from the column-security example module — the worked example for entity
+// views (column-level security). Namespaced under `column-security/` like the
+// matrix files above.
+function columnSecurityExample(relPath: string, description: string): ResourceDef {
+	return {
+		uri: `dforge://example/column-security/${relPath}`,
+		name: `Example: column-security/${relPath}`,
+		description,
+		mimeType: relPath.endsWith(".json") ? "application/json" : "text/plain",
+		read: () => readSkill(`examples/column-security/${relPath}`),
+	};
+}
+
 export const resources: ResourceDef[] = [
 	schema(
 		"manifest",
@@ -88,7 +101,7 @@ export const resources: ResourceDef[] = [
 	schema(
 		"entity",
 		"Entity JSON schema",
-		"JSON Schema for entity files under entities/*.json (description, dbObject, toString, traits, fields).",
+		"JSON Schema for entity files under entities/*.json (description, dbObject, toString, traits, fields, views).",
 	),
 	schema(
 		"domains",
@@ -225,6 +238,12 @@ export const resources: ResourceDef[] = [
 	matrixExample("manifest.json", "Matrix example manifest (entities + dataViews + roles + seed)."),
 	matrixExample("security/roles.json", "Matrix example roles: S on the axis entity, SIUD on the editable cell entity."),
 	matrixExample("seed-data/01-categories.json", "Matrix example seed: row-axis category records."),
+	columnSecurityExample("entities/product.json", "Canonical ENTITY VIEWS (column-level security): one entity, two views — 'storekeeper' (a plain column subset, prices absent entirely) and 'accountant' (with a per-column flags override making a column read-only in that view only, and a per-view formula override on an \"F\" column). Both list the primary key, which a view must."),
+	columnSecurityExample("ui/folders.json", "The BINDING half: two folders over one entity, each with a different entities.product.viewName. Without this the views exist and nothing uses them; with a name no view declares, the install fails rather than falling back to the full column set."),
+	columnSecurityExample("security/roles.json", "Roles for the two folders. Note rights are per ENTITY, not per column — the column dimension is the entity view, not the role."),
+	columnSecurityExample("ui/data_views.json", "The data view lists EVERY column including prices — correct: presentation is one axis, the folder's entity view decides what a user may see of it. You do not maintain one data view per role."),
+	columnSecurityExample("manifest.json", "Column-security example manifest. Note it declares no dataViews/menus/security pointers — those files are found by convention, and the manifest schema is additionalProperties:false."),
+	columnSecurityExample("README.md", "Why entity views exist, what each of the two views demonstrates, and the five ways a view fails the install."),
 ];
 
 function readVendored(rel: string): string {

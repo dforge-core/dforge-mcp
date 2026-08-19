@@ -1,0 +1,79 @@
+{
+	"description": "Products, with stock and pricing on one record",
+	"dbObject": "product",
+	"toString": "{name}",
+	"traits": ["identity", "audit"],
+	"fields": {
+		"name": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "text",
+			"flags": "VEM",
+			"maxLen": 200,
+			"orderNum": 10,
+			"description": "Product Name"
+		},
+		"sku": {
+			"dbDatatype": "varchar",
+			"fieldTypeCd": "text",
+			"flags": "VEM",
+			"maxLen": 40,
+			"orderNum": 20,
+			"description": "SKU"
+		},
+		"quantity": {
+			"dbDatatype": "numeric(18,2)",
+			"fieldTypeCd": "number",
+			"flags": "VEM",
+			"precision": 2,
+			"orderNum": 30,
+			"description": "Quantity On Hand"
+		},
+		"cost_price": {
+			"dbDatatype": "numeric(18,2)",
+			"fieldTypeCd": "currency",
+			"flags": "VEM",
+			"precision": 2,
+			"orderNum": 40,
+			"description": "Cost Price"
+		},
+		"sale_price": {
+			"dbDatatype": "numeric(18,2)",
+			"fieldTypeCd": "currency",
+			"flags": "VEM",
+			"precision": 2,
+			"orderNum": 50,
+			"description": "Sale Price"
+		},
+		"margin": {
+			"columnType": "F",
+			"fieldTypeCd": "currency",
+			"baseDatatypeCd": "number",
+			"flags": "V",
+			"precision": 2,
+			"formula": "[sale_price] - [cost_price]",
+			"orderNum": 60,
+			"description": "Margin"
+		}
+	},
+	"views": {
+		"storekeeper": {
+			"columns": {
+				"product_id": {},
+				"name": {},
+				"sku": {},
+				"quantity": {}
+			}
+		},
+		"accountant": {
+			"columns": {
+				"product_id": {},
+				"name": {},
+				"sku": {},
+				"quantity": { "flags": "V" },
+				"cost_price": {},
+				"sale_price": {},
+				"margin": { "formula": "([sale_price] - [cost_price]) / [sale_price] * 100", "displayFmt": "N1" }
+			}
+		}
+	}
+}

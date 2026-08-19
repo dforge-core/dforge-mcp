@@ -19,6 +19,7 @@ import {
 	readJsonOrDefault,
 	checkSecurityCoverage,
 	duplicateFolderCodes,
+	walkFolders,
 	compositeKey,
 	unknownTraits,
 	TRAIT_CODES,
@@ -212,6 +213,96 @@ export function moduleValidate(
 			const toEntity = (r?.to as Record<string, unknown> | undefined)?.entity as string | undefined;
 			if (toEntity && !isKnownEntity(toEntity)) {
 				err(`entities/${name}.json → references.${rname}`, `to.entity '${toEntity}' is not a known entity`);
+			}
+		}
+	}
+
+	// ── 1b. Entity views (column-level security) ──
+	// `views.<v>.columns.<cd>` on an entity file. Mirrors what
+	// EntityViewRegistrar.ValidateView / NormalizeViewNames reject at install —
+	// each failure is silent at runtime (a column that isn't there, records the
+	// client can't address) and only surfaces as "the folder is broken", far from
+	// the file that caused it. Note: unrelated to ui/data_views.json below, and to
+	// `isView`/`viewSql` (a SQL-view-backed entity) — the platform overloads "view".
+	for (const [name, e] of Object.entries(entities)) {
+		const entityViews = (e.views as Record<string, Record<string, unknown>> | undefined) ?? {};
+		if (Object.keys(entityViews).length === 0) continue;
+
+		const fields = fieldDefsOf[name] ?? {};
+		const cols = columnsOf[name];
+		const pk = pkOf(name);
+
+		// A folder binds a view by name case-insensitively, so two names differing
+		// only by case leave the binding ambiguous — the installer refuses both.
+		const byLower = new Map<string, string[]>();
+		for (const vname of Object.keys(entityViews)) {
+			const list = byLower.get(vname.trim().toLowerCase()) ?? [];
+			list.push(vname);
+			byLower.set(vname.trim().toLowerCase(), list);
+		}
+		for (const [, spellings] of byLower) {
+			if (spellings.length > 1) {
+				err(
+					`entities/${name}.json → views`,
+					`views ${spellings.map((v) => `'${v}'`).join(" and ")} differ only by case or surrounding ` +
+						"whitespace. A folder binds a view case-insensitively, so only one could ever be reached.",
+				);
+			}
+		}
+
+		for (const [vname, view] of Object.entries(entityViews)) {
+			const where = `entities/${name}.json → views.${vname}`;
+			const vcols = (view?.columns as Record<string, unknown> | undefined) ?? undefined;
+
+			if (!vcols || Object.keys(vcols).length === 0) {
+				err(
+					where,
+					"lists no columns. A view is the COMPLETE set of columns visible in a folder bound " +
+						"to it, so an empty one would hide every field — the installer rejects it.",
+				);
+				continue;
+			}
+
+			const declared = Object.keys(vcols);
+			for (const cd of declared) {
+				if (cols && !cols.has(cd)) {
+					err(where, `column '${cd}' is not a field on entity '${name}'`);
+				}
+			}
+
+			// Same column under two spellings: both name one column, and the later
+			// one would silently win.
+			const dupes = declared.filter(
+				(c, i) => declared.findIndex((o) => o.toLowerCase() === c.toLowerCase()) !== i,
+			);
+			for (const d of dupes) {
+				err(where, `lists column '${d}' more than once (differing only by case)`);
+			}
+
+			// Records are addressed by the PK — a view without it yields rows the
+			// client cannot open or save. Hide it with flags instead (omit 'V').
+			if (pk && !declared.some((c) => c.toLowerCase() === pk.toLowerCase())) {
+				err(
+					where,
+					`omits the primary key '${pk}'. A view must list it — records are addressed by it. ` +
+						"To keep it off the screen, drop 'V' from its flags instead of omitting it.",
+				);
+			}
+
+			// A view formula is only evaluated on a Formula ("F") column; elsewhere
+			// that field is the SQL default, so the override would be inert.
+			for (const [cd, ovRaw] of Object.entries(vcols)) {
+				const ov = (ovRaw ?? {}) as Record<string, unknown>;
+				if (typeof ov.formula !== "string" || ov.formula.trim() === "") continue;
+				const colType = fields[cd]?.columnType;
+				if (colType !== "F") {
+					err(
+						`${where}.columns.${cd}`,
+						`sets a formula on a column of type '${(colType as string) ?? "D"}'. A view formula is ` +
+							"only evaluated on a Formula (\"F\") column — on any other column that field holds " +
+							"the SQL default, and the override would do nothing.",
+					);
+				}
 			}
 		}
 	}
@@ -634,6 +725,42 @@ export function moduleValidate(
 				`unique across the whole tree: role rights say 'folder:${code}' with no path, and translations key ` +
 				`on 'folders.${code}.label', so duplicates are ambiguous and silently collide.`,
 		);
+	}
+
+	// ── 12b-2. Folder viewName → a view the entity declares ──
+	// `entities.<code>.viewName` binds one entity view per folder. An unresolved
+	// name FAILS the install (falling back would serve the entity's FULL column
+	// set, so a typo would quietly unrestrict the folder), which makes this worth
+	// catching offline. "default" is the conventional placeholder for "no view"
+	// and declares nothing — every shipped module writes it — so it is exempt.
+	// Cross-module entities (qualified 'mod.entity') can't be inspected offline.
+	const folderNodes = [
+		{ path: "(root)", node: folderRoot },
+		...walkFolders(folderRoot).map((f) => ({ path: f.path, node: f.node })),
+	];
+	for (const { path: fpath, node } of folderNodes) {
+		const bindings = (node.entities as Record<string, Record<string, unknown>> | undefined) ?? {};
+		for (const [entityCd, binding] of Object.entries(bindings)) {
+			const viewName = (binding ?? {})?.viewName;
+			if (typeof viewName !== "string" || viewName.trim() === "") continue;
+			if (viewName.trim().toLowerCase() === "default") continue;
+			if (entityCd.includes(".")) continue; // cross-module — not authored here
+			const e = entities[entityCd];
+			if (!e) continue; // unknown entity is reported by the folder/entity checks
+
+			const declared = Object.keys(
+				(e.views as Record<string, unknown> | undefined) ?? {},
+			).map((v) => v.trim().toLowerCase());
+			if (!declared.includes(viewName.trim().toLowerCase())) {
+				err(
+					`ui/folders.json → ${fpath} → entities.${entityCd}`,
+					`viewName '${viewName}' is not declared under 'views' in entities/${entityCd}.json. ` +
+						"This fails the install: an unresolved view would show every column of the entity, " +
+						"which is the opposite of what naming one asks for. Declare the view, or drop " +
+						"'viewName' (or use \"default\", which means no view).",
+				);
+			}
+		}
 	}
 
 	// ── 12c. Reports: param declaration site + record-report attachments ──

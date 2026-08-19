@@ -225,3 +225,84 @@ describe("entity_field_rename — guards", () => {
 		expect(() => entityFieldRename({ moduleDir: EXAMPLE, entityName: "todo_list", fieldName: "name", newName: "name" })).toThrow(/differ/);
 	});
 });
+
+// ── Entity views (column-level security) ────────────────────────────────────
+// `views.<v>.columns.<cd>` names columns, so a rename or a removal has to reach
+// it. Left stale it is not cosmetic: the platform installer rejects a view
+// listing a column the entity does not have, so the refactor would hand back a
+// module that no longer installs.
+
+function moduleWithView(): string {
+	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-views-"));
+	mkdirSync(join(dir, "entities"), { recursive: true });
+	writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { invoice: "./entities/invoice.json" } }));
+	writeFileSync(
+		join(dir, "entities", "invoice.json"),
+		JSON.stringify({
+			description: "Invoice",
+			traits: ["identity"],
+			fields: {
+				qty: { fieldTypeCd: "number", dbDatatype: "int4", flags: "VEM" },
+				price: { fieldTypeCd: "currency", dbDatatype: "numeric(18,2)", flags: "VEM" },
+				total: { columnType: "F", baseDatatypeCd: "number", flags: "V", formula: "[qty] * [price]" },
+				notes: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VE" },
+			},
+			views: {
+				accountant: {
+					columns: {
+						invoice_id: {},
+						qty: { flags: "VO" },
+						// per-view formula override naming the field being renamed
+						total: { formula: "[qty] * [price] * 2" },
+						notes: {},
+					},
+				},
+			},
+		}),
+	);
+	return dir;
+}
+
+describe("entity_field_rename — entity views", () => {
+	const dir = moduleWithView();
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	const { files } = entityFieldRename({ moduleDir: dir, entityName: "invoice", fieldName: "qty", newName: "quantity" });
+	const e = parse(files, "entities/invoice.json");
+
+	it("renames the column key inside the view", () => {
+		expect(e.views.accountant.columns.quantity).toEqual({ flags: "VO" });
+		expect(e.views.accountant.columns.qty).toBeUndefined();
+	});
+
+	it("preserves the column order in the view", () => {
+		// The view's column order is its display order — a rename must not reshuffle it.
+		expect(Object.keys(e.views.accountant.columns)).toEqual(["invoice_id", "quantity", "total", "notes"]);
+	});
+
+	it("rewrites a per-view formula override", () => {
+		expect(e.views.accountant.columns.total.formula).toBe("[quantity] * [price] * 2");
+	});
+
+	it("leaves no stale token anywhere in the entity file", () => {
+		expect(files["entities/invoice.json"]).not.toContain("[qty]");
+		expect(files["entities/invoice.json"]).not.toContain('"qty"');
+	});
+});
+
+describe("entity_field_remove — entity views", () => {
+	const dir = moduleWithView();
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	it("drops the removed column from the view", () => {
+		const { files } = entityFieldRemove({ moduleDir: dir, entityName: "invoice", fieldName: "notes" });
+		const e = parse(files, "entities/invoice.json");
+		expect(e.views.accountant.columns.notes).toBeUndefined();
+		expect(Object.keys(e.views.accountant.columns)).toEqual(["invoice_id", "qty", "total"]);
+	});
+
+	it("warns when a per-view formula still references the removed field", () => {
+		const res = entityFieldRemove({ moduleDir: dir, entityName: "invoice", fieldName: "price" });
+		expect(JSON.stringify(res)).toMatch(/view 'accountant'\.total still references removed '\[price\]'/);
+	});
+});

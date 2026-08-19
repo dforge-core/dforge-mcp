@@ -1,0 +1,20 @@
+{
+	"product_grid": {
+		"label": "Products",
+		"description": "One grid, two column sets — whichever the folder's entity view allows",
+		"viewType": "grid",
+		"icon": "bi-box-seam",
+		"dataSources": [{
+			"entityCode": "product",
+			"columns": [
+				{ "column_cd": "name", "width": 240 },
+				{ "column_cd": "sku", "width": 120 },
+				{ "column_cd": "quantity", "width": 120 },
+				{ "column_cd": "cost_price", "width": 120 },
+				{ "column_cd": "sale_price", "width": 120 },
+				{ "column_cd": "margin", "width": 120 }
+			],
+			"order": ["name"]
+		}]
+	}
+}

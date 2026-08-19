@@ -58,7 +58,7 @@
 			"properties": {
 				"viewName": {
 					"type": "string",
-					"description": "Entity view name (data view code) to use in this folder. Common values include 'default'."
+					"description": "Entity view to bind for this entity in this folder — the name of a key under the entity definition's 'views' (column-level security), NOT a data view code from ui/data_views.json. Users in this folder then see only the columns that view lists. The conventional 'default' declares nothing and means 'no view' (full column set); any other name that the entity does not declare fails the install."
 				},
 				"quickAdd": {
 					"type": "boolean",

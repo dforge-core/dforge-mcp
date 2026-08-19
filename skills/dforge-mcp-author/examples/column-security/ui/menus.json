@@ -1,0 +1,21 @@
+{
+	"product_menu": {
+		"label": "Products",
+		"items": {
+			"catalog": {
+				"orderNum": 1,
+				"label": "Catalog",
+				"icon": "box-seam",
+				"children": {
+					"all_products": {
+						"itemType": "V",
+						"label": "Products",
+						"icon": "box-seam",
+						"dataViewCode": "product_grid",
+						"orderNum": 1
+					}
+				}
+			}
+		}
+	}
+}
