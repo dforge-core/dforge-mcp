@@ -5,8 +5,9 @@ Formulas are used in:
 - **Formula columns** (`columnType: "F"`) — computed values
 - **Per-view formula overrides** (`views.<v>.columns.<cd>.formula`) — one entity view
   computing a column differently from the entity. Allowed **only** on a column the
-  entity declares as `columnType: "F"`; on any other column that field holds the SQL
-  default, so the override would be inert and the install rejects it. Same rules as an
+  entity declares as `columnType: "F"`; on any other column the install FAILS, because
+  there that field holds the SQL default and a view cannot change a physical column's
+  `DEFAULT`. (There is no per-view default value for a normal column.) Same rules as an
   `F` column otherwise: it must parse, call only implemented functions, and not
   aggregate over a 1:N set. See `security.md` → Column-level security.
 - **Action `canExecute:` blocks** — availability checks. Evaluated on both sides

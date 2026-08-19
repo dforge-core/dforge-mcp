@@ -271,9 +271,11 @@ The storekeeper folder cannot see `price` or `cost` at all — not on screen, no
 
 **Per-column overrides** (all optional, each falls back to the entity-level value): `flags`, `orderNum`, `isNullable`, `editMask`, `displayFmt`, `refFilter`, `params`, `formula`. `{}` means "expose this column, override nothing".
 
-> **An empty override is a value, not an absence.** The runtime merges view over entity with `COALESCE`, which skips NULL only — so `"flags": ""` means "no flags in this view" (a column neither visible nor editable) and `"params": {}` suppresses the entity-level params rather than inheriting them. Omit the key entirely to inherit. See `flags.md` for the flag letters.
+> **An empty override is a value, not an absence.** The runtime merges view over entity with `COALESCE`, which skips NULL only — so `"flags": ""` means "no flags in this view" (a column neither visible nor editable) and `"params": {}` suppresses the entity-level params rather than inheriting them. Omit the key entirely to inherit — `"flags": null` fails schema validation. See `flags.md` for the flag letters.
 
-`formula` lets one view compute a column differently from the entity — same DSL as a field's `formula`, and **only on a column the entity declares as `columnType: "F"`** (elsewhere that field holds the SQL default, so the override would be inert). See `formulas.md`.
+> **`M` works in a view override too**, folding into that override's `isNullable`. Since a view writes no DDL, the requiredness is runtime-only — which is how a column nullable in the database is made mandatory inside one view: `{ "flags": "VEM" }`. The fold is one-directional: dropping `M` does not loosen the column, because `isNullable` still inherits. See `flags.md` → Per-view overrides.
+
+`formula` lets one view compute a column differently from the entity — same DSL as a field's `formula`, and **only on a column the entity declares as `columnType: "F"`**; elsewhere the install fails, because there that field holds the SQL default and a view cannot change a physical column's `DEFAULT`. There is no per-view default value for a normal column. See `formulas.md`.
 
 ### Rules the installer enforces
 

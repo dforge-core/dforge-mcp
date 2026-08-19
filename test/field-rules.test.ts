@@ -30,8 +30,16 @@ describe("checkFieldSpec", () => {
 	});
 
 	it("rejects invalid flag letters", () => {
-		expect(messages({ fieldTypeCd: "text", flags: "VEMU" })).toMatch(/only V\/I\/E\/M\/H/);
+		expect(messages({ fieldTypeCd: "text", flags: "VEMU" })).toMatch(/only V\/I\/E\/M/);
 		expect(checkFieldSpec("e.f", { fieldTypeCd: "text", flags: "VEM" })).toEqual([]);
+	});
+
+	// 'H' was in the vocabulary for years and nothing ever read it — a column carrying
+	// it was hidden for having no 'V'. It gets its own message pointing at the fix
+	// rather than the generic "U/S/P are not flag letters" hint.
+	it("rejects 'H' and says how to hide a column instead", () => {
+		expect(messages({ fieldTypeCd: "text", flags: "VEH" })).toMatch(/no 'H' flag/);
+		expect(messages({ fieldTypeCd: "text", flags: "VEH" })).toMatch(/omitting 'V'/);
 	});
 
 	it("rejects 'M' declared together with isNullable: true", () => {
@@ -176,7 +184,7 @@ describe("the validator re-runs the rules across the whole module", () => {
 
 	it("flags invalid flags that entered outside the authoring tool", () => {
 		const res = validateWith({ name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEMS" } });
-		expect(JSON.stringify(res.errors)).toMatch(/only V\/I\/E\/M\/H/);
+		expect(JSON.stringify(res.errors)).toMatch(/only V\/I\/E\/M/);
 	});
 
 	it("flags an F column carrying a set aggregate", () => {

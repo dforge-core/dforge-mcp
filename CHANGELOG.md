@@ -26,7 +26,7 @@ which is silent at runtime if it slips through:
 | View has at least one column | A view is the COMPLETE visible set, so an empty one would hide every field |
 | No two views differing only by case | A folder binds case-insensitively; only one could ever be reached |
 | No column listed twice under different casing | Both name one column and the later would silently win |
-| `formula` override only on a `columnType: "F"` column | Elsewhere that field is the SQL default, so the override is inert |
+| `formula` override only on a `columnType: "F"` column | Elsewhere that field is the SQL default and the install FAILS — a view cannot change a physical column's `DEFAULT` |
 | `folders.json` `viewName` resolves to a declared view | **Fails the install** — it does not fall back, because falling back shows every column |
 
 `"default"` is exempt from the last check and means "no view": every shipped module
@@ -56,9 +56,10 @@ references.
 
 ### Changed
 
-- `@dforge-core/metadata` → `0.0.17`; `resources/schemas/` re-vendored, so
-  `entity.schema.json` carries `views` (with the per-column `formula` override) and
-  the editor stops flagging a valid `views` block as an unknown property. The
+- `@dforge-core/metadata` → `0.0.18`; `resources/schemas/` re-vendored, so
+  `entity.schema.json` carries `views` (with the per-column `formula` override), the
+  retired `H` flag and the per-view `M` fold below, and the editor stops flagging a
+  valid `views` block as an unknown property. The
   `minimumReleaseAgeExclude` pin in `pnpm-workspace.yaml` moves with it — a caret on
   a `0.0.x` version pins the patch, so the dep does not float onto a new metadata
   release by itself.
@@ -73,6 +74,50 @@ references.
   `references/validation-checklist.md`; `dforge-module-build` Phase 5 gains guidance
   on when column-level security is the right answer instead of more roles.
 - `dforge_module_inspect` reports `entityViews` per entity (name → column count).
+
+### Removed — the `H` flag
+
+`H` was in the flag vocabulary from the start, documented as "permanently hidden —
+stronger than omitting `V`", and **nothing ever read it**. A column carrying it was
+hidden because its flags string contained no `V`. The platform retired it
+(`abbedb009`), so `field-rules` now rejects `H` with a message pointing at the fix
+rather than at the generic "U/S/P are not flag letters" hint: omit `V` to hide a
+column, use an entity view to hide it from specific folders, `fieldTypeCd: "hidden"`
+to render it as a hidden input, and `I` to mark it platform-managed.
+
+`references/flags.md` and the `dforge://reference/flags` blurb drop it too, and both
+`^[VIEMH]+$` checks in `field-rules` are now `^[VIEM]+$`.
+
+### Added — `M` in a per-view override
+
+`views.<v>.columns.<cd>.flags` previously accepted `M` and did nothing with it: the
+platform's `MandatoryFlagNormalizer` folded `M` into `isNullable` for entity fields
+only. The fold now covers view overrides, so the shorthand means the same thing at
+both levels — and because a view writes no DDL, the requiredness it produces is
+runtime-only. That makes **"nullable in the database, mandatory in this view"**
+expressible for the first time:
+
+```json
+"vat_no": { "flags": "VEM" }                      // required in this view
+"vat_no": { "flags": "VE", "isNullable": false }  // the same thing, spelled out
+```
+
+`references/flags.md` gains a **Per-view overrides** section covering it, plus the
+two traps that come with it: the letters **replace** rather than merge (so
+`{ "flags": "V" }` is read-only however the entity flagged the column), and the `M`
+fold is **one-directional** — dropping `M` from a view does not make a column
+optional, since `isNullable` still inherits. `references/security.md` picks up the
+same note.
+
+### Fixed — smaller documentation corrections
+
+- **`I` was called "Internal" throughout `references/flags.md`.** The runtime reads
+  it as **Identity** (`EntityColumn.IsIdentity => HasFlag('I')`); the letter is
+  unchanged, the name was wrong in the letter table, two rules and the role-rights
+  disambiguation note.
+- **`"flags": null` was implied to mean "inherit".** It does not validate — the
+  property is typed `string`, so only OMITTING the key inherits. (To inherit
+  everything, set the whole column override to `{}` or `null`.)
 
 ### Added — a worked example module
 

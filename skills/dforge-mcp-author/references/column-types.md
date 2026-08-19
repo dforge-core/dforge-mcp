@@ -36,8 +36,9 @@ Virtual N:1 lookup. No physical column. Always **paired with a hidden FK column*
 The example below is a **required** relation, so both halves carry `M`. For an optional
 one, drop it from both: FK `"E"`, Reference `"VE"`. `M` resolves to `isNullable: false`
 at install, so it is what makes the FK column `NOT NULL` — and while `M` is inert on the
-virtual Reference half, leaving it there over an optional FK reads as a required field to
-the next author. `dforge_entity_reference_add({ required })` emits both halves in step.
+virtual Reference half (at the entity level; a per-view override behaves differently, see
+`flags.md`), leaving it there over an optional FK reads as a required field to the next
+author. `dforge_entity_reference_add({ required })` emits both halves in step.
 
 ```json
 // Hidden FK column — physical, hidden. "E" instead of "EM" if the relation is optional.

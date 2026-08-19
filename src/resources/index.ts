@@ -188,7 +188,7 @@ export const resources: ResourceDef[] = [
 
 	// ── Per-element authoring references (skills/.../references/*.md) ──────
 	reference("field-types", "Field types — fieldTypeCd (UI control) vs dbDatatype (SQL type), and the correct value for each. Load before adding any field."),
-	reference("flags", "Column flags — only V/I/E/M/H; valid combos (VEM/VE/V/EM/I) and why 'VEMHI' is invalid. Load before setting any flags."),
+	reference("flags", "Column flags — only V/I/E/M (there is no H); valid combos (VEM/VE/V/EM/I), how M folds into isNullable, and how the same letters override per entity view. Load before setting any flags."),
 	reference("column-types", "The FK + Reference two-column pattern (the #1 source of broken modules) and Set columns. Load before any relation."),
 	reference("column-domains", "Column domains: a reusable field type (datatype + control + shared option list) referenced via a single `domain` key. Use when the same enum/type repeats across columns. Load before authoring domains.json or a domain-backed column."),
 	reference("formulas", "Formula columns (columnType 'F'): baseDatatypeCd, no dbDatatype, flags 'V', and the formula expression grammar."),

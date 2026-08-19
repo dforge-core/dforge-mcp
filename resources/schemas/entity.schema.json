@@ -141,7 +141,8 @@
 				"flags": {
 					"type": "string",
 					"maxLength": 10,
-					"description": "Flag letters for this column in this view — the same V/I/E/M/H vocabulary as a field's 'flags', overriding it for folders bound to this view. E.g. 'V' exposes the column read-only (visible, not editable). An EMPTY string is a real override meaning 'no flags here', not 'inherit': the runtime merges view over entity with COALESCE, which skips NULL only. Omit the key to inherit."
+					"pattern": "^[VIEM]*$",
+					"description": "Flag letters for this column in this view — the same V/I/E/M vocabulary as a field's 'flags'. One rule, three cases: OMIT the key to inherit the entity-level flags (omission is the only inherit spelling — this field is a string, so a literal null does not validate; to inherit everything, set the whole column override to null or {}); any string, empty included, OVERRIDES them, because the runtime merges view over entity with COALESCE, which skips a missing value only; and a non-empty string REPLACES the entity letters rather than merging with them. So 'V' exposes the column read-only (visible, not editable) however the entity flagged it, and '' means 'no flags here' — neither visible nor editable. M works here as it does on a field: the installer folds it into this override's isNullable, making the column required IN THIS VIEW even when it is nullable in the database (a view writes no DDL, so the requiredness is runtime-only). Declaring M together with \"isNullable\": true is rejected at pack time. Note the fold is one-directional — DROPPING M from a view's flags does not make a column optional, because isNullable still COALESCEs to the entity value; write \"isNullable\": true to loosen it."
 				},
 				"orderNum": {
 					"type": "integer",
@@ -166,7 +167,7 @@
 				},
 				"formula": {
 					"type": "string",
-					"description": "Formula override for this column in this view, in the same DSL as a field's 'formula'. Allowed only on a column the entity declares as columnType 'F' — on any other column that field holds the SQL default, so a per-view override there would be inert. The runtime prefers it over the entity-level formula, so one view can compute a column differently from the entity. The parsed AST is regenerated at install; a formula that does not parse, calls an unimplemented function, or aggregates over a 1:N set fails the install (each renders empty at runtime)."
+					"description": "Formula override for this column in this view, in the same DSL as a field's 'formula'. Allowed only on a column the entity declares as columnType 'F'; on any other column the install FAILS (it does not silently ignore the override), because there that field holds the SQL default and a view cannot change a physical column's DEFAULT. There is no per-view default value for a normal column today. The runtime prefers it over the entity-level formula, so one view can compute a column differently from the entity. The parsed AST is regenerated at install; a formula that does not parse, calls an unimplemented function, or aggregates over a 1:N set fails the install (each renders empty at runtime)."
 				},
 				"params": {
 					"type": "object",
@@ -206,8 +207,8 @@
 				},
 				"flags": {
 					"type": "string",
-					"pattern": "^[VIEMH]*$",
-					"description": "Display flags: V=Visible, I=Identity, E=Editable, M=Mandatory, H=Hidden. M is resolved into isNullable:false at install, so it makes the column NOT NULL; it is inert on virtual (R/S/F) and identity columns. Declaring M together with isNullable:true is rejected at pack time."
+					"pattern": "^[VIEM]*$",
+					"description": "Column flags, in any order. V=Visible and E=Editable are display/interaction; I=Identity marks a platform-managed column (never user-editable, excluded from required validation); M=Mandatory is not a runtime flag at all — it is resolved into isNullable:false at install, so it makes the column NOT NULL, is inert on virtual (R/S/F) and identity columns, and declaring it together with isNullable:true is rejected at pack time. Any other letter is rejected at pack time; there is no H flag — a column is hidden by omitting V."
 				},
 				"isPk": {
 					"type": "boolean",

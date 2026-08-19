@@ -102,11 +102,13 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 		);
 	}
 
-	// Flags letters must be from V/I/E/M/H (no U/S/P).
-	if (typeof v.flags === "string" && v.flags.length > 0 && !/^[VIEMH]+$/.test(v.flags)) {
+	// Flags letters must be from V/I/E/M (no U/S/P, and no H — see below).
+	if (typeof v.flags === "string" && v.flags.length > 0 && !/^[VIEM]+$/.test(v.flags)) {
+		const hint = v.flags.includes("H")
+			? " There is no 'H' flag — a column is hidden by omitting 'V'."
+			: " U/S/P are not flag letters.";
 		err(
-			`flags '${v.flags}' contains invalid letters — use only V/I/E/M/H (e.g. VEM, VE, V, E). ` +
-				"U/S/P are not flag letters.",
+			`flags '${v.flags}' contains invalid letters — use only V/I/E/M (e.g. VEM, VE, V, E).${hint}`,
 		);
 	}
 
@@ -178,7 +180,7 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 		if (typeof v.formula !== "string" || v.formula.trim() === "") {
 			err("formula column (columnType 'F') requires a non-empty 'formula' expression.");
 		}
-		if (typeof v.flags === "string" && v.flags !== "V" && /^[VIEMH]+$/.test(v.flags)) {
+		if (typeof v.flags === "string" && v.flags !== "V" && /^[VIEM]+$/.test(v.flags)) {
 			warn(
 				`formula column has flags '${v.flags}' — a computed column is read-only, expected flags 'V'.`,
 			);
