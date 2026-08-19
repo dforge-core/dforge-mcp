@@ -56,9 +56,12 @@ references.
 
 ### Changed
 
-- `@dforge-core/metadata` → `0.0.16`; `resources/schemas/` re-vendored, so
+- `@dforge-core/metadata` → `0.0.17`; `resources/schemas/` re-vendored, so
   `entity.schema.json` carries `views` (with the per-column `formula` override) and
-  the editor stops flagging a valid `views` block as an unknown property.
+  the editor stops flagging a valid `views` block as an unknown property. The
+  `minimumReleaseAgeExclude` pin in `pnpm-workspace.yaml` moves with it — a caret on
+  a `0.0.x` version pins the patch, so the dep does not float onto a new metadata
+  release by itself.
 - `references/security.md` gains a **Column-level security** section — the layer the
   3-layer model named but never documented — with the rules, the empty-override trap
   (`COALESCE` skips NULL only, so `"flags": ""` means "no flags", not "inherit"), and
@@ -98,18 +101,19 @@ Removed. This matters more than a stray key usually would: the examples are serv
 resources and described to agents as mandatory structures to copy, so an invalid shape
 in one propagates into every module built from it.
 
-### Note — the view-column flag vocabulary
+### Fixed — the view-column flag vocabulary
 
 `entity.schema.json` described a view column's `flags` as `I/E/V/O/G/S/F/X/W`, with the
 example `'VO'` "to expose it read-only". No such letters: the canonical set is
-`V/I/E/M/H` (`flagDefs`), the client honours `V`/`E`/`I`, and the installer resolves
-`M` into `isNullable`. Read-only is plain `"V"`.
+`V/I/E/M/H` (`flagDefs`), the client `Column` honours `V`/`E`/`I`, and the installer
+resolves `M` into `isNullable`. Nothing reads `O`, `G`, `S`, `F`, `X` or `W`. Read-only
+is plain `"V"` — visible, not editable.
 
-`references/flags.md` here was already correct, and the guidance and the
-`column-security` example both use only `V`/`VE`. The schema text is fixed upstream in
-`@dforge-core/metadata` **0.0.17**; the vendored copy under `resources/schemas/` still
-carries the old description until that release lands and the dep is bumped past
-`^0.0.16` (a caret on `0.0.x` pins the patch, so it does not float).
+`references/flags.md` here was already right, and both the new guidance and the
+`column-security` example use only `V`/`VE`. Fixed upstream and picked up with
+`@dforge-core/metadata` **0.0.17**, so `resources/schemas/entity.schema.json` now says
+the same thing — which matters because that is the copy the editor `$schema` binding
+validates against.
 
 ## 0.2.15
 

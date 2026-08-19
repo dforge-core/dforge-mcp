@@ -141,7 +141,7 @@
 				"flags": {
 					"type": "string",
 					"maxLength": 10,
-					"description": "Flag letters for this column in this view (I/E/V/O/G/S/F/X/W), e.g. 'VO' to expose it read-only."
+					"description": "Flag letters for this column in this view — the same V/I/E/M/H vocabulary as a field's 'flags', overriding it for folders bound to this view. E.g. 'V' exposes the column read-only (visible, not editable). An EMPTY string is a real override meaning 'no flags here', not 'inherit': the runtime merges view over entity with COALESCE, which skips NULL only. Omit the key to inherit."
 				},
 				"orderNum": {
 					"type": "integer",
