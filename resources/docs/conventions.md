@@ -426,7 +426,7 @@ slashes.
 - **The whole file is the root folder.** Top-level fields (`label`, `description`, `color`, `entities`) belong to the root.
 - **Subfolders nest under `children`** (a dictionary keyed by path segment).
 - **Each child key is a single path segment** — lowercase letters, digits, dashes, and underscores only, no slashes. Pattern: `^[a-z0-9][a-z0-9_-]*$`. Slashes are forbidden in keys because deeper trees use `children` recursively, not slashes in keys.
-- **`entities` is a dictionary** mapping entity codes to settings objects. Each entity has `viewName` (string or null), `quickAdd` (boolean), and an optional `rowFilter`.
+- **`entities` is a dictionary** mapping entity codes to settings objects. Each entity has `viewName` (an **entity view** name — see below — or null), `quickAdd` (boolean), and an optional `rowFilter`.
 - **`inheritSecurity`** is allowed only on child folders. The root has no parent to inherit from, so the field is rejected at the root level with a clear error.
 - **Children can have their own children**, recursively, for arbitrary tree depth.
 
@@ -463,6 +463,78 @@ The current tree-shape format eliminates the entire class of bug:
 The DB still has a `UNIQUE INDEX` on `(module_id, folder_path)` as
 defense-in-depth, and `FolderTreeFlattener` validates the file format
 before the install pipeline touches the database.
+
+### Entity views — column-level security
+
+An **entity view** is a named subset of an entity's columns, declared on the entity file and bound per folder. Users working in that folder see **only** the columns the view lists — the rest are neither visible nor queryable there. This is the column-level layer of the security model; roles grant rights per *entity*, never per field.
+
+Two halves, both required:
+
+| File | Key | Effect |
+|------|-----|--------|
+| `entities/<entity>.json` | `views.<viewName>.columns` | Declares the view and its column set |
+| `ui/folders.json` | `entities.<code>.viewName` | Binds that view for this entity in this folder |
+
+```jsonc
+"views": {
+	"storekeeper": {
+		"columns": {
+			"product_id": {},
+			"name": {},
+			"quantity": {}
+		}
+	},
+	"accountant": {
+		"columns": {
+			"product_id": {},
+			"name": {},
+			"quantity": { "flags": "V" },
+			"cost_price": {},
+			"sale_price": {}
+		}
+	}
+}
+```
+
+**Per-column overrides** (all optional, each falls back to the entity-level value): `flags`, `orderNum`, `isNullable`, `editMask`, `displayFmt`, `refFilter`, `params`, `formula`. `{}` means "expose this column, override nothing".
+
+**An empty override is a value, not an absence.** The runtime merges view over entity with `COALESCE(view, entity)`, which skips NULL only — so `"flags": ""` means "no flags in this view" (a column neither visible nor editable) and `"params": {}` suppresses the entity-level params rather than inheriting them. Omit the key entirely to inherit.
+
+`formula` lets one view compute a column differently from the entity, and only on a column the entity declares as `columnType: "F"` — elsewhere that field holds the SQL default, so an override there would be inert.
+
+**Rules the installer enforces** (each is silent at runtime, which is why they fail the install instead):
+
+- A column absent from `columns` is **hidden**. That is the mechanism, not an oversight.
+- A view must list the **primary key** — records are addressed by it. Keep it off screen by dropping `V` from its flags instead of omitting it.
+- A column code that doesn't exist, a view with **no** columns, one column listed twice under different casing, or two views whose names differ only by case (a folder binds case-insensitively, so only one could ever be reached).
+- Views belong to the entity's **own** module; an `extends` extension declaring `views` is rejected, since a view enumerates the complete column set.
+- A `viewName` that no view declares, or one naming a column-less view, **fails the install**. It does not fall back: the fallback is the full column set, so a typo would quietly *unrestrict* the folder.
+
+**`"default"` is the one exempt name** and means "no view" (full column set). It is what the ~100 shipped folder entries write, what `FolderExporter` writes back for a NULL `view_name`, and what the runtime auto-creates (column-less) for an entity reached without a folder binding — so rejecting it would fail every install. A module that really declares a view named `default` still gets it bound.
+
+Don't confuse the three things called "view": an **entity view** (`views`, this section) is column security; a **data view** (`ui/data_views.json`, referenced by a menu's `dataViewCode`) is a grid/kanban/calendar; `isView` + `viewSql` on an entity means it is backed by a SQL view. `folders.json`'s `viewName` binds the first.
+
+## Column Domains (`domains.json`)
+
+A **domain** is a reusable, named semantic type: a base datatype, a control, sizing, and a shared option list under one code. Columns reference it instead of restating the definition.
+
+```json
+{
+	"doc_status": {
+		"description": "Document Status",
+		"baseDatatypeCd": "string",
+		"dbDatatype": "varchar",
+		"maxLen": 20,
+		"fieldTypeCd": "dropdown",
+		"params": {
+			"options": [
+				{ "value": "draft", "label": "Draft" },
+				{ "value": "posted", "label": "Posted", "color": "#0a0" }
+			]
+		}
+	}
+}
+```
 
 ### 5. Security Roles (`security/roles.json`)
 
@@ -939,6 +1011,7 @@ When creating a module, ensure:
 - [ ] `menus.json` uses nested dictionaries with `children` (not arrays)
 - [ ] `menus.json` leaf items use `dataViewCode` (not `viewCode`)
 - [ ] `folders.json` uses entity dictionary with `{ viewName, quickAdd }` objects
+- [ ] Every `viewName` is `"default"` (= no view) or a view the entity declares under `views`; each declared view lists the primary key and at least one column
 - [ ] `roles.json` uses `"rights"` property (not `"entityRights"`)
 - [ ] Seed data files are numbered for FK dependency order (01-, 02-, etc.)
 - [ ] Seed data includes explicit numeric (int8) PKs for cross-entity references — NOT UUID strings (`cuid` is `int8`)
