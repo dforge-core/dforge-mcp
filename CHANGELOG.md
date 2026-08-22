@@ -4,6 +4,53 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.17
+
+A bridge module's `async: false` trigger **can** roll back its host module's write,
+and that is intended (platform issue #999). It is the same coupling a mandatory
+extension column already creates — mark one `M` and the host's own `data.insert`
+is refused with *"Missing required columns: …"* for a field the host knows nothing
+about. A bridge that can add a required field can add a required *condition*, and
+cross-module invariants are what bridge modules exist to enforce.
+
+What changed platform-side is that the veto now says who issued it, so the guidance
+here says what to point it at.
+
+### Changed — `async: false` is a refusal mechanism, not a reaction
+
+`dforge_trigger_add`'s `async` description and `dforge-module-build` Phase 2b both
+said only that a failure "rolls back the original change" — true, and read by an
+authoring agent as a footnote about transactions rather than as the decision it is.
+Both now state that the rollback reaches **another module's** entity, and the rule
+that follows: pick `async: false` to enforce an invariant, not merely to react,
+because a bug in the action blocks the host's workflow exactly as effectively as a
+real violation. Keep such an action to the check and put the rest behind
+`try`/`catch` or in an `async: true` trigger.
+
+### Changed — a blocked write names the module that blocked it
+
+Trigger failures now report error code **`TRIGGER_ACTION_FAIL`** (the other action
+phases keep `ACTION_EXECUTION_FAIL`), rendered as *Blocked by "crm-fin" (automation
+"on_invoice_posted"): Credit limit exceeded.* in the caller's locale, with the
+action's own `error()` text passed through. The module named is the one that
+**declared the trigger**, not the one owning the action — a bridge routinely
+subscribes its own trigger to an action living elsewhere, and what refused the write
+is the subscription. Nothing to change in a module for this; it is what an author
+should expect to see when their trigger fires.
+
+Nothing is rejected that was accepted before — `dforge_module_validate` is unchanged.
+
+### Changed
+
+- `@dforge-core/metadata` → `0.0.20`; `resources/schemas/` re-vendored. Besides
+  `triggers.schema.json`'s `async` above, that brings three description fixes from
+  platform work that landed alongside: `deps.schema.json` on how a target's `columns`
+  list treats a column your own `extends` file adds, `manifest.schema.json` warning
+  against sharing one `schema` between modules that extend other modules' entities
+  (extension columns live in `"{schema}"."{entity}_ext"`, which collides), and
+  `menus.schema.json` spelling out that `folders` takes flat folder codes
+  (`logistics_all_trips`), not paths.
+
 ## 0.2.16
 
 Entity views — the platform's **column-level security** — became reachable from a

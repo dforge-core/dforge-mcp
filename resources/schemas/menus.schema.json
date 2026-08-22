@@ -23,7 +23,7 @@
 				"folders": {
 					"type": "array",
 					"items": { "type": "string" },
-					"description": "Folder codes where this menu is available"
+					"description": "Flat folder codes this menu is linked to (module code for the root, module code + '_' + each nesting segment for children, e.g. 'logistics_all_trips'; the full path, the module-relative path, and a folder's own key when unique in the tree also resolve). Omit to link the menu to every folder the module declares. Scopes the folder-to-menu link only — every folder in ui/folders.json is created either way. A code matching no folder, or a key two branches share, fails the install."
 				},
 				"items": {
 					"type": "object",

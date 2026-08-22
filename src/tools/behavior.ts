@@ -55,7 +55,7 @@ export const triggerAddSchema = {
 		.boolean()
 		.default(true)
 		.describe(
-			"When true (the platform default), the action runs in background — recommended for slow actions. When false, it runs in the caller's transaction, so a failing action ROLLS BACK the user's original write.",
+			"When true (the platform default), the action runs in background — recommended for slow actions. When false, it runs in the caller's transaction, so a failing action ROLLS BACK the user's original write. That applies to a trigger on ANOTHER module's entity too: a bridge module CAN veto its host's write, the same way a mandatory extension column already refuses one. So async:false is a refusal mechanism — pick it to enforce an invariant, not merely to react, because a bug in the action blocks the host's workflow just as effectively as a real violation. The rollback is reported to the user as TRIGGER_ACTION_FAIL, naming the blocking module and trigger.",
 		),
 };
 

@@ -187,7 +187,13 @@ before committing, then `dforge_action_add`. One action per turn.
 
 **2b Triggers** reference actions that must already exist. `async: true` runs
 after the transaction commits (use for anything slow); `async: false` runs
-in-transaction, so a failure rolls back the original change.
+in-transaction, so a failure rolls back the original change — **including on
+another module's entity**. A bridge's `async: false` trigger vetoes its host's
+write, exactly as a mandatory extension column already refuses one, so pick it
+to enforce an invariant, not merely to react: a bug in the action blocks the
+host's workflow as effectively as a real violation. Keep such an action to the
+check itself and put everything else behind `try`/`catch` or in an
+`async: true` trigger.
 
 **2c Jobs** run as the system user with **no current record** — the action must
 not use `[field]` syntax. Wrap a record-context action in a thin job action that

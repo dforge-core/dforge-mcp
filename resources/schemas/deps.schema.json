@@ -40,7 +40,7 @@
 				},
 				"columns": {
 					"type": "object",
-					"description": "Provider columns the consumer actually reads, writes, or joins on. Omit entirely for extension-only targets that touch no existing provider column.",
+					"description": "Provider columns the consumer actually reads, writes, or joins on. Omit entirely for extension-only targets that touch no existing provider column. A column your OWN 'extends' file adds to the provider needs no entry either — the platform exempts those and validates them separately — and a VIRTUAL extension field (columnType R/S/F: the lookup beside an FK, a reverse set, a formula) must never be listed at all: it is metadata, never a provider storage column, so no storage class can ever match and the install-time satisfaction check rejects the declaration. Declare the FK you add (e.g. trip_id), never the lookup beside it (trip).",
 					"additionalProperties": { "$ref": "#/definitions/columnContract" }
 				}
 			}

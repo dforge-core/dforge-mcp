@@ -49,7 +49,7 @@
 		},
 		"schemaName": {
 			"type": "string",
-			"description": "Database schema name override (defaults to module code, system modules use 'dForge')"
+			"description": "Database schema name override (defaults to module code, system modules use 'dForge'). Do NOT share one schema between modules that extend other modules' entities: an extension's columns live in \"{schemaName}\".\"{entity}_ext\", named for the schema rather than the module, and nothing records which module wrote a column — so install rejects a module that both shares its schema with another installed module and declares 'extends'. Leave unset (the module code, which is unique) for bridge modules."
 		},
 		"system": {
 			"type": "boolean",

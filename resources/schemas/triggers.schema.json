@@ -50,7 +50,7 @@
 				"async": {
 					"type": "boolean",
 					"default": true,
-					"description": "When true (the default), the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls); background failures are logged, not surfaced to the caller. When false, the action runs synchronously inside the same transaction as the triggering insert/update/delete: if the action fails (e.g. calls error()), the whole mutation rolls back and the error is returned to the caller — so an async:false trigger can undo the user's write. Keep async:false actions fast; they run on the request's transaction."
+					"description": "When true (the default), the action runs in the background — the triggering transaction commits before the action starts. Recommended for slow actions (emails, external API calls); background failures are logged, not surfaced to the caller. When false, the action runs synchronously inside the same transaction as the triggering insert/update/delete: if the action fails (e.g. calls error()), the whole mutation rolls back and the error is returned to the caller — so an async:false trigger can undo the user's write. That holds for a trigger on ANOTHER module's entity too (the bridge shape): a bridge can veto its host's write, the same way a mandatory extension column already refuses one. Use it to enforce an invariant, not merely to react — the error names the blocking module and trigger (code TRIGGER_ACTION_FAIL), and a bug in the action blocks the host's workflow just as effectively as a real violation. Keep async:false actions fast; they run on the request's transaction."
 				}
 			},
 			"additionalProperties": false
