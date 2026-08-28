@@ -179,7 +179,11 @@ if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
 	PUBLISH_ARGS+=(--provenance)
 fi
 
-PUBLISH_LOG=$(mktemp -t dforge-mcp-publish)
+# An explicit template, not `mktemp -t <prefix>`: BSD mktemp takes that as a
+# prefix and appends its own suffix, GNU coreutils demands the template end in
+# at least three X's and hard-fails otherwise ("too few X's in template") — so
+# the BSD spelling published fine from macOS and broke every CI run.
+PUBLISH_LOG=$(mktemp "${TMPDIR:-/tmp}/dforge-mcp-publish.XXXXXX")
 trap 'rm -f "$PUBLISH_LOG"' EXIT
 
 # Ask up front only if we know 2FA is on — a wasted tarball upload is a
