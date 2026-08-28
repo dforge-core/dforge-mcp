@@ -264,6 +264,20 @@ coerced to the PK storage type (snowflake-as-string binds `int8`). A null key
 update('comm.message', msg.message_id, { status: 'sent', sent_at: now() })
 ```
 
+**Relative changes — `{ inc: n }`.** A field value may be `{ inc: n }` instead of a
+literal, which adds `n` to the column's **current** value. Use it for every counter,
+balance or on-hand quantity:
+
+```dsl
+// The DATABASE subtracts, under the row lock the UPDATE already takes
+update('wms.stock', [stock_id], { quantity: { inc: -params[qty] } })
+```
+
+A literal can only carry a number the script read *before* the statement ran, so two
+callers that both read 10 both write 5 and one decrement is silently lost. `inc` must
+be a number and the object's only key — `{ inrc: 5 }` throws rather than writing
+nothing. Not available for extension columns (their row may not exist yet).
+
 #### `delete(entityCd, key) → int`
 Delete the row(s) matched by `key`; returns rows affected. Same key shapes and
 rules as `update()`.

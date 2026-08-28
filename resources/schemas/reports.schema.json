@@ -273,7 +273,7 @@
 			"properties": {
 				"entityCd": {
 					"type": "string",
-					"description": "Source entity code"
+					"description": "Source entity code. Qualify it as `module.entity` for anything outside the declaring module: entity_cd is unique per module, not per tenant, and the installer stores the id it resolves once — report.run reads that id for the life of the row. A bare code that several installed modules define is rejected at install unless one of them is this module or a declared dependency."
 				},
 				"columns": {
 					"type": "array",

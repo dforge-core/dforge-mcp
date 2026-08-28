@@ -49,9 +49,9 @@
 		},
 		"fields": {
 			"type": "object",
-			"description": "Column definitions keyed by column code. Column codes must start with a letter or underscore and contain only letters, digits, and underscores — a leading `-` is reserved for the sort descending prefix in `view_json.order`.",
+			"description": "Column definitions keyed by column code. Column codes must start with a LETTER and contain only letters, digits, and underscores. A leading `_` is reserved by the platform — the record route treats `_`-prefixed query parameters as app state (`_layout`) rather than key columns, and the print template context injects `_fmt`, `_raw`, `_color`, `_link`, `_today` and `_settings` alongside bare column names. A leading `-` is reserved for the sort descending prefix in `view_json.order`.",
 			"propertyNames": {
-				"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+				"pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
 			},
 			"additionalProperties": {
 				"$ref": "#/$defs/field"
@@ -59,7 +59,51 @@
 		},
 		"constraints": {
 			"type": "object",
-			"description": "Database constraints (unique, check, etc.)"
+			"description": "Database constraints, keyed by constraint name. Each becomes a real Postgres constraint; a violation is reported to the client under UNIQUE_VIOLATION or CHECK_VIOLATION with the constraint name, the owning entity and its declared fields.",
+			"additionalProperties": {
+				"type": "object",
+				"required": ["type"],
+				"allOf": [
+					{
+						"if": { "required": ["type"], "properties": { "type": { "const": "unique" } } },
+						"then": {
+							"anyOf": [{ "required": ["fields"] }, { "required": ["columns"] }],
+							"properties": { "expression": false }
+						}
+					},
+					{
+						"if": { "required": ["type"], "properties": { "type": { "const": "check" } } },
+						"then": { "required": ["expression"] }
+					}
+				],
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": ["unique", "check"],
+						"description": "Constraint kind"
+					},
+					"fields": {
+						"type": "array",
+						"items": { "type": "string" },
+						"description": "Columns the constraint governs. Required for 'unique' - it IS the key. Optional for 'check', where it does not build the constraint but is reported to the client as the fields to highlight - the expression is never parsed for this, because an identifier inside a string literal is indistinguishable from a column name."
+					},
+					"columns": {
+						"type": "array",
+						"items": { "type": "string" },
+						"deprecated": true,
+						"deprecationMessage": "Deprecated: use 'fields'. The constraint is still created and its violation still reports the columns - the alias is read as a fallback on a unique constraint - but 'fields' is the documented spelling, the only one a check constraint reads, and the only one that will keep working. Module install warns about this.",
+						"description": "DEPRECATED alias for 'fields' on a unique constraint - use 'fields' instead. Accepted when building the constraint and read as a fallback when reporting a violation."
+					},
+					"expression": {
+						"type": "string",
+						"description": "SQL boolean expression the row must satisfy. Required for 'check', and not valid on 'unique' - a unique constraint is defined by its key columns, not an expression."
+					},
+					"message": {
+						"type": "string",
+						"description": "Violation message shown to the user; overrides the generated default. Localizable via translations/<locale>.json under entities.<entity>.constraints.<name>.message"
+					}
+				}
+			}
 		},
 		"references": {
 			"type": "object",
@@ -98,7 +142,7 @@
 		},
 		"views": {
 			"type": "object",
-			"description": "Entity views keyed by view name — column-level security. Unrelated to 'isView'/'viewSql' (a SQL-view-backed entity) and to ui/data_views.json (grids, kanban, calendars). A folder binds one view per entity via ui/folders.json (entities.<code>.viewName); users working in that folder see ONLY the columns the view lists. Entities without views (or folders naming a view that isn't declared here) show the entity's full column set.",
+			"description": "Entity views keyed by view name — column-level security. Unrelated to 'isView'/'viewSql' (a SQL-view-backed entity) and to ui/data_views.json (grids, kanban, calendars). A folder binds one view per entity via ui/folders.json (entities.<code>.viewName); users working in that folder see ONLY the columns the view lists. Entities without views show the entity's full column set; a folder naming a view that isn't declared here FAILS the install, since resolving it to nothing would show every column \u2014 the opposite of what naming a view asks for. A view can only be declared by the entity's own module: an extension ('extends') declaring 'views' is rejected, because a view lists the complete column set and an extension knows only the columns it adds.",
 			"propertyNames": {
 				"pattern": "^[a-zA-Z_][a-zA-Z0-9_-]*$",
 				"maxLength": 100
@@ -120,7 +164,7 @@
 					"description": "Column code -> per-view overrides. Columns absent from this map are hidden in a folder bound to this view. Use {} (or null) to expose a column with no overrides. Must include the entity's primary key column(s) — records are addressed by them; hide the key from the UI by omitting 'V' from its flags instead.",
 					"minProperties": 1,
 					"propertyNames": {
-						"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+						"pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
 					},
 					"additionalProperties": {
 						"$ref": "#/$defs/entityViewColumn"

@@ -4,6 +4,74 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.18
+
+Every counter a module updates — an on-hand quantity, a running balance, a used
+credit — was being written as a literal the script had read a statement earlier.
+Two callers read 10, both write 5, and one decrement is gone with nothing logged.
+`update()` has always accepted `{ inc: n }` for exactly this; nothing here said so,
+so nothing generated it.
+
+### Changed — `update()` documents relative values
+
+`update('wms.stock', [stock_id], { quantity: { inc: -params[qty] } })` adds `n` to
+the column's **current** value, computed by the database under the row lock the
+`UPDATE` already takes. The DSL reference gains a section under `update()` and the
+`dforge-mcp-author` action-DSL table gains the rule in the `update()` row: use it for
+every counter, balance and quantity — a literal is correct only for a value that does
+not depend on what is already stored.
+
+`inc` must be a number and the object's only key; `{ inrc: 5 }` throws rather than
+writing nothing. Not available for extension columns, whose row may not exist yet.
+
+Documentation only — `dforge_action_check` never parsed `update()` payloads, so
+`{ inc: n }` validated before this and still does.
+
+### Changed — `@dforge-core/metadata` → `0.0.22`, `resources/schemas/` re-vendored
+
+**A column code may no longer start with `_`.** `entity.schema.json`'s field pattern
+(and the per-view override pattern) tightened from `^[a-zA-Z_][a-zA-Z0-9_]*$` to
+`^[a-zA-Z][a-zA-Z0-9_]*$`, because the platform reserves the prefix: the record route
+reads `_`-prefixed query parameters as app state (`_layout`) rather than key columns,
+and the print-template context injects `_fmt`, `_raw`, `_color`, `_link`, `_today` and
+`_settings` alongside bare column names. **This can reject metadata that packed
+before** — rename the column; a leading underscore was never addressable end to end.
+
+**`constraints` is now a specified object instead of a bare `type: object`.** Each
+entry is `unique` (needs `fields`, and `expression` is refused — a unique constraint
+is its key columns) or `check` (needs `expression`; its optional `fields` does not
+build anything and is reported to the client as the fields to highlight, since an
+identifier inside a string literal is indistinguishable from a column name). `columns`
+survives as a **deprecated** alias for `fields` on a unique constraint — still built,
+still reported, warned about at install. `message` overrides the generated violation
+text and localizes under `entities.<entity>.constraints.<name>.message`. Editors now
+complete this and catch a `check` with no expression at authoring time.
+
+Two description corrections in the same bump: a **`reports.json` `entityCd` pointing
+outside the declaring module must be qualified `module.entity`** — `entity_cd` is
+unique per module, not per tenant, and the installer stores the id it resolves once,
+which `report.run` then reads for the life of the row; a bare code that several
+installed modules define is rejected at install unless one of them is this module or a
+declared dependency. And **an `extends` module cannot declare `views`** — a view lists
+the complete visible column set and an extension knows only the columns it adds — which
+`entity.schema.json` now says next to the rule (already shipped in 0.2.16) that a folder
+naming an undeclared view fails the install.
+
+Also arriving with `0.0.21`, platform-side and needing nothing from a module:
+`number`, `currency` and `percent` no longer ship `min`/`max` field-type defaults. The
+client merged those under a column's own `params` and validated the result, so every
+plain `number` column was silently capped at 10000 and refused negatives
+([dForge-core#947](https://github.com/iash44/dForge-core/issues/947)) — an odometer, a
+cargo weight, a negative variance. A numeric column is bounded only when its own
+`params` say so, which is unchanged and remains the way to state a real range.
+
+### Changed
+
+- `@dforge-core/dforge-cli` → `0.2.16`.
+
+Nothing else is rejected that was accepted before; apart from the `_`-prefixed column
+codes above, `dforge_module_validate` is unchanged.
+
 ## 0.2.17
 
 A bridge module's `async: false` trigger **can** roll back its host module's write,
