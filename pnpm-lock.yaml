@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@dforge-core/dforge-cli':
-        specifier: ^0.2.16
-        version: 0.2.16
+        specifier: ^0.2.17
+        version: 0.2.17
       '@dforge-core/metadata':
         specifier: ^0.0.22
         version: 0.0.22
@@ -42,38 +42,38 @@ packages:
   '@clack/prompts@0.11.0':
     resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
 
-  '@dforge-core/dforge-cli-darwin-arm64@0.2.16':
-    resolution: {integrity: sha512-lym78sva5cqxs5Hcv70d22KtfEmUdL9lAr46Zow67pwTZzyLnJFWov35t1nL3J6LhdqDA4+y2v6sac9gS+GrNA==}
+  '@dforge-core/dforge-cli-darwin-arm64@0.2.17':
+    resolution: {integrity: sha512-KXli2lNWUDC1NltB6RBZK2T7MOrWW3eyLN7ylSDooVCPOGgsv9n4Lc0QME7B5QaJwFouXLrYPpJEJ8Uah5RuAw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@dforge-core/dforge-cli-darwin-x64@0.2.16':
-    resolution: {integrity: sha512-WyCkCkqp24Eg/i3t66KqVtXKpyO2udxcV2br4WxHuPoKPN0YLszNCW2Vm1GaJOwCs+Zz4/W0EvDRxmp74ZywNg==}
+  '@dforge-core/dforge-cli-darwin-x64@0.2.17':
+    resolution: {integrity: sha512-V+I6JUI8QbrwyCtYQPJwLtjYNN000ORgvpU1YtwN37J6rTM20iAIvQlHboN+flyw4czUo/MEoyhH5JOJGowRFQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@dforge-core/dforge-cli-linux-arm64@0.2.16':
-    resolution: {integrity: sha512-CkiavnmNcxhTb8Y5Lahg9LxMo1Kl0htupyVcTcMH7152de/yU0mbe8hndEITsHM6lObuYV0v//Y50983nfo/MA==}
+  '@dforge-core/dforge-cli-linux-arm64@0.2.17':
+    resolution: {integrity: sha512-3hf4h46EdwWlgavY8O1tHxjC8XVZiCAR1ePdsn7lNYg/U5gsSWdusGuG+LpzvqhivKiW2NlpxPelibBNmkBhDw==}
     cpu: [arm64]
     os: [linux]
 
-  '@dforge-core/dforge-cli-linux-x64@0.2.16':
-    resolution: {integrity: sha512-40Pi2hve9s+7RmdHZjwF1Q6OZD+Y6S9chfsze1kdPxkdYa9BEdrW9eXOcWb9k/0nqZAajK+TSE8ShRZfbaiz2A==}
+  '@dforge-core/dforge-cli-linux-x64@0.2.17':
+    resolution: {integrity: sha512-lUtDgm+22b0RYxroozx85CCekeNuYWKF7eRh7nkBOEp+Tn+3I2EhqPDGZE4f/MUI6fJS7XBExV/kGCk/XnKIKA==}
     cpu: [x64]
     os: [linux]
 
-  '@dforge-core/dforge-cli-win32-arm64@0.2.16':
-    resolution: {integrity: sha512-M9MmoeVaSy8DGIUrKCpJ9y3wojqW2X7CDt+Oppwa9UpIeoSjzUIG5sWDQFDW+L0wqu3QS59sWDjjSZP8RHjoOQ==}
+  '@dforge-core/dforge-cli-win32-arm64@0.2.17':
+    resolution: {integrity: sha512-fds5tLImJYb7XIMS+flZIDjp3uC1LbOo0bYZNvBK6c3HcKithspYIIPKgVnA8j0yKSPnmzrpCEbZDUo4VRWypw==}
     cpu: [arm64]
     os: [win32]
 
-  '@dforge-core/dforge-cli-win32-x64@0.2.16':
-    resolution: {integrity: sha512-HZV6u2hHl8wde5yibCUuVCNgRWordzfDnxCvok0Aevk2UO/ufEdxyYqSQ69hp6UAGYHDPvfvAnLfbqcFr0gImg==}
+  '@dforge-core/dforge-cli-win32-x64@0.2.17':
+    resolution: {integrity: sha512-yPSzbgV+VO9rrF50sLYyCuP+JlG+NfCfsY8SOO7KeshCCtgwBOfOYz3Qkw8/u3klnhnkpz4wTbOxiM02xju8gA==}
     cpu: [x64]
     os: [win32]
 
-  '@dforge-core/dforge-cli@0.2.16':
-    resolution: {integrity: sha512-8/V2LFoPMy9S9k9qI01VaafAqEVmWztJ5phr/8vTVGBrUjHxLw2AaQ1NgIuYXD1tsSLhNMJ/MKjvkMIqb83mJw==}
+  '@dforge-core/dforge-cli@0.2.17':
+    resolution: {integrity: sha512-A0Qhp1W0ccHdq8Nt/OgO6LjI/i5zObw3kFMkSDhfXfZ6Cwf9BNj4QoGHOXYwUo0FfTdAl41EOrFJd0gI/uQyqQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -1316,34 +1316,34 @@ snapshots:
       picocolors: 1.1.1
       sisteransi: 1.0.5
 
-  '@dforge-core/dforge-cli-darwin-arm64@0.2.16':
+  '@dforge-core/dforge-cli-darwin-arm64@0.2.17':
     optional: true
 
-  '@dforge-core/dforge-cli-darwin-x64@0.2.16':
+  '@dforge-core/dforge-cli-darwin-x64@0.2.17':
     optional: true
 
-  '@dforge-core/dforge-cli-linux-arm64@0.2.16':
+  '@dforge-core/dforge-cli-linux-arm64@0.2.17':
     optional: true
 
-  '@dforge-core/dforge-cli-linux-x64@0.2.16':
+  '@dforge-core/dforge-cli-linux-x64@0.2.17':
     optional: true
 
-  '@dforge-core/dforge-cli-win32-arm64@0.2.16':
+  '@dforge-core/dforge-cli-win32-arm64@0.2.17':
     optional: true
 
-  '@dforge-core/dforge-cli-win32-x64@0.2.16':
+  '@dforge-core/dforge-cli-win32-x64@0.2.17':
     optional: true
 
-  '@dforge-core/dforge-cli@0.2.16':
+  '@dforge-core/dforge-cli@0.2.17':
     dependencies:
       '@clack/prompts': 0.11.0
     optionalDependencies:
-      '@dforge-core/dforge-cli-darwin-arm64': 0.2.16
-      '@dforge-core/dforge-cli-darwin-x64': 0.2.16
-      '@dforge-core/dforge-cli-linux-arm64': 0.2.16
-      '@dforge-core/dforge-cli-linux-x64': 0.2.16
-      '@dforge-core/dforge-cli-win32-arm64': 0.2.16
-      '@dforge-core/dforge-cli-win32-x64': 0.2.16
+      '@dforge-core/dforge-cli-darwin-arm64': 0.2.17
+      '@dforge-core/dforge-cli-darwin-x64': 0.2.17
+      '@dforge-core/dforge-cli-linux-arm64': 0.2.17
+      '@dforge-core/dforge-cli-linux-x64': 0.2.17
+      '@dforge-core/dforge-cli-win32-arm64': 0.2.17
+      '@dforge-core/dforge-cli-win32-x64': 0.2.17
 
   '@dforge-core/metadata@0.0.22': {}
 
