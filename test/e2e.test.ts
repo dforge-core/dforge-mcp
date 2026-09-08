@@ -95,12 +95,14 @@ describe("end-to-end module build", () => {
 		expect(existsSync(join(dir, "manifest.json"))).toBe(true);
 
 		// ── Phase 1: fields ──
+		// `name` is scaffolded by the identity trait (dforge-cli >= 0.2.17), so
+		// this adds a field of the module's own.
 		apply(
 			entityFieldAdd({
 				moduleDir: dir,
 				entityName: "customer",
-				fieldName: "name",
-				field: { fieldTypeCd: "text", flags: "VEM", maxLen: 120, description: "Name" },
+				fieldName: "email",
+				field: { fieldTypeCd: "text", flags: "VEM", maxLen: 120, description: "Email" },
 			}),
 		);
 		apply(
@@ -113,7 +115,7 @@ describe("end-to-end module build", () => {
 		);
 
 		// dbDatatype is derived from fieldTypeCd, not echoed back.
-		expect(readJson("entities/customer.json").fields.name.dbDatatype).toBe("varchar(120)");
+		expect(readJson("entities/customer.json").fields.email.dbDatatype).toBe("varchar(120)");
 
 		// ── Phase 1: relation via the composite tool ──
 		apply(
@@ -285,10 +287,11 @@ describe("end-to-end module build", () => {
 		expect(inspected.triggers).toEqual([
 			{ code: "on_submit", entity: "order", event: "status_change", action: "approve", async: false },
 		]);
-		// The scaffolder's placeholder is normalized to the real identity PK
-		// (`{order_id}`), not the non-existent `{id}` dforge-cli emits.
+		// dforge-cli >= 0.2.17 scaffolds a real `name` column and points
+		// `toString` at it, so withIdentityToString's `{id}` repair no longer
+		// fires — the template is valid as emitted.
 		expect(inspected.entities.find((e: { name: string }) => e.name === "order").toString).toBe(
-			"{order_id}",
+			"{name}",
 		);
 		expect(inspected.translations).toContain("en-US.json");
 	});

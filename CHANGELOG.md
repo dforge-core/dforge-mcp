@@ -60,6 +60,15 @@ owning module's root folder otherwise. That is what makes `getSetting()` and
 `nextNumber()` resolve inside a job. There is no `folder` key in the manifest — the
 binding is operator state, and an upgrade never overwrites it.
 
+### Changed — scaffolded entities ship a `name` column
+
+`@dforge-core/dforge-cli` 0.2.17 gives the `identity` trait a visible `name`
+column (`varchar`, `VEM`) and points the entity's `toString` at `{name}`. An
+entity with only a PK and audit stamps had nothing renderable: its grid view
+failed the data-view column check and `toString` had nothing to interpolate.
+That is the upstream fix `withIdentityToString`'s `{id}` repair was standing in
+for, so the repair no longer fires on freshly scaffolded modules.
+
 ### Added — `dforge_module_create` writes `.zed/tasks.json`
 
 Zed has no extension command API, so the pack / install / auth dev loop ships as
