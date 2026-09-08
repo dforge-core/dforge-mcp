@@ -4,6 +4,69 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.19
+
+A module could declare a dependency but not ship the contract the platform
+requires for it, and nothing here said the contract existed. The manifest
+reference's own minimal example carried a dependency on `admin` that made every
+module copying it unpackable.
+
+### Fixed — `dforge_dependency_add` writes the contract, not just the manifest
+
+Every entry in a manifest's `dependencies` needs a matching `deps/<module>.json`
+contract declaring what the module consumes from that dependency; without it the
+package fails `dforge_module_validate`, `dforge_module_pack` and install alike.
+The tool wrote only the manifest half, so the one tool meant to author this exact
+manifest key left the module in a state it could not be packed from
+(dForge-core#1090).
+
+It now writes both files, with the version mirrored verbatim — the validator
+compares the two ranges and a drift is a hard error.
+
+`entities` is now **required**, and that is the point rather than a side effect: a
+contract must name at least one consumed entity, and a dependency you cannot name
+one for is a dependency you should not declare. Two new optional inputs carry the
+detail the contract records — `use` for provenance tokens (`ref:invoice.customer`,
+`extends:parties.party`, `role:fin_admin`) and `pks` to override a provider primary
+key that is not `<entity>_id`. Both are guessed when omitted and the result says so.
+
+Declaring a system module (`admin`, `metadata`, `workspace`) now warns: they are
+provisioned into every tenant before any other module installs, so depending on one
+buys nothing on its own — the only meaningful use is gating a minimum platform
+version for a feature, and that still needs a contract naming the entity the feature
+introduced. The tool also refuses to overwrite an existing contract file.
+
+### Fixed — the manifest reference told authors to always depend on `admin`
+
+`dforge://reference/manifest` carried **"Always depend on `admin`"** in bold, and
+put `"admin": ">=0.0.1"` in its minimal example and its bridge-module example. That
+advice predates dependency contracts and now produces a module that cannot be
+packed. All three are corrected, and the reference gains a **Dependency contracts**
+section: the file shape, the version-match rule, storage classes (`int8` for a
+`cuid` primary key), which columns must never be declared, and the provenance kinds.
+
+### Added — `dforge://schema/deps`
+
+`deps.schema.json` shipped in the package but was never registered as a resource, so
+an author who found the file name still had no way to read its shape. It is now
+served like every other schema.
+
+### Added — scheduled jobs resolve folder-scoped settings
+
+`dforge://reference/jobs` and `.../settings` document the folder a cron fire runs in.
+A scheduled action has no user, so nothing supplies a folder the way a request does;
+the scheduler binds `scheduled_job.folder_id` when an admin has set one, and the
+owning module's root folder otherwise. That is what makes `getSetting()` and
+`nextNumber()` resolve inside a job. There is no `folder` key in the manifest — the
+binding is operator state, and an upgrade never overwrites it.
+
+### Added — `dforge_module_create` writes `.zed/tasks.json`
+
+Zed has no extension command API, so the pack / install / auth dev loop ships as
+project-local tasks. Read off the CLI templates module by feature detection rather
+than imported: the helper landed after `@dforge-core/dforge-cli` 0.2.16, and
+scaffolding must not break for anyone still on an older CLI.
+
 ## 0.2.18
 
 Every counter a module updates — an on-hand quantity, a running balance, a used

@@ -99,6 +99,11 @@ export const resources: ResourceDef[] = [
 		"JSON Schema for manifest.json. Consult before emitting manifest content — covers required fields, semver patterns, and the entities map.",
 	),
 	schema(
+		"deps",
+		"Dependency contract JSON schema",
+		"JSON Schema for deps/<module_code>.json — the import list of what this module consumes from one dependency. Every manifest 'dependencies' entry needs one or the package will not validate, pack or install.",
+	),
+	schema(
 		"entity",
 		"Entity JSON schema",
 		"JSON Schema for entity files under entities/*.json (description, dbObject, toString, traits, fields, views).",

@@ -70,12 +70,16 @@ From number sequence patterns:
 
 Settings resolve at runtime through the folder hierarchy:
 
-1. The folder the user is currently in → its override (if any)
+1. The context's folder → its override (if any)
 2. Parent folder → override (if any)
 3. ... up the tree ...
 4. Module default (from `settings.json`)
 
 This means different folders can have different VAT rates, different prefixes, different currencies — without any code changes.
+
+The walk stops at a folder whose `inherit_security` is false; that folder's own override still applies, but it does not inherit from its parent.
+
+**Which folder is "the context's folder"** depends on what is reading. A user request uses the folder the user navigated to; an action uses the folder of the record or the queue entry; a **scheduled job** uses `scheduled_job.folder_id`, defaulting to its module's root folder. A job is the one context with no user, which is why it carries an explicit binding — without one it would see only the module default, and module defaults are not writable through the API (`settings.set` requires a folder).
 
 ## Field types supported in settings
 

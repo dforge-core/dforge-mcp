@@ -546,7 +546,7 @@ server.registerTool(
 	{
 		title: "Add a module dependency",
 		description:
-			"Add a dependency on another dForge module to manifest.json. Use the entities list form when only specific entities are imported (smaller coupling).",
+			"Add a dependency on another dForge module. Writes BOTH halves the platform requires: the manifest.json entry and the deps/<module>.json contract declaring what this module consumes — a manifest dependency without a contract fails validate, pack and install. Name the consumed entities in `entities`; do not declare a dependency you cannot name one for, and do not depend on the system modules (admin, metadata, workspace) except to gate a minimum platform version.",
 		inputSchema: { ...dependencyAddSchema, ...applyInput },
 	},
 	envelope(dependencyAdd),

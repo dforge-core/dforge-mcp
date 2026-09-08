@@ -17,6 +17,7 @@ import {
 	buildVscodeSettings,
 	buildZedSettings,
 } from "@dforge-core/dforge-cli/templates";
+import * as cliTemplates from "@dforge-core/dforge-cli/templates";
 import type {
 	EntitySpec,
 	Preset,
@@ -166,6 +167,14 @@ export function createModuleFiles(
 	// validation + autocomplete in VS Code & Zed with zero per-user setup.
 	write(".vscode/settings.json", buildVscodeSettings());
 	write(".zed/settings.json", buildZedSettings());
+	// Zed has no extension command API, so the CLI dev loop ships as tasks
+	// instead. Read off the templates module rather than imported directly:
+	// the helper landed after dforge-cli 0.2.16, and scaffolding must not
+	// break for anyone still on an older CLI.
+	const buildZedTasks = (
+		cliTemplates as { buildZedTasks?: () => unknown[] }
+	).buildZedTasks;
+	if (buildZedTasks) write(".zed/tasks.json", buildZedTasks());
 
 	// Full preset adds the optional-but-typical extras.
 	if (opts.preset === "full") {

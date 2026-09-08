@@ -18,9 +18,7 @@ Every dForge module has a `manifest.json` at its root. This file declares the mo
     "category": "other",
     "tags": ["tag1", "tag2"],
     "icon": "bi-box",
-    "dependencies": {
-        "admin": ">=0.0.1"
-    },
+    "dependencies": {},
     "created": "2026-04-08",
     "updated": "2026-04-08",
     "entities": {
@@ -50,7 +48,7 @@ Every dForge module has a `manifest.json` at its root. This file declares the mo
 | `category` | string | Marketplace category slug (e.g. `"sales"`, `"hr"`, `"other"`) |
 | `tags` | string[] | Search tags |
 | `icon` | string | Bootstrap icon name (e.g. `"bi-briefcase"`) or similar |
-| `dependencies` | object | Map of `module_code → semver range` |
+| `dependencies` | object | Map of `module_code → semver range`. Each entry also requires a `deps/<module_code>.json` contract — see [Dependencies](#dependencies). |
 | `created`, `updated` | ISO date | Timestamps |
 
 ## Content declarations
@@ -107,22 +105,49 @@ Dependencies are a map of module codes to semver ranges. The installer checks th
 
 ```json
 "dependencies": {
-    "admin": ">=0.0.1",
     "fin": ">=0.1.0 <0.2.0"
 }
 ```
 
-**Always depend on `admin`** unless you have a very unusual module — admin provides the user/role system every other module needs.
+**Declare a dependency only on a module you actually consume something from** — an entity you reference with a link column, extend, grant rights on, or read in a view, report, formula or action. Every entry you write here obliges you to write a matching `deps/<module>.json` contract (below), so a speculative dependency is not free.
+
+**Do not depend on `admin`.** It — like `metadata` and `workspace` — is a system module, provisioned into every tenant before any other module installs. Depending on it buys nothing. The one legitimate reason to name a system module is to require a **minimum platform version** for a feature you use, e.g. `"metadata": ">=1.5.0"` for record-report attachments; that still needs a contract naming the entity the feature introduced.
 
 **For bridge modules** (`crm-fin`, `wms-fin`, etc.), depend on both sides:
 
 ```json
 "dependencies": {
-    "admin": ">=0.0.1",
     "crm": ">=0.1.0",
     "fin": ">=0.1.0"
 }
 ```
+
+### Dependency contracts (`deps/<module>.json`)
+
+Every entry in `dependencies` needs a contract file at `deps/<module_code>.json` declaring what this module consumes from that dependency. `dforge_module_validate`, `dforge_module_pack` and the installer all fail without it. `dforge_dependency_add` writes both files for you.
+
+```json
+{
+    "module": "fin",
+    "version": ">=0.1.0 <0.2.0",
+    "entities": {
+        "invoice": {
+            "pk": "invoice_id",
+            "use": ["ref:my_entity.invoice"],
+            "columns": {
+                "invoice_no": { "type": "varchar", "use": ["formula:my_entity.invoice_label"] }
+            }
+        }
+    }
+}
+```
+
+- `version` must be the same range as the manifest's dependency entry.
+- `entities` needs at least one entry; each needs a `pk` and a non-empty `use`.
+- `columns` is optional — omit it when you touch no specific column of that entity. Declare only real storage columns you read, write or join on, at their **storage class** (`int8`, `varchar`, `numeric`, `bool`, `date`, `timestamptz`, …; a `cuid` PK is `int8`). Never declare a virtual column (`R`/`S`/`F`) or a column your own extension adds.
+- `use` tokens are `<kind>:<symbol>` where kind is `ref`, `extends`, `formula`, `action`, `view`, `report`, `print` or `role`. `extends` must be fully qualified: `extends:parties.party`.
+
+Full schema: `dforge://schema/deps`.
 
 ## Extension entities
 
@@ -142,7 +167,7 @@ The extension file has `"extends": "fin.invoice"` inside. See MODULE_CONVENTIONS
 - **Do not** add a `translations` key (e.g. `"translations": { "en-US": "..." }`). There is **no** such manifest field — translation files are auto-discovered at `./translations/{locale}.json`, and non-English locales are declared in `supportedLocales` (English is never listed). The manifest schema is `additionalProperties: false`, so a stray `translations` key fails install.
 - **Do not** put entity definitions inline. Always reference external files.
 - **Do not** list sample or test files — only content that ships with the module.
-- **Do not** include `system: true` unless this is a dForge platform module (`admin`, `metadata`). Regular modules omit it (defaults to `false`).
+- **Do not** include `system: true` unless this is a dForge platform module (`admin`, `metadata`, `workspace`). Regular modules omit it (defaults to `false`).
 - **Do not** hardcode absolute paths. Everything is relative to the manifest.
 
 ## Versioning notes

@@ -35,7 +35,7 @@ Lives in: `logic/jobs.json` at the module root. Schema: [`docs/schemas/jobs.sche
 | `concurrency`    | No       | `1`          | Max parallel runs `[1, 5]`. `1` = single-instance.                                                                                   |
 | `idempotencyKey` | No       |              | Template like `"{job_cd}:{run.month}"`. Successful run with same key blocks re-dispatch.                                             |
 | `timeZone`       | No       | tenant tz    | IANA name. Falls back to `auth.tenant.time_zone`.                                                                                    |
-| `params`         | No       | `{}`         | Static parameters passed to the action as `__params`. For runtime values, use folder-scoped module settings.                         |
+| `params`         | No       | `{}`         | Static parameters passed to the action as `__params`. Manifest-fixed — an admin cannot change them. For tenant-configurable values use module settings, resolved from the job's folder (below).       |
 | `enabled`        | No       | `true`       | `false` fully disables — no scheduler, no manual trigger.                                                                            |
 | `paused`         | No       | `false`      | Soft pause. Scheduler skips, but "Run now" still works.                                                                              |
 | `description`    | No       |              | Human-readable description.                                                                                                          |
@@ -58,9 +58,20 @@ minute  hour  day-of-month  month  day-of-week
 Scheduled actions run with **no record bound**. Specifically:
 
 - `user_id = 0` (system user sentinel)
-- No `folder_id` — query / insert against the tenant DB directly
+- A folder, but no record — see **Folder context** below
 - `notify()` writes to inbox only (no live SSE in Phase 1)
 - `sendEmail()` raw mode only in Phase 1
+
+### Folder context
+
+A cron fire has no user, so nothing supplies a folder the way a request does. The scheduler binds one anyway, because `getSetting()` and `nextNumber()` resolve by walking a folder chain:
+
+1. `scheduled_job.folder_id`, if an admin bound one (Admin → Scheduled Jobs → **Change folder**)
+2. Otherwise the owning module's **root folder** — where the module's own settings page writes
+
+So a setting an admin sets on the module's settings page reaches that module's jobs with no configuration. There is **no `folder` key in the manifest**: the binding is operator state, and module upgrades never overwrite it.
+
+Inheritance stops at a folder whose `inherit_security` is false, exactly as it does for a user request.
 
 **Record context is forbidden.** The install pipeline rejects any action whose compiled DSL references `[field]` or `for x in records { … }` — those compile to `__r.` / `__records.` which would `ReferenceError` at fire time. Refactor to operate via `select()` / `insert()` / `update()`:
 
