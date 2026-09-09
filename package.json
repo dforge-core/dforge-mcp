@@ -10,8 +10,8 @@
 		"url": "git+https://github.com/dforge-core/dforge-mcp.git"
 	},
 	"bin": {
-		"dforge-mcp": "skills/indexe.cjs",
-		"dforge-install-skills": "skills/indexe.cjs"
+		"dforge-mcp": "dist/server.js",
+		"dforge-install-skills": "scripts/install-skills.mjs"
 	},
 	"files": [
 		"dist/",
@@ -22,7 +22,7 @@
 		"README.md",
 		"CHANGELOG.md"
 	],
-	"main": "skills/indexe.cjs",
+	"main": "dist/server.js",
 	"engines": {
 		"node": ">=18"
 	},
