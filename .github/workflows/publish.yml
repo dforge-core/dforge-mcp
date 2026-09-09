@@ -11,6 +11,9 @@ name: publish
 # hits npm (72h unpublish window aside), so publishes are always intentional.
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       npm_version:
