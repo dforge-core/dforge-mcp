@@ -19,12 +19,5 @@
 	"entities": {
 		"budget_category": "./entities/budget_category.json",
 		"budget_line": "./entities/budget_line.json"
-	},
-	"dataViews": "./ui/data_views.json",
-	"security": {
-		"roles": "./security/roles.json"
-	},
-	"seedData": [
-		"./seed-data/01-categories.json"
-	]
+	}
 }

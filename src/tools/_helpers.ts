@@ -8,7 +8,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
-import { traits as TRAIT_DEFS } from "@dforge-core/metadata";
+import {
+	traits as TRAIT_DEFS,
+	expandTraits,
+	traitFieldConflicts,
+	type TraitFieldConflict,
+	type TraitsFile,
+} from "@dforge-core/metadata";
 
 export type FileMap = Record<string, string>;
 
@@ -493,17 +499,234 @@ export const traitsInput = z
  * first. (`traitsInput` covers the authoring tools; this covers entities that
  * arrived via import or a hand edit.)
  */
-export function unknownTraits(traitCodes: readonly string[]): string[] {
-	return traitCodes.filter((cd) => !TRAIT_CODE_SET.has(cd));
+export function unknownTraits(
+	traitCodes: readonly string[],
+	localTraits?: TraitsFile,
+): string[] {
+	return traitCodes.filter(
+		(cd) => !TRAIT_CODE_SET.has(cd) && localTraits?.[cd] === undefined,
+	);
+}
+
+/** The outcome of reading a module's own `traits.json`. */
+export interface LocalTraits {
+	/** The parsed file, or undefined when the module ships none (or it is unusable). */
+	traits?: TraitsFile;
+	/**
+	 * Present when the file exists but is unusable — the caller reports it.
+	 * A complete phrase naming the defect (`invalid JSON: …`, `not a traits
+	 * file: …`), so a caller only has to say which file it came from.
+	 */
+	error?: string;
+}
+
+/**
+ * Keys a trait definition may carry (see `TraitsFile`), plus the `cd` the
+ * platform's own trait files repeat inside each definition.
+ */
+const TRAIT_DEF_KEYS = ["cd", "description", "includes", "fields", "references", "constraints"];
+const TRAIT_DEF_KEY_SET = new Set(TRAIT_DEF_KEYS);
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Why the shape is checked and not just the syntax: `traits.json` IS the map of
+ * trait code → definition, so the natural mistake — wrapping it as
+ * `{"traits": {…}}`, the way most of this module's other files are keyed — is
+ * perfectly valid JSON. Accepting it registers one trait literally called
+ * `traits`, every real local code then reads as a typo, and `assertKnownTraits`
+ * goes on to advertise `traits` in the very message that is meant to list the
+ * valid codes. The file's real schema is only checked once the package reaches
+ * the CLI, so a wrong shape has to be named here or not at all.
+ *
+ * Returns undefined when the shape is usable.
+ */
+function traitsShapeError(parsed: unknown): string | undefined {
+	if (!isPlainObject(parsed)) {
+		const got = Array.isArray(parsed) ? "an array" : parsed === null ? "null" : `a ${typeof parsed}`;
+		return `not a traits file: expected an object keyed by trait code, got ${got}.`;
+	}
+	for (const [cd, def] of Object.entries(parsed)) {
+		if (!isPlainObject(def)) {
+			const got = Array.isArray(def) ? "an array" : def === null ? "null" : `a ${typeof def}`;
+			return `not a traits file: trait '${cd}' is ${got}, not a definition object.`;
+		}
+		const unexpected = Object.keys(def).filter((k) => !TRAIT_DEF_KEY_SET.has(k));
+		if (unexpected.length > 0) {
+			// The wrapper mistake lands exactly here, and its own message is far
+			// more use than the generic one — the fix is to delete one line.
+			if (cd === "traits" && Object.keys(parsed).length === 1) {
+				return (
+					'not a traits file: the top level is keyed by trait code, so a "traits" wrapper ' +
+					`registers one trait called 'traits' and hides the ${unexpected.length} real one(s) ` +
+					`(${unexpected.join(", ")}). Remove the wrapper and put the definitions at the top level.`
+				);
+			}
+			return (
+				`not a traits file: trait '${cd}' has unexpected key(s): ${unexpected.join(", ")}. ` +
+				`A trait definition carries ${TRAIT_DEF_KEYS.join(", ")}.`
+			);
+		}
+		if (def.fields !== undefined && !isPlainObject(def.fields)) {
+			return `not a traits file: trait '${cd}' has a 'fields' that is not an object keyed by column code.`;
+		}
+		const includes = def.includes;
+		if (includes !== undefined && !(Array.isArray(includes) && includes.every((i) => typeof i === "string"))) {
+			return `not a traits file: trait '${cd}' has an 'includes' that is not an array of trait codes.`;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * A module's own `traits.json`, when it ships one. The installer overlays these
+ * on the platform traits (`TraitExpanderFactory.ForPackage`), so a reader that
+ * knows only the platform registry sees an entity missing the columns install
+ * will give it — and then reports every read of one as "not a column".
+ *
+ * A file that doesn't parse — or that parses into something that isn't a traits
+ * map — comes back as `error` rather than as a silent absence: both have the
+ * same knock-on effect as a typo'd trait code (columns vanish, every use of one
+ * reads as "not a column"), and nothing else offline validates this file — its
+ * schema is only checked once the package reaches the CLI. Naming the defect
+ * names the cause instead of the symptoms.
+ */
+export function readLocalTraits(moduleRoot: string): LocalTraits {
+	const file = path.join(moduleRoot, "traits.json");
+	if (!fs.existsSync(file)) return {};
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+	} catch (ex) {
+		return { error: `invalid JSON: ${(ex as Error).message}.` };
+	}
+	// A file of the wrong shape parses fine and is worse than one that doesn't:
+	// it reads as a set of traits nobody declared. Report, don't overlay.
+	const shape = traitsShapeError(parsed);
+	if (shape) return { error: shape };
+	return { traits: parsed as TraitsFile };
+}
+
+/**
+ * Every column an entity ends up with, and the field definition behind each —
+ * authored fields plus the columns its traits expand into, the module's own
+ * traits included. Authored fields win on a key collision, which is what the
+ * server does when it expands traits before reading `fields`.
+ *
+ * One function because the two must agree: a column in the set with no def (or
+ * the reverse) is what makes a checker reject a field it can see.
+ */
+export function expandedEntity(
+	entity: Record<string, unknown>,
+	entityName: string,
+	localTraits?: TraitsFile,
+): {
+	columns: Set<string>;
+	fieldDefs: Record<string, Record<string, unknown>>;
+	conflicts: TraitFieldConflict[];
+} {
+	const fields = (entity.fields as Record<string, Record<string, unknown>> | undefined) ?? {};
+	const traitCodes = (entity.traits as string[] | undefined) ?? [];
+	const traitFields = expandTraits(traitCodes, entityName, localTraits) as Record<
+		string,
+		Record<string, unknown>
+	>;
+	return {
+		columns: new Set([...Object.keys(fields), ...Object.keys(traitFields)]),
+		fieldDefs: { ...traitFields, ...fields },
+		// The expansion above is total — a trait field the entity already has
+		// under a different type is merged away here, while the installer keeps
+		// the first and refuses the entity outright. Ask for those collisions
+		// separately, or they are invisible to every caller.
+		conflicts: traitFieldConflicts(traitCodes, entityName, {
+			localTraits,
+			fields: fields as Record<string, never>,
+		}),
+	};
+}
+
+/** One-line rendering of a trait collision, for a validator's issue list. */
+export function describeTraitConflict(c: TraitFieldConflict): string {
+	const kept = c.existingFrom === "field" ? "an authored field" : "another trait's field";
+	return (
+		`field '${c.field}' is contributed by a trait but already exists as ${kept} with a ` +
+		`different type (${c.existingType ?? "untyped"} vs ${c.traitType ?? "untyped"}). ` +
+		"The installer keeps the first and refuses the entity — rename the column, or drop " +
+		"the trait that brings it."
+	);
+}
+
+/**
+ * The bare entity code when `code` names an entity of THIS module, else
+ * undefined.
+ *
+ * A module may name its own entity either way — `product` or `shop.product` —
+ * and the installer resolves both to the same entity. Reading every dotted
+ * code as external hands the column rules no record context on the qualified
+ * spelling, so `[nope] = 1` passes on `shop.product` and fails on `product`
+ * in the same module. Mirrors `isKnownEntity`, which already treats this
+ * module's own prefix as local.
+ */
+export function localEntityCode(code: string | undefined, moduleCode: string): string | undefined {
+	if (!code) return undefined;
+	const dot = code.indexOf(".");
+	if (dot < 0) return code;
+	return code.slice(0, dot) === moduleCode ? code.slice(dot + 1) : undefined;
+}
+
+/**
+ * The record-context entity behind an action, for the DSL checker's column
+ * rules — `{ qualified, columns }`, or undefined when the code can't be
+ * resolved from this module alone (a dotted cross-module code, an entity the
+ * manifest doesn't list, unreadable JSON).
+ *
+ * Undefined is the safe answer: the column rules stand down on it. A PARTIAL
+ * column set is the one thing that must never be returned — it turns every
+ * legitimate read into a false "unknown column" and blocks a pack on a module
+ * that installs.
+ */
+export function entityRecordContext(
+	paths: ModulePaths,
+	manifest: Manifest,
+	entityCode: string | undefined,
+	localTraits?: TraitsFile,
+): { qualified: string; columns: Set<string> } | undefined {
+	const local = localEntityCode(entityCode, manifest.code);
+	if (!local) return undefined;
+	const relPath = (manifest.entities ?? {})[local];
+	if (!relPath) return undefined;
+	const abs = path.join(paths.root, relPath.replace(/^\.\//, ""));
+	if (!fs.existsSync(abs)) return undefined;
+	let entity: Record<string, unknown>;
+	try {
+		entity = JSON.parse(fs.readFileSync(abs, "utf8")) as Record<string, unknown>;
+	} catch {
+		return undefined; // reported by whoever validates the entity file
+	}
+	// An unknown trait code drops its columns silently, so the set would be a
+	// fragment — exactly the case the doc comment says not to hand over.
+	const traitCodes = (entity.traits as string[] | undefined) ?? [];
+	if (unknownTraits(traitCodes, localTraits).length > 0) return undefined;
+	return {
+		qualified: `${manifest.code}.${local}`,
+		columns: expandedEntity(entity, local, localTraits).columns,
+	};
 }
 
 /** Throw if any trait code is unknown, naming them and the valid set. */
-export function assertKnownTraits(traitCodes: readonly string[], entityName: string): void {
-	const bad = unknownTraits(traitCodes);
+export function assertKnownTraits(
+	traitCodes: readonly string[],
+	entityName: string,
+	localTraits?: TraitsFile,
+): void {
+	const bad = unknownTraits(traitCodes, localTraits);
 	if (bad.length === 0) return;
+	const local = Object.keys(localTraits ?? {});
 	throw new Error(
-		`Entity '${entityName}' declares unknown trait(s): ${bad.join(", ")}. Valid: ${TRAIT_CODES.join(", ")}. ` +
-			"An unrecognized trait is silently ignored when columns are expanded, so its columns would " +
+		`Entity '${entityName}' declares unknown trait(s): ${bad.join(", ")}. Valid: ${TRAIT_CODES.join(", ")}` +
+			(local.length > 0 ? `, plus this module's own traits.json: ${local.join(", ")}` : "") +
+			". An unrecognized trait is silently ignored when columns are expanded, so its columns would " +
 			"quietly go missing rather than fail loudly. (See dforge://reference/traits.)",
 	);
 }

@@ -8,6 +8,8 @@ import * as path from "node:path";
 import {
 	loadManifest,
 	readJsonOrDefault,
+	readLocalTraits,
+	entityRecordContext,
 	jsonText,
 	rel,
 	makeResult,
@@ -59,10 +61,38 @@ export const actionAddSchema = {
 export function actionAdd(
 	args: z.infer<z.ZodObject<typeof actionAddSchema>>,
 ): ToolResult {
+	const { paths, manifest } = loadManifest(args.moduleDir);
+
 	// Static DSL checks (see ./dsl-check). Errors reject the call — they're all
 	// documented install failures, and finding them here saves a pack/install
 	// round trip. Warnings ride along on the result for the agent to review.
-	const dslIssues = checkDsl(args.dslBody, { executionMode: args.executionMode });
+	//
+	// The target entity is resolved first so the column rules run too: a
+	// `[field]` that isn't on the entity fails the install the same way a bad
+	// built-in does, and there is no reason to write the file and let
+	// dforge_module_validate find it later. It resolves to undefined for a
+	// cross-module entity, and those rules then stand down.
+	//
+	// An unusable traits.json stops the call outright. Without it the entity
+	// comes back short the columns its traits contribute, `entityRecordContext`
+	// withholds the context, and the column rules stand down — so the body would
+	// be written having been checked by less than it looks, and fail at install
+	// on a column nothing offline could see. Catching that before anything
+	// reaches disk is why the module is loaded ahead of the DSL check.
+	const { traits: localTraits, error: traitsError } = readLocalTraits(paths.root);
+	if (traitsError) {
+		throw new Error(
+			`traits.json — ${traitsError} Its traits can't be overlaid, so '${args.entityCode}' reads as ` +
+				"declaring an unknown trait and the column rules stand down — this body would be written " +
+				"unchecked against the entity. Fix the file and call again.",
+		);
+	}
+	const dslIssues = checkDsl(args.dslBody, {
+		executionMode: args.executionMode,
+		moduleCode: manifest.code,
+		actionCode: args.code,
+		entity: entityRecordContext(paths, manifest, args.entityCode, localTraits),
+	});
 	const dslErrors = dslIssues.filter((i) => i.level === "error");
 	if (dslErrors.length > 0) {
 		throw new Error(
@@ -72,8 +102,6 @@ export function actionAdd(
 		);
 	}
 	const dslWarnings = dslIssues.filter((i) => i.level === "warning");
-
-	const { paths, manifest } = loadManifest(args.moduleDir);
 
 	const actionsJson = readJsonOrDefault<Record<string, unknown>>(paths.actions, {});
 	if (Object.prototype.hasOwnProperty.call(actionsJson, args.code)) {

@@ -14,7 +14,6 @@
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { expandTraits } from "@dforge-core/metadata";
 import {
 	loadManifest,
 	readJson,
@@ -23,6 +22,8 @@ import {
 	makeResult,
 	withTodayStamp,
 	assertKnownTraits,
+	readLocalTraits,
+	expandedEntity,
 	type ToolResult,
 } from "./_helpers";
 
@@ -117,16 +118,31 @@ export function seedAdd(args: z.infer<z.ZodObject<typeof seedAddSchema>>): ToolR
 	// canonical names are `created_date` / `last_updated` (audit), `order_num`
 	// (sorting), `active` (soft-delete), etc. A hand-written list drifts from the
 	// platform and then rejects legitimate seed columns as "unknown".
-	assertKnownTraits(traits, args.entity);
-	const traitFields = expandTraits(traits, args.entity) as Record<string, unknown>;
-	const known = new Set([...Object.keys(fields), ...Object.keys(traitFields)]);
+	// The module's own traits.json is overlaid exactly as the installer does it,
+	// so an entity carrying a local trait is seedable and its columns count as
+	// known rather than reading as typos below.
+	const { traits: localTraits, error: traitsError } = readLocalTraits(paths.root);
+	if (traitsError) {
+		throw new Error(
+			`traits.json — ${traitsError} Its traits can't be overlaid, so an entity that uses one ` +
+				"reads as declaring an unknown trait and its columns as unknown. Fix the file.",
+		);
+	}
+	assertKnownTraits(traits, args.entity, localTraits);
+	// Authored fields and trait-contributed ones in ONE map, authored winning a
+	// key collision — the same merge the installer performs. Every check below
+	// reads it rather than `fields`: a trait's column is as real at install as an
+	// authored one, so a rule that only sees authored fields waves through the
+	// exact record install rejects.
+	const { columns: known, fieldDefs: allFields } = expandedEntity(entity, args.entity, localTraits);
+	const traitOnly = [...known].filter((c) => !(c in fields));
 	known.add(pk);
 	const unknown = new Set<string>();
 	for (const r of args.records) {
 		for (const k of Object.keys(r)) if (!known.has(k)) unknown.add(k);
 	}
 	if (unknown.size > 0) {
-		const traitCols = Object.keys(traitFields);
+		const traitCols = traitOnly;
 		throw new Error(
 			`Seed records set column(s) not defined on '${args.entity}': ${[...unknown].join(", ")}. ` +
 				`Its columns are: ${Object.keys(fields).join(", ") || "(none authored)"}` +
@@ -137,7 +153,9 @@ export function seedAdd(args: z.infer<z.ZodObject<typeof seedAddSchema>>): ToolR
 	}
 
 	// ── Reference columns are virtual: seed the hidden FK, not the R column ──
-	for (const [fname, f] of Object.entries(fields)) {
+	// Traits contribute R columns too (audit-full's created_by_user), and the
+	// installer strips a value set on one just the same.
+	for (const [fname, f] of Object.entries(allFields)) {
 		if (f?.columnType !== "R") continue;
 		const used = args.records.some((r) => r[fname] !== undefined);
 		if (used) {
@@ -151,7 +169,9 @@ export function seedAdd(args: z.infer<z.ZodObject<typeof seedAddSchema>>): ToolR
 
 	// ── Required columns present on every record ──
 	// A required column (flags contain M) with no formula default must be set.
-	for (const [fname, f] of Object.entries(fields)) {
+	// No PLATFORM trait marks a column M, but a module's own traits.json can —
+	// and that column is required at install exactly like an authored one.
+	for (const [fname, f] of Object.entries(allFields)) {
 		const flags = typeof f?.flags === "string" ? f.flags : "";
 		const isVirtual = f?.columnType === "R" || f?.columnType === "S" || f?.columnType === "F" || f?.columnType === "G";
 		if (isVirtual || !flags.includes("M") || f?.formula !== undefined) continue;

@@ -34,7 +34,7 @@
 					},
 					"params": {
 						"type": "object",
-						"description": "Static parameters passed to the action as __params. Folder-scoped overrides go through module settings, not here.",
+						"description": "Static parameters passed to the action as __params. Manifest-fixed — an admin cannot change them. For tenant-configurable values use module settings, which resolve from the job's bound folder (scheduled_job.folder_id, defaulting to the module root).",
 						"additionalProperties": true
 					},
 					"timeout": {
@@ -72,7 +72,7 @@
 					"paused": {
 						"type": "boolean",
 						"default": false,
-						"description": "Soft pause. Scheduler skips firing, but admin 'trigger now' still works."
+						"description": "Soft pause. Scheduler skips firing, but admin 'trigger now' still works. Seeds the initial value only — an upgrade never overwrites it, because an admin owns it at runtime."
 					}
 				},
 				"additionalProperties": false

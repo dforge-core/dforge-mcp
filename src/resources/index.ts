@@ -240,7 +240,7 @@ export const resources: ResourceDef[] = [
 	matrixExample("ui/data_views.json", "Canonical MATRIX data view: viewType 'matrix' + viewConfig with a dataset rowAxis (categories), a dropdown colAxis ('budget_line.quarter'), and an editable cell mapping rowKey/colKey/fields onto the budget_line entity."),
 	matrixExample("entities/budget_line.json", "Matrix CELL entity: one record per (category, quarter) — FK+Reference to the row-axis entity plus the dropdown column that is the col axis, with the editable 'amount' value column."),
 	matrixExample("entities/budget_category.json", "Matrix row-axis (dataset) entity."),
-	matrixExample("manifest.json", "Matrix example manifest (entities + dataViews + roles + seed)."),
+	matrixExample("manifest.json", "Matrix example manifest: declares only 'entities' — the data view, roles and seed files are found by convention (ui/, security/, seed-data/), and the manifest schema is additionalProperties:false."),
 	matrixExample("security/roles.json", "Matrix example roles: S on the axis entity, SIUD on the editable cell entity."),
 	matrixExample("seed-data/01-categories.json", "Matrix example seed: row-axis category records."),
 	columnSecurityExample("entities/product.json", "Canonical ENTITY VIEWS (column-level security): one entity, two views — 'storekeeper' (a plain column subset, prices absent entirely) and 'accountant' (with a per-column flags override making a column read-only in that view only, and a per-view formula override on an \"F\" column). Both list the primary key, which a view must."),

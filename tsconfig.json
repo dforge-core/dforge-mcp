@@ -10,8 +10,13 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"outDir": "dist",
-		"rootDir": "src",
 		"types": ["node"]
 	},
-	"include": ["src/**/*"]
+	// Tests and the root config files are part of the program, not just `src`.
+	// `tsc` here only ever typechecks (`--noEmit`; tsup does the build with its
+	// own entry and outDir), so there is no emit layout to protect — and leaving
+	// them out meant `npm run typecheck` never looked at a test file, while the
+	// editor fell back to an inferred project for them: no `types: ["node"]`, so
+	// every `node:fs` / `node:path` import in a test read as a missing type.
+	"include": ["src/**/*", "test/**/*", "*.config.ts"]
 }

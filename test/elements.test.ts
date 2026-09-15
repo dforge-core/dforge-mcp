@@ -375,7 +375,9 @@ describe("validator — actions, triggers and jobs", () => {
 			join(dir, "logic", "jobs.json"),
 			JSON.stringify({ jobs: [{ code: "nightly", action: "archive", schedule: "0 2 * * *", timeout: 60 }] }),
 		);
-		expect(JSON.stringify(validate().errors)).toMatch(/jobs run as the system user/);
+		// Matches the rule's substance, not its phrasing — the message lives in
+		// @dforge-core/metadata/dsl and is reworded there, not here.
+		expect(JSON.stringify(validate().errors)).toMatch(/invoked by a scheduled job/);
 	});
 
 	it("runs the DSL checker over every action body", () => {

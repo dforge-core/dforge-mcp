@@ -26,6 +26,7 @@ import {
 	duplicateFolderCodes,
 	compositeKey,
 	assertKnownTraits,
+	readLocalTraits,
 	type ToolResult,
 } from "./_helpers";
 
@@ -76,6 +77,16 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 	const { paths, manifest } = loadManifest(moduleDir);
 	const entries: SkeletonEntry[] = [];
 	const counts: Record<string, number> = {};
+	// Overlaid on the platform traits as the installer does, so a module-local
+	// trait's columns get labels instead of reading as an unknown trait code.
+	const { traits: localTraits, error: traitsError } = readLocalTraits(paths.root);
+	if (traitsError) {
+		throw new Error(
+			`traits.json — ${traitsError} Its traits can't be overlaid, so the entities that use one ` +
+				"would be skipped as declaring an unknown trait and their columns would go unlabelled — " +
+				"which fails the install. Fix the file and sync again.",
+		);
+	}
 	const push = (section: string, pathParts: string[], english: string, required = false) => {
 		entries.push({ pathParts, english, required });
 		counts[section] = (counts[section] ?? 0) + 1;
@@ -109,8 +120,8 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 		// trait means an incomplete skeleton — and expandTraits would drop it
 		// silently rather than complain.
 		const traitCodes = (e.traits as string[] | undefined) ?? [];
-		assertKnownTraits(traitCodes, name);
-		const traitFields = expandTraits(traitCodes, name) as Record<string, Dict>;
+		assertKnownTraits(traitCodes, name, localTraits);
+		const traitFields = expandTraits(traitCodes, name, localTraits) as Record<string, Dict>;
 		const all = { ...traitFields, ...authored };
 		for (const [fname, f] of Object.entries(all)) {
 			push(

@@ -15,20 +15,29 @@ describe("dsl-check — structure", () => {
 	});
 
 	it("requires an execute block", () => {
-		expect(errors("params:\n\tqty: number required 'Qty'\n")).toContain("missing-execute");
-		expect(errors("")).toContain("dsl-empty");
+		expect(errors("params:\n\tqty: number required 'Qty'\n")).toContain("dsl/missing-execute");
+		expect(errors("")).toContain("dsl/empty-script");
 	});
 
+	// execute: is matched to end-of-file, so anything below it is not a block —
+	// a second header there never opens, whatever it is called. A block that
+	// really is declared twice has to be declared above execute:.
 	it("enforces block order and rejects duplicates", () => {
-		expect(errors("execute:\n\tinfo('x')\n\ncanExecute:\n\t[done] = false\n")).toContain("block-order");
-		expect(errors("execute:\n\tinfo('a')\n\nexecute:\n\tinfo('b')\n")).toContain("duplicate-block");
+		expect(errors("execute:\n\tinfo('x')\n\ncanExecute:\n\t[done] = false\n")).toContain("dsl/block-after-execute");
+		expect(errors("execute:\n\tinfo('a')\n\nexecute:\n\tinfo('b')\n")).toContain("dsl/block-after-execute");
+		expect(
+			errors("canExecute:\n\ttrue\n\ncanExecute:\n\tfalse\n\nexecute:\n\tinfo('x')\n"),
+		).toContain("dsl/duplicate-block");
+		expect(
+			errors("canExecute:\n\ttrue\n\nparams:\n\tqty: number\n\nexecute:\n\tinfo('x')\n"),
+		).toContain("dsl/block-order");
 	});
 });
 
 describe("dsl-check — formula-only dates in execute", () => {
 	it("rejects TODAY() inside execute (install fails: 'TODAY' is not defined)", () => {
 		const found = checkDsl("execute:\n\t[due] = TODAY()\n");
-		expect(found[0].rule).toBe("execute-formula-date");
+		expect(found[0].rule).toBe("dsl/formula-only-function");
 		expect(found[0].level).toBe("error");
 		expect(found[0].line).toBe(2);
 	});
@@ -50,11 +59,30 @@ describe("dsl-check — record context", () => {
 	});
 
 	it("rejects [field] in batch mode", () => {
-		expect(errors(body, { executionMode: "batch" })).toContain("batch-record-context");
+		expect(errors(body, { executionMode: "batch" })).toContain("dsl/batch-bare-field");
 	});
 
 	it("rejects [field] in a job-invoked action", () => {
-		expect(errors(body, { viaJob: true })).toContain("job-record-context");
+		expect(errors(body, { viaJob: true })).toContain("dsl/job-record-context");
+	});
+
+	// ui/actions.json is read straight off disk and nothing offline validates
+	// this key, so a hand-edited 'Batch' must not quietly disable the rule.
+	it("folds the case of executionMode", () => {
+		expect(errors(body, { executionMode: "Batch" })).toContain("dsl/batch-bare-field");
+		expect(errors(body, { executionMode: " batch " })).toContain("dsl/batch-bare-field");
+	});
+
+	it("says so when executionMode is not a mode at all, rather than checking as single", () => {
+		const found = checkDsl(body, { executionMode: "bulk" });
+		const mode = found.find((i) => i.rule === "action/unknown-execution-mode");
+		expect(mode, JSON.stringify(found)).toBeDefined();
+		expect(mode?.level).toBe("warning");
+		expect(mode?.message).toContain("single, each, batch");
+	});
+
+	it("says nothing about the mode when none was supplied", () => {
+		expect(rules(body)).not.toContain("action/unknown-execution-mode");
 	});
 
 	it("does not mistake params[x], rec[x] or records[0][x] for record context", () => {
@@ -70,8 +98,8 @@ describe("dsl-check — record context", () => {
 describe("dsl-check — SQL", () => {
 	it("rejects :name placeholders (dForge binds @name)", () => {
 		const found = checkDsl("execute:\n\tvar r = query('SELECT a FROM t WHERE b = :cid', { cid: 1 })\n");
-		expect(found.map((i) => i.rule)).toContain("sql-placeholder");
-		expect(found.find((i) => i.rule === "sql-placeholder")?.message).toContain("@cid");
+		expect(found.map((i) => i.rule)).toContain("dsl/sql-placeholder");
+		expect(found.find((i) => i.rule === "dsl/sql-placeholder")?.message).toContain("@cid");
 	});
 
 	it("accepts @name placeholders", () => {
@@ -86,7 +114,7 @@ describe("dsl-check — SQL", () => {
 		// A regex-based extractor stops at the escaped quote and never sees the
 		// ':cid' that follows — a false negative.
 		const src = "execute:\n\tvar r = query('SELECT a FROM t WHERE b = \\'x\\' AND c = :cid', { cid: 1 })\n";
-		expect(errors(src)).toContain("sql-placeholder");
+		expect(errors(src)).toContain("dsl/sql-placeholder");
 	});
 
 	it("does not read past the literal into surrounding code", () => {
@@ -107,31 +135,34 @@ describe("dsl-check — SQL", () => {
 
 	it("flags concatenation after the literal, not a ':' inside it", () => {
 		const src = "execute:\n\tvar r = query('SELECT a FROM t WHERE b = ' + params[v])\n";
-		expect(rules(src)).toContain("sql-concat");
+		expect(rules(src)).toContain("dsl/sql-concat");
 	});
 });
 
 describe("dsl-check — misc", () => {
 	it("rejects a top-level return", () => {
-		expect(errors("execute:\n\tif ([done]) { return }\n")).toContain("top-level-return");
+		expect(errors("execute:\n\tif ([done]) { return }\n")).toContain("dsl/top-level-return");
 	});
 
 	it("warns on an unknown host function but not on known or local ones", () => {
-		expect(rules("execute:\n\tsendSlack('hi')\n")).toContain("unknown-builtin");
-		expect(rules("execute:\n\tinfo('hi')\n\tvar x = getSetting('a')\n")).not.toContain("unknown-builtin");
+		expect(rules("execute:\n\tsendSlack('hi')\n")).toContain("dsl/unknown-builtin");
+		expect(rules("execute:\n\tinfo('hi')\n\tvar x = getSetting('a')\n")).not.toContain("dsl/unknown-builtin");
 		expect(rules("execute:\n\tfunction helper() { return 1 }\n\tvar y = helper()\n")).not.toContain(
-			"unknown-builtin",
+			"dsl/unknown-builtin",
 		);
 	});
 
 	it("does not treat method calls as host functions", () => {
 		expect(rules("execute:\n\tvar n = records.count()\n\tvar s = params[name].trim()\n")).not.toContain(
-			"unknown-builtin",
+			"dsl/unknown-builtin",
 		);
 	});
 
+	// `//` only: ActionDslCompiler keeps a line "as-is" when it starts with
+	// `//`, and knows nothing about `#` — a `#` line is transformed like code
+	// and reaches Jint as a syntax error.
 	it("comments are not scanned", () => {
-		expect(errors("execute:\n\t# [status] would be wrong here\n\tinfo('ok')\n", { viaJob: true })).toEqual([]);
+		expect(errors("execute:\n\t// [status] would be wrong here\n\tinfo('ok')\n", { viaJob: true })).toEqual([]);
 	});
 });
 
@@ -140,7 +171,7 @@ describe("dsl-check — current user", () => {
 
 	it("rejects userId() with the platform's own wording", () => {
 		const issues = checkDsl("execute:\n\t[a] = userId()\n");
-		expect(issues.map(i => i.rule)).toEqual(["user-id-called-as-function"]);
+		expect(issues.map(i => i.rule)).toEqual(["dsl/user-id-call"]);
 		expect(issues[0].level).toBe("error");
 		// Same sentence the compiler and the runtime emit, so the three agree.
 		expect(issues[0].message).toContain("'userId' is a value, not a function");
@@ -154,7 +185,7 @@ describe("dsl-check — current user", () => {
 
 	it("rejects CURRENT_USER_ID() in execute: as formula-only", () => {
 		const issues = checkDsl("execute:\n\t[a] = CURRENT_USER_ID()\n");
-		expect(issues.map(i => i.rule)).toEqual(["execute-formula-date"]);
+		expect(issues.map(i => i.rule)).toEqual(["dsl/formula-only-function"]);
 		// Points at the execute: spelling, not at now() — the message is
 		// per-function now, not date-specific.
 		expect(issues[0].message).toContain("currentUserId()");

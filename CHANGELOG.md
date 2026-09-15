@@ -4,6 +4,123 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.23
+
+The DSL checker was written twice. This server had one — regexes over
+blanked-out source, module-blind — and the language server behind the VS Code
+and Zed extensions had another, built on a real lexer and able to see the
+module. They shared three rules out of about twenty, so an editor hint and a
+pre-pack failure could disagree about the same script, and each knew things the
+other did not.
+
+There is one engine now: `@dforge-core/metadata/dsl`, which both consume.
+`src/tools/dsl-check.ts` is an adapter over it — it maps the tool options onto
+the checker's context and its issues back onto the `{level, rule, message,
+line}` shape the tools already report, so `dforge_action_add`,
+`dforge_action_check` and `dforge_module_validate` keep their surfaces.
+
+What this server gains is the half of the rules it never had, and they are the
+module-aware ones: a `[field]` that is not a column on the action's entity, a
+`params[x]` that no `params:` block declares, ref navigation that runs past the
+DSL's single hop. `dforge_module_validate` now hands the checker the entity's
+real columns — traits expanded — so these run at validate time rather than
+failing at install. Rule ids are namespaced to match what the editor shows:
+`dsl/unknown-column`, not `unknown-column`.
+
+What the editor gains in return is this server's structural and SQL rules, and
+being on a token stream rather than regexes made several of them sharper:
+`::text` is no longer read as a `:name` placeholder, a statement built from a
+variable is skipped instead of guessed at, and a declared helper — the method
+shorthand `f(x) { … }` included — is no longer reported as an unknown built-in.
+
+Two behaviours changed, both because the old rule described the wrong
+mechanism. A header below `execute:` is not an ordering problem: `execute:`
+matches to end-of-file, so the header never opens a block at all and runs as a
+labelled statement that does nothing. That is `dsl/block-after-execute` now,
+and a second `execute:` lands there too. And `#` was never a comment — the
+compiler keeps a line as-is only when it starts with `//` — so the old checker
+was blanking lines that actually reach Jint as a syntax error. `dforge://docs/dsl`
+had been teaching `#` in its examples, the "RIGHT" ones included; those are `//`
+now, and the file structure section says which markers the DSL actually has.
+
+The three tools that check a DSL body now hand it the same context, so they
+agree about one script. `dforge_action_check` and `dforge_action_add` resolve
+the action's entity — traits expanded — the way `dforge_module_validate` does,
+which is what turns the column rules on; action_check takes an `entityCode`
+argument so a draft can be checked that way before it is registered. Given no
+`moduleDir` the module-aware rules stand down and the text-only ones still run.
+Before this, an author could fix everything action_check reported and still fail
+at pack on a column only validate could see.
+
+`executionMode` is matched case-insensitively — it is read straight off disk,
+and nothing validates that key offline, so `Batch` used to fall through as "no
+mode" and quietly stand down the record-context rules on the one mode that most
+needs them. A value that is not a mode at all is reported as
+`action/unknown-execution-mode` rather than checked as if it were `single`.
+
+Two more gaps in that shared context closed with it. A scheduled job's action
+was checked without its execution mode, so the checker fell back to `single` and
+read `[TRUE]`, `[FALSE]` and `[NULL]` as record fields rather than the literals
+batch mode makes them — `dforge_module_validate` failed a batch job that
+`dforge_action_check`, which does pass the mode, had signed off on. And an action
+naming its entity with its own module's prefix — `shop.product` inside `shop` —
+was read as cross-module, which stands the column rules down: the same typo
+passed or failed depending only on how the action spelled its entity. Both
+spellings name one entity at install, and both resolve here now.
+
+Fixed alongside: a module that ships its own `traits.json` had its traits
+ignored here, exactly as they were in the editor. The installer overlays a
+module's traits on the platform ones, and the three tools that expand traits —
+`dforge_module_validate`, `dforge_seed_add` and `dforge_translation_sync` — now
+do the same. An entity is no longer read as missing the columns install will
+give it, a local trait code no longer reads as a typo that blocks seeding and
+translation, and the "not a column" errors that followed are gone. A
+`traits.json` that cannot be used is reported as the defect it is: nothing else
+checks that file offline — its schema is validated only once the package reaches
+the CLI — so swallowing it produced that same wall of column errors with nothing
+pointing at the cause. That covers shape as well as syntax, because the likelier
+mistake parses: `traits.json` IS the map of trait code → definition, so wrapping
+it as `{"traits": {…}}` the way the module's other files are keyed used to
+register one trait called `traits`, make every real local code read as a typo,
+and then list `traits` among the valid codes in the error meant to name them.
+All five tools that read the file report it — `dforge_action_check` alongside
+its DSL issues, and `dforge_action_add` by refusing the call, since the column
+rules stand down without those traits and the body would otherwise be written to
+disk having been checked by less than it looks.
+
+`dforge_seed_add` applies the rest of its rules to those columns too. Its
+unknown-column check already counted a trait's columns, but the two rules that
+catch a bad record — a value set on a virtual Reference column, a required column
+left unset — read only the entity's authored fields, so a record the installer
+rejects was waved through by the tool that had just confirmed the column exists.
+Both now run against the merged set, which also brings `audit-full`'s
+`created_by_user` and `last_updated_by_user` under the Reference rule; a value
+set on one of those was silently dropped at install.
+
+## 0.2.22
+
+Security release. It carries no functional change over 0.2.19; it exists to
+displace **0.2.21, which was published with a backdoor** and is no longer on
+npm.
+
+`@dforge-core/dforge-mcp@0.2.21` (published 2026-09-09, `latest` for roughly 33
+minutes) shipped a `skills/indexe.cjs` that fetched remote JavaScript and
+`eval`'d it. `package.json`'s `main` and both `bin` entries pointed at that
+file, so **installing and starting the server was enough to run it** — including
+via `npx @dforge-core/dforge-mcp@latest`. A symptom worth recognizing: the
+`dforge` MCP server failing to connect (`CONNECTION_CLOSED`), because the bin
+exited without an MCP handshake.
+
+0.2.20 and 0.2.21 have been unpublished, and 0.2.22 is `latest`. **If you
+installed either version in that window, assume the code ran on your machine:**
+remove the package and your npm cache entry for it, and rotate any credential
+readable by a process running as you — npm tokens in `~/.npmrc` first. An
+advisory so `npm audit` and Dependabot flag `=0.2.21` is being filed separately;
+unpublishing alone leaves that tooling silent.
+
+The publish workflow, which the same commit had rewritten to auto-publish on
+every push to `main`, is back to `workflow_dispatch` only.
+
 ## 0.2.19
 
 A module could declare a dependency but not ship the contract the platform

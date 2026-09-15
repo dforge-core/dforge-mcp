@@ -629,3 +629,57 @@ describe("module_validate — folder viewName bindings", () => {
 		expect(make(undefined, "default").errors).toEqual([]);
 	});
 });
+
+describe("module_validate — a job's action is checked in its own execution mode", () => {
+	// `[TRUE]`/`[FALSE]`/`[NULL]` are literals, not record reads, so batch mode
+	// lets them through. The job pass has to hand the checker the registered
+	// mode: defaulting to 'single' flags them, and module_validate then blocks a
+	// pack that action_check — which does pass the mode — signs off on.
+	const make = (action: Record<string, unknown>) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-jobmode-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		mkdirSync(join(dir, "logic", "actions"), { recursive: true });
+		writeFileSync(
+			join(dir, "manifest.json"),
+			JSON.stringify({ code: "t", entities: { thing: "./entities/thing.json" } }),
+		);
+		writeFileSync(
+			join(dir, "entities", "thing.json"),
+			JSON.stringify({
+				description: "Thing",
+				traits: ["identity"],
+				fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } },
+			}),
+		);
+		writeFileSync(join(dir, "ui", "actions.json"), JSON.stringify({ sweep: { script: "sweep", ...action } }));
+		writeFileSync(
+			join(dir, "logic", "jobs.json"),
+			JSON.stringify({ jobs: [{ code: "nightly", action: "sweep" }] }),
+		);
+		writeFileSync(
+			join(dir, "logic", "actions", "sweep.dsl"),
+			"execute:\n\tvar flags = [TRUE]\n\tvar rows = select(\"SELECT id FROM thing\")\n",
+		);
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	it("accepts [TRUE] in a batch job's action", () => {
+		const res = make({ entityCode: "thing", executionMode: "batch" });
+		expect(JSON.stringify(res.errors)).not.toContain("no record bound");
+	});
+
+	it("accepts [TRUE] when the mode is under the legacy 'mode' key", () => {
+		const res = make({ entityCode: "thing", mode: "batch" });
+		expect(JSON.stringify(res.errors)).not.toContain("no record bound");
+	});
+
+	it("still rejects [TRUE] in a single-mode job's action", () => {
+		const res = make({ entityCode: "thing", executionMode: "single" });
+		expect(JSON.stringify(res.errors)).toContain("no record bound");
+	});
+});

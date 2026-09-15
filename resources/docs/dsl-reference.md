@@ -10,21 +10,24 @@ A `.dsl` file consists of four ordered, optional blocks (only `execute:` is requ
 
 ```dsl
 params:
-    # Parameter declarations (one per line)
+    // Parameter declarations (one per line)
 
 canExecute:
-    # Single-expression formula returning boolean
-    # Enables/disables the button AND is re-checked server-side on execute
-    # (see "canExecute is enforced, with a fail-open subset")
+    // Single-expression formula returning boolean
+    // Enables/disables the button AND is re-checked server-side on execute
+    // (see "canExecute is enforced, with a fail-open subset")
 
 onBeforeStart:
-    # Pre-queue initialization (async / background actions only)
+    // Pre-queue initialization (async / background actions only)
 
 execute:
-    # Main logic — required
+    // Main logic — required
 ```
 
 Block markers are case-insensitive but conventionally lowercase. Whitespace-indented bodies follow each marker. Blocks must appear in the order above when present.
+
+Comments are `//` and `/* … */`, as in JavaScript. **`#` is not a comment** — the
+compiler passes the line through and Jint rejects it as a syntax error at install.
 
 ---
 
@@ -141,11 +144,11 @@ execute:
 - `old[fieldName]` — the field's value *before* the change, in an action invoked by an event trigger. Read-only; reads `null` on `insert` events and outside triggers
 
 ```dsl
-# Read
+// Read
 if ([quantity] > [available_qty]) { error("Not enough stock") }
 if ([supplier].[is_active] == false) { error("Supplier disabled") }
 
-# Write
+// Write
 [status] = 'closed'
 [closed_date] = now()
 ```
@@ -381,19 +384,19 @@ so ids stay exact through reads, writes and comparisons. Smaller `int8` values
 (counters, quantities) stay ordinary numbers, so arithmetic on them is unchanged.
 
 ```dsl
-[copy] = [owner_id]                            # exact round-trip
-[is_mine] = currentUserId() == [last_updated_by]   # exact — both sides BigInt
-[label] = '' + [owner_id]                      # "200650220910936067"
+[copy] = [owner_id]                            // exact round-trip
+[is_mine] = currentUserId() == [last_updated_by]   // exact — both sides BigInt
+[label] = '' + [owner_id]                      // "200650220910936067"
 ```
 
 Two operations throw instead of rounding silently:
 
 ```dsl
-[x] = [owner_id] + 1               # Cannot mix BigInt and other types
-[x] = Number([owner_id]) + 1       # explicit — and accepts the rounding
+[x] = [owner_id] + 1               // Cannot mix BigInt and other types
+[x] = Number([owner_id]) + 1       // explicit — and accepts the rounding
 
-[x] = JSON.stringify([owner_id])   # Do not know how to serialize a BigInt
-[payload] = { id: [owner_id] }     # assign the object; jsonb writes the number
+[x] = JSON.stringify([owner_id])   // Do not know how to serialize a BigInt
+[payload] = { id: [owner_id] }     // assign the object; jsonb writes the number
 ```
 
 Never write a large id as a bare numeric literal — the literal itself rounds
@@ -492,10 +495,10 @@ notify([approver_id], 'New purchase request from ' + [requester_name] + ' awaiti
 Two modes:
 
 ```dsl
-# Raw mode: (to, subject, body)
+// Raw mode: (to, subject, body)
 sendEmail('ap@acme.com', 'Bill ' + [bill_number] + ' approved', 'Amount: $' + [amount])
 
-# Template mode: (to, templateCd, dataObject) — template defined in module's email_templates/
+// Template mode: (to, templateCd, dataObject) — template defined in module's email_templates/
 sendEmail([customer_id].[email], 'order_confirmation', {
     orderNumber: [order_number],
     total: [total],
@@ -564,8 +567,8 @@ execute:
 Folder-scoped module setting — walks the folder inheritance chain up to the module default.
 
 ```dsl
-var prefix = getSetting('invoice_number_prefix')  # e.g. "INV-"
-var maxDays = getSetting('payment_due_days')      # e.g. 30
+var prefix = getSetting('invoice_number_prefix')  // e.g. "INV-"
+var maxDays = getSetting('payment_due_days')      // e.g. 30
 [due_date] = addDays(now(), maxDays)
 ```
 
@@ -666,7 +669,7 @@ An explicit `description` still wins.
 
 ```dsl
 var task = insert('workspace.task', { title: 'Follow up' })
-# Captioned by workspace.task's toString — no third argument needed.
+// Captioned by workspace.task's toString — no third argument needed.
 insert('workspace.task_note', { link: entityLink('workspace.task', task) })
 ```
 
@@ -674,14 +677,14 @@ insert('workspace.task_note', { link: entityLink('workspace.task', task) })
 Commit pending changes mid-script AND broadcast SSE updates to connected clients. **Async / background actions only** — in sync actions, everything commits at the end automatically.
 
 ```dsl
-# Long-running background job that wants to surface progress
+// Long-running background job that wants to surface progress
 execute:
     var total = records.count()
     var done = 0
     for rec in records {
         rec[processed_at] = now()
         done = done + 1
-        if (done % 100 == 0) { flush() }   # progress update every 100 records
+        if (done % 100 == 0) { flush() }   // progress update every 100 records
     }
 ```
 
@@ -788,7 +791,7 @@ execute:
 
 ```dsl
 execute:
-    var threshold = getSetting('high_value_threshold')   # e.g. 10000
+    var threshold = getSetting('high_value_threshold')   // e.g. 10000
     var ccApprover = getSetting('cc_approver_user_id')
     if ([amount] >= threshold && ccApprover != null) {
         notify(ccApprover, 'Large order requires your CC approval: $' + [amount])
@@ -928,15 +931,15 @@ execute:
 ### ❌ Using `[field]` in batch mode
 
 ```dsl
-# WRONG — batch mode has no "current record"
+// WRONG — batch mode has no "current record"
 execute:
     for rec in records {
-        [status] = 'closed'    # ← this references the dispatch context, not rec
+        [status] = 'closed'    // ← this references the dispatch context, not rec
     }
 ```
 
 ```dsl
-# RIGHT
+// RIGHT
 execute:
     for rec in records {
         rec[status] = 'closed'
@@ -948,13 +951,13 @@ execute:
 Jobs run as system user with no record context. The action must be entity-agnostic.
 
 ```dsl
-# WRONG — fails at runtime with "no record context"
+// WRONG — fails at runtime with "no record context"
 execute:
     if ([overdue_count] > 0) { notify([owner_id], 'Overdue') }
 ```
 
 ```dsl
-# RIGHT — fetch what you need via query
+// RIGHT — fetch what you need via query
 execute:
     var overdue = query('SELECT owner_id, COUNT(*) AS n FROM invoice WHERE due_date < CURRENT_DATE GROUP BY owner_id', {})
     for (var i = 0; i < overdue.length; i++) {
@@ -967,14 +970,14 @@ execute:
 The DSL body is not wrapped in an IIFE — `return` at top level is a parse error.
 
 ```dsl
-# WRONG
+// WRONG
 execute:
     if ([status] == 'closed') { return }
     [last_touched] = now()
 ```
 
 ```dsl
-# RIGHT — use exit() for early success, error() for early failure
+// RIGHT — use exit() for early success, error() for early failure
 execute:
     if ([status] == 'closed') { exit('Already closed', 'info') }
     [last_touched] = now()
@@ -988,9 +991,9 @@ execution path. The same script keeps the row on one path and discards it on
 another, and the difference isn't visible in the action.
 
 ```dsl
-# WRONG — is this insert kept or discarded? Depends on the path.
+// WRONG — is this insert kept or discarded? Depends on the path.
 execute:
-    insert('audit_log', { event: 'attempted_close', record_id: [id] })   # unreliable!
+    insert('audit_log', { event: 'attempted_close', record_id: [id] })   // unreliable!
     if ([balance_due] > 0) { error('Cannot close — balance owing') }
 ```
 
@@ -1003,7 +1006,7 @@ to be atomic — so don't design around it either way. Write the script so the
 question never arises: validate first.
 
 ```dsl
-# RIGHT — validate first, then perform side-effects
+// RIGHT — validate first, then perform side-effects
 execute:
     if ([balance_due] > 0) { error('Cannot close — balance owing') }
     insert('audit_log', { event: 'closed', record_id: [id] })
@@ -1015,17 +1018,17 @@ execute:
 The platform auto-generates the number on INSERT when the target column is empty. Manual `nextNumber()` + manual field-set risks double-allocating sequence values if you forget to leave the field blank.
 
 ```dsl
-# WRONG — wastes a sequence value
+// WRONG — wastes a sequence value
 execute:
     var n = nextNumber('purchase_order')
-    var po = insert('purchase_order', { po_number: n, ... })   # gets a DIFFERENT auto-number, n is wasted
+    var po = insert('purchase_order', { po_number: n, ... })   // gets a DIFFERENT auto-number, n is wasted
 ```
 
 ```dsl
-# RIGHT — let INSERT generate it
+// RIGHT — let INSERT generate it
 execute:
     var po = insert('purchase_order', { supplier_id: params[supplier].supplier_id })
-    info('Created PO ' + po.po_number)   # po_number was auto-populated
+    info('Created PO ' + po.po_number)   // po_number was auto-populated
 ```
 
 Only use `nextNumber()` explicitly when you need the number BEFORE insert (e.g. to mention in a notification or message).
@@ -1039,12 +1042,12 @@ Sync actions block the UI until they finish. A 30-second action freezes the user
 ### ❌ String-concatenating into SQL
 
 ```dsl
-# WRONG — injection-vulnerable + breaks on quotes
+// WRONG — injection-vulnerable + breaks on quotes
 var q = query('SELECT * FROM customer WHERE name = ' + "'" + params[name] + "'", {})
 ```
 
 ```dsl
-# RIGHT — use named placeholders
+// RIGHT — use named placeholders
 var q = query('SELECT * FROM customer WHERE name = @n', { n: params[name] })
 ```
 

@@ -13,12 +13,15 @@
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { expandTraits } from "@dforge-core/metadata";
 import {
 	loadManifest,
 	readJsonOrDefault,
 	checkSecurityCoverage,
 	duplicateFolderCodes,
+	readLocalTraits,
+	describeTraitConflict,
+	expandedEntity,
+	localEntityCode,
 	walkFolders,
 	compositeKey,
 	unknownTraits,
@@ -117,12 +120,32 @@ export function moduleValidate(
 
 	// ── Load same-module entities + compute each one's valid column set ──
 	const entityMap = (manifest.entities ?? {}) as Record<string, string>;
+	// Overlaid on the platform traits, exactly as the installer does. An
+	// unusable file is reported here rather than swallowed: its traits would go
+	// missing and every column they contribute would then read as "not a
+	// column" — symptoms instead of the cause. Nothing else checks this file
+	// offline; its schema is only validated once the package hits the CLI.
+	const { traits: localTraits, error: traitsError } = readLocalTraits(paths.root);
+	if (traitsError) {
+		err(
+			"traits.json",
+			`${traitsError} This module's own traits can't be overlaid on the platform ones, so ` +
+				"entities using them read as declaring an unknown trait — expect knock-on " +
+				"'not a column' errors below.",
+		);
+	}
+
 	const entities: Record<string, Record<string, unknown>> = {};
 	const columnsOf: Record<string, Set<string>> = {};
 	// Merged field defs per entity (authored fields override trait-contributed
 	// ones on key collision) — mirrors the server running the visible-column
 	// check AFTER trait expansion, so a trait's 'V' field counts.
 	const fieldDefsOf: Record<string, Record<string, Record<string, unknown>>> = {};
+	// Entities whose column set came out a FRAGMENT (an unknown trait dropped
+	// its columns). Handing one to the DSL checker turns every legitimate read
+	// of a missing column into a false "unknown column", so those entities get
+	// no record context at all — the trait error above is the thing to fix.
+	const partialColumns = new Set<string>();
 
 	for (const [name, relPath] of Object.entries(entityMap)) {
 		if (name.includes(".")) continue; // cross-module extension key — not authored here
@@ -139,15 +162,13 @@ export function moduleValidate(
 			continue;
 		}
 		entities[name] = e;
-		const fields = (e.fields as Record<string, Record<string, unknown>> | undefined) ?? {};
-		const cols = new Set<string>(Object.keys(fields));
 		// An unknown trait code is NOT an exception — expandTraits silently
 		// returns only the codes it recognized, so the trait's columns just
 		// vanish and every later check reads them as "not a column". Flag the
 		// cause rather than the symptoms. (The authoring tools validate trait
 		// codes via `traitsInput`; this catches imports and hand edits.)
 		const traits = (e.traits as string[] | undefined) ?? [];
-		const badTraits = unknownTraits(traits);
+		const badTraits = unknownTraits(traits, localTraits);
 		if (badTraits.length > 0) {
 			err(
 				`entities/${name}.json`,
@@ -155,12 +176,15 @@ export function moduleValidate(
 					"An unrecognized trait is ignored when columns are expanded, so its columns are missing " +
 					"from this entity — expect knock-on 'not a column' errors below.",
 			);
+			partialColumns.add(name);
 		}
-		const traitFields = expandTraits(traits, name) as Record<string, Record<string, unknown>>;
-		for (const c of Object.keys(traitFields)) cols.add(c);
-		columnsOf[name] = cols;
-		// Trait fields first, authored fields last so an authored override wins.
-		fieldDefsOf[name] = { ...traitFields, ...fields };
+		// Trait columns and authored ones in one pass, so the column set and the
+		// field defs can't disagree (`expandedEntity` puts authored last, so an
+		// authored override wins).
+		const { columns, fieldDefs, conflicts } = expandedEntity(e, name, localTraits);
+		for (const c of conflicts) err(`entities/${name}.json`, describeTraitConflict(c));
+		columnsOf[name] = columns;
+		fieldDefsOf[name] = fieldDefs;
 	}
 
 	// A dotted code (cross-module entity, e.g. 'fin.invoice') is only valid if its
@@ -656,7 +680,8 @@ export function moduleValidate(
 		// A scheduled job runs as the system user with NO current record, so the
 		// action it fires must not use record-context `[field]` syntax.
 		if (act && act in actions) {
-			const script = (actions[act] as Record<string, unknown> | undefined)?.script;
+			const registered = (actions[act] ?? {}) as Record<string, unknown>;
+			const script = registered.script;
 			if (typeof script === "string") {
 				const dslPath = path.join(paths.logicDir, "actions", `${script}.dsl`);
 				if (fs.existsSync(dslPath)) {
@@ -666,8 +691,20 @@ export function moduleValidate(
 					} catch {
 						/* unreadable — the missing-file check above already reported it */
 					}
-					for (const issue of checkDsl(body, { viaJob: true })) {
-						if (issue.rule !== "job-record-context") continue;
+					// The mode has to travel with the body: batch reads `[TRUE]`,
+					// `[FALSE]` and `[NULL]` as literals rather than record fields,
+					// and without it the checker falls back to 'single' and flags
+					// them — an error on a script action_check, which does pass the
+					// mode, accepts.
+					for (const issue of checkDsl(body, {
+						executionMode: (registered.executionMode ?? registered.mode) as string | undefined,
+						viaJob: true,
+						actionCode: act,
+						moduleCode: manifest.code,
+					})) {
+						// Only the job-specific rule here; the action's own pass
+						// below reports everything else, against its own file.
+						if (issue.rule !== "dsl/job-record-context") continue;
 						issues.push({ level: issue.level, where, message: issue.message });
 					}
 				}
@@ -703,10 +740,31 @@ export function moduleValidate(
 		const mode = ((a as Record<string, unknown>).executionMode ?? (a as Record<string, unknown>).mode) as
 			| string
 			| undefined;
-		for (const issue of checkDsl(body, { executionMode: mode })) {
+		// The entity behind the action's record context, with traits expanded.
+		// Absent (a cross-module action, an entity code that doesn't resolve)
+		// the column rules stand down rather than guess — a false "not a
+		// column" would block a pack on a module that installs.
+		// `shop.product` and `product` name the same entity inside module `shop`,
+		// so normalize before the lookup — otherwise the qualified spelling
+		// misses `columnsOf` and the column rules stand down on it.
+		const entityCode = localEntityCode(
+			(a as Record<string, unknown>).entityCode as string | undefined,
+			manifest.code,
+		);
+		const columns =
+			entityCode && !partialColumns.has(entityCode) ? columnsOf[entityCode] : undefined;
+		for (const issue of checkDsl(body, {
+			executionMode: mode,
+			actionCode: acode,
+			moduleCode: manifest.code,
+			entity:
+				entityCode && columns
+					? { qualified: `${manifest.code}.${entityCode}`, columns }
+					: undefined,
+		})) {
 			issues.push({
 				level: issue.level,
-				where: `logic/actions/${script}.dsl`,
+				where: `logic/actions/${script}.dsl${issue.line ? `:${issue.line}` : ""}`,
 				message: `[${acode}] ${issue.message}`,
 			});
 		}
