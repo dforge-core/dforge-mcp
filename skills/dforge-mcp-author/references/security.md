@@ -75,11 +75,11 @@ Example:
 | `D` | Delete (remove rows) |
 | `C` | Clone (duplicate a row as a new record) |
 
-### Action/Report/Folder rights
+### Action/Report/SP/Folder rights
 
 | Letter | Permission |
 |---|---|
-| `E` | Execute (run the action/report, access the folder) |
+| `E` | Execute (run the action/report/stored procedure, access the folder) |
 
 ### Common combinations
 
@@ -100,7 +100,12 @@ Role rights map object codes (entities, actions, reports) to rights strings. Obj
 - `fin.invoice` — the entity "invoice" in the `fin` module (cross-module entity — **dot**)
 - `action:send_welcome` — an action named "send_welcome" (**colon**)
 - `report:sales_pipeline` — a report named "sales_pipeline" (**colon**)
+- `sp:rpt_sales_totals` — a stored procedure from `logic/stored_procedures.json` (**colon**)
 - `folder:customers` — the folder with code "customers" (**colon**)
+
+`report:` and `sp:` also take a qualified form — `report:fin.ar_aging`, `sp:fin.rpt_ar_aging` — to
+grant on a **dependency's** report or stored procedure. `action:` and `folder:` do not: the
+installer resolves those within this module only, so a dotted one silently grants nothing.
 
 > **Separator matters — colon for non-entity objects, dot only for cross-module entities.**
 > Actions, reports and folders are prefixed with a **colon**: `action:<code>`, `report:<code>`,
@@ -118,7 +123,28 @@ Role rights map object codes (entities, actions, reports) to rights strings. Obj
 4. **Never grant `D` (Delete) to a rep-level role** unless deletion is a normal part of their job. Audit trails prefer soft-delete or update.
 5. **Always grant the admin role `SIUDC` on everything the module owns.**
 6. **Action and report access** — grant `E` on specific action/report codes, or omit them entirely (defaulting to no access).
-7. **Folder access** is granted separately — roles can reference folder codes, but folder definitions themselves live in `ui/folders.json`.
+7. **A report with a `datasetType: "S"` dataset needs TWO grants** — `report:<code>` **and**
+   `sp:<spCd>` for the stored procedure the dataset binds. `report.run` enforces the SP's own
+   sec_object on top of the report's right, so granting only the report yields
+   `PERMISSION_DENIED` on open. There is no recovery after install: the role-rights admin UI
+   lists entities, actions and reports only, so a tenant admin cannot add an SP grant by hand.
+   `dforge_module_pack` fails the build when a role grants such a report and no role grants
+   the SP — for the module's own SP. A dependency's SP is left to install: its grant may
+   ship with the dependency's own role, and rights are additive across the roles a user holds.
+
+```json
+{
+    "sales.analyst": {
+        "description": "Sales Analyst",
+        "rights": {
+            "opportunity": "S",
+            "report:sales_totals": "E",
+            "sp:rpt_sales_totals": "E"
+        }
+    }
+}
+```
+8. **Folder access** is granted separately — roles can reference folder codes, but folder definitions themselves live in `ui/folders.json`.
 
 ## Folders (`ui/folders.json`)
 

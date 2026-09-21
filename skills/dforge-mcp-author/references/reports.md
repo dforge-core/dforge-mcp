@@ -101,10 +101,15 @@ For SQL the query builder can't express — window functions, CTEs, cross-schema
 Key differences from entity datasets:
 - `datasetType: "S"`.
 - `spCd` — the stored-procedure code (the function name **without** the schema prefix; resolved to `sp_id` at install). (**Not** `sp` or `procedureName`.)
-- `columnsDef` — **required** — the platform can't infer columns from a function.
+- `columnsDef` — labels, widths and formats for the columns, keyed by column code. Optional
+  since the registrar derives a procedure's columns from its `RETURNS TABLE (…)` signature;
+  ship it when you want a label or a width rather than the bare column code. It is an
+  **override** — `report.run` projects `dForge.sp_column`, and `columnsDef` only restyles it.
+  A function returning an unnamed `SETOF <composite>` or a bare scalar declares no column
+  names, so that one needs an explicit `columns` block in `logic/stored_procedures.json`.
 - Params work exactly as they do for an entity dataset, and `datasetType` makes no difference: declare them at report level (`parameters`) or on the dataset (`params`). Report level wins on a code collision.
 
-**Multi-result-set SPs** map extra datasets to the same function via `parentDatasetCd` (the dataset that owns the SP call) + `parentRef` (the named refcursor):
+**Multi-result-set SPs** map extra datasets to the same function via `parentDatasetCd` (the dataset that owns the SP call) + `parentRef` (the named refcursor). **Not wired at runtime**: both columns install, but `report.run` executes only datasets holding their own `sp_id`, so a child dataset returns nothing. Give each dataset its own function until that changes.
 
 ```json
 "datasets": {
@@ -119,10 +124,8 @@ SP files live in `logic/reports/` and follow this convention:
 
 ```sql
 CREATE OR REPLACE FUNCTION crm.rpt_ar_aging(
-    p_folder_uid uuid,        -- REQUIRED: injected by platform (folder context)
-    p_user_id bigint,         -- REQUIRED: injected by platform (current user)
-    p_as_of_date date DEFAULT NULL,    -- User parameter
-    p_customer_id bigint DEFAULT NULL  -- User parameter (optional)
+    p_as_of_date date DEFAULT NULL,    -- one per declared param, in declaration order
+    p_customer_id bigint DEFAULT NULL
 )
 RETURNS TABLE ( customer_name text, current_amount numeric, total numeric )
 LANGUAGE sql STABLE
@@ -135,10 +138,25 @@ $$;
 ```
 
 **Rules for SP functions:**
-- First two params are **always** `p_folder_uid uuid` and `p_user_id bigint` — injected by the platform.
-- User params come after, `DEFAULT NULL` for optional ones (order matches `params` declaration order).
-- `RETURNS TABLE (...)` for a single set; `RETURNS SETOF refcursor` for multi-set (mapped via `parentRef`).
-- Use the module's schema prefix (`crm.rpt_*`), `STABLE` volatility, and filter by `p_folder_uid` / `p_user_id` where needed — **security is your responsibility**.
+- The signature is **exactly** the params declared in `logic/stored_procedures.json`, in that
+  order. `report.run` passes one positional argument per declared param and **nothing else** —
+  there is no folder or user argument, and a function taking one can never be called. Install
+  rejects the mismatch (`no callable PostgreSQL function … with N argument(s)`).
+- `DEFAULT NULL` for optional params — an empty one arrives as a typed NULL.
+- `pgType` must be a scalar type the runtime binds: `bigint`, `integer`, `smallint`,
+  `numeric`, `real`, `double precision`, `text`, `boolean`, `uuid`, `date`, `timestamp`,
+  `timestamptz`, `time`, or an alias of one. A type modifier is ignored, so
+  `numeric(18,2)` is fine. `jsonb`, arrays, enums and `citext` are rejected at install.
+- `paramCd` is capped at 50 characters, and a declared `fieldTypeCd` must be a real one —
+  both are checked at install, because binding the SP in the report editor copies them
+  into report params.
+- `RETURNS TABLE (...)`.
+- Use the module's schema prefix (`crm.rpt_*`) and `STABLE` volatility.
+- **Security is your responsibility, and the function has no context to work from**: it is not
+  told the folder or the user, so an SP dataset cannot be row-level scoped the way a `"Q"`
+  dataset is. Use `"Q"` for anything that must be filtered per user, and keep `"S"` for
+  aggregates that are safe for everyone holding the report's grant.
+- Grant **both** `report:<code>` and `sp:<spCd>` — see `references/security.md`.
 
 ## Parameters
 
@@ -354,13 +372,16 @@ A dependency's report is granted with the qualified form, `"report:fin.ar_aging"
 - Setting the chart kind as `vizType` (`"vizType": "bar"`) — the panel `vizType` is `"chart"`; the kind goes in `config.chartType`.
 - Using `entityCode` / `groupBy` / `aggregations` on a dataset — use `query.entityCd` + `query.columns`, and aggregate in the viz (`agg`, `metrics`).
 - Using `sp` / `procedureName` for an SP dataset — the field is `spCd`.
-- Forgetting `columnsDef` on an SP dataset — **required**.
+- Assuming an SP dataset must carry `columnsDef` — it is an override over the columns the
+  registrar derives from the function signature, not the source of them.
 - Forgetting to grant `E` on the report in at least one role — it becomes invisible.
 - Writing the rights key as `report.<code>` — actions/reports/folders take a **colon**: `report:<code>`.
 - Writing `isRequired` instead of `required`, or a top-level `link` instead of `params.link` — both are ignored at install.
 - Declaring both `fieldTypeCd` and `domain` on one param — install rejects the pair rather than picking a winner.
 - Mapping a record-report attachment onto a param no dataset declares, or from a `text`/`json` column — both are rejected.
 - Attaching a report to another module's entity without declaring that module as a dependency.
-- Forgetting `p_folder_uid` / `p_user_id` as the first two SP function params — the call fails.
+- Giving an SP function `p_folder_uid` / `p_user_id` params — the platform passes neither, so install rejects the function as uncallable. The signature is exactly the declared params.
+- Granting only `report:<code>` on a report with a `datasetType: "S"` dataset — it also needs `sp:<spCd>`, or every user gets PERMISSION_DENIED on open.
+- Declaring an SP param as `jsonb`, an array, an enum or `citext` — the runtime binds scalar types only (`bigint`, `integer`, `smallint`, `numeric`, `real`, `double precision`, `text`, `boolean`, `uuid`, `date`, `timestamp`, `timestamptz`, `time` and their aliases), and install rejects anything else. `citext` looks like `text` but is a distinct type PostgreSQL will not resolve a text argument against.
 - Referencing a parameter as `$param` — use `@param_code` in filters.
 - Writing an action that computes a number and `info()`s it, where a record report would show the working.

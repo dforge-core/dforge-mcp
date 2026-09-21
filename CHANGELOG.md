@@ -4,6 +4,33 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.25
+
+`sp:` is now a legal role-rights key. It always was, at install — `SecurityRegistrar`
+resolves `sp:<cd>` and `sp:<module>.<cd>` against a stored procedure's sec_object, and
+`report.run` enforces `E` on it for every `datasetType: "S"` dataset, on top of the
+report's own right. This server's key validator did not know the prefix, so
+`dforge_role_add` and `dforge_role_right_set` rejected the one grant such a report needs,
+and nothing in the references mentioned it. A module built here with an SP-backed report
+therefore shipped a report that answered `PERMISSION_DENIED` for everyone, unfixably: the
+role-rights admin UI lists entities, actions and reports only, so no tenant admin can add
+an SP grant afterwards (dForge-core#1146).
+
+`report:` and `sp:` also accept the qualified `module.code` form now, which the installer
+has always resolved cross-module. `action:` and `folder:` still do not — the installer
+resolves those within the module, so a dotted one grants nothing.
+
+`references/security.md` gains the two-grant rule; `references/reports.md` loses two
+claims that were never true: that the platform injects `p_folder_uid` / `p_user_id` as an
+SP function's first two params (it passes exactly the declared params and nothing else,
+so such a function is uncallable and the install now says so), and that multi-result-set
+refcursor datasets work (they install and return nothing). Both files also carry the SP param types the
+runtime binds, now that dForge-core binds every scalar one (a `numeric` param used to go
+over as text and fail the call) and rejects the rest at install.
+
+The matching pack-time check lives in dForge-core (`ReportSpRightsValidator`), so
+`dforge_module_pack` picks it up through the CLI it shells out to.
+
 ## 0.2.23
 
 The DSL checker was written twice. This server had one — regexes over

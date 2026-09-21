@@ -22,12 +22,12 @@ export const roleRightSetSchema = {
 	object: z
 		.string()
 		.describe(
-			"Object to grant rights on. Same-module entity: bare ('product'). Cross-module entity: dotted ('fin.invoice'). Action/report/folder: COLON prefix ('action:approve', 'report:summary', 'folder:east') — never a dot.",
+			"Object to grant rights on. Same-module entity: bare ('product'). Cross-module entity: dotted ('fin.invoice'). Action/report/SP/folder: COLON prefix ('action:approve', 'report:summary', 'sp:rpt_totals', 'folder:east') — never a dot. A report whose dataset is datasetType 'S' ALSO needs 'sp:<spCd>' — report.run enforces both, and the admin UI cannot grant SP rights later.",
 		),
 	rights: z
 		.string()
 		.describe(
-			"Rights string. Entities: any combination of S/I/U/D/C (use '' to revoke all). Actions/reports/folders: 'E' or '' to revoke.",
+			"Rights string. Entities: any combination of S/I/U/D/C (use '' to revoke all). Actions/reports/SPs/folders: 'E' or '' to revoke.",
 		),
 };
 

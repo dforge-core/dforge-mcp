@@ -253,14 +253,23 @@ export function isReadyToScaffold(moduleDir: string): boolean {
 //
 // A role-rights key is one of: a same-module entity ('product'), a
 // cross-module entity ('fin.invoice', dotted), or a non-entity object with
-// a COLON prefix ('action:approve', 'report:summary', 'folder:east'). The
-// platform (every dForge-core module) uses the colon form for objects; the
-// dot form ('action.approve') is the #1 mistake — it's read as entity
-// 'approve' in a module named 'action' and rejected as unknown.
+// a COLON prefix ('action:approve', 'report:summary', 'sp:rpt_totals',
+// 'folder:east'). The platform (every dForge-core module) uses the colon form
+// for objects; the dot form ('action.approve') is the #1 mistake — it's read as
+// entity 'approve' in a module named 'action' and rejected as unknown.
+//
+// 'sp:' grants Execute on a stored procedure. A report dataset of type 'S' needs
+// it ON TOP OF the report's own grant — report.run enforces both, and nothing in
+// the admin UI can add an SP grant after install.
+//
+// Only report: and sp: take a qualified 'module.code' form: those are the two the
+// installer resolves across modules (SecurityRegistrar.AddCrossModuleSecObjects).
+// A dotted action:/folder: key resolves to nothing and is silently skipped.
 
 const RIGHTS_ENTITY = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/;
-const RIGHTS_OBJECT = /^(action|report|folder):[a-z][a-z0-9_]*$/;
-const RIGHTS_OBJECT_DOT = /^(action|report|folder)\.[a-z]/;
+const RIGHTS_OBJECT = /^(action|folder):[a-z][a-z0-9_]*$/;
+const RIGHTS_OBJECT_QUALIFIABLE = /^(report|sp):[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/;
+const RIGHTS_OBJECT_DOT = /^(action|report|sp|folder)\.[a-z]/;
 
 /** Validate one rights-map key. Throws an actionable error if malformed. */
 export function assertValidRightKey(key: string): void {
@@ -271,10 +280,11 @@ export function assertValidRightKey(key: string): void {
 				`(A dot is only for cross-module entities like 'fin.invoice'.)`,
 		);
 	}
-	if (RIGHTS_OBJECT.test(key) || RIGHTS_ENTITY.test(key)) return;
+	if (RIGHTS_OBJECT.test(key) || RIGHTS_OBJECT_QUALIFIABLE.test(key) || RIGHTS_ENTITY.test(key)) return;
 	throw new Error(
 		`Invalid rights key '${key}'. Use a same-module entity ('product'), a cross-module entity ` +
-			`('fin.invoice'), or a colon-prefixed object ('action:approve', 'report:summary', 'folder:east').`,
+			`('fin.invoice'), or a colon-prefixed object ('action:approve', 'report:summary', ` +
+			`'sp:rpt_totals', 'folder:east'). Only report: and sp: may be qualified ('report:fin.ar_aging').`,
 	);
 }
 
@@ -295,13 +305,13 @@ export function assertValidRightValue(key: string, value: string, allowEmpty: bo
 			`Invalid rights '${value}' on '${key}'. Use S/I/U/D/C for entities, or 'E' for actions/reports/folders.`,
 		);
 	}
-	const isObject = /^(action|report|folder):/.test(key);
+	const isObject = /^(action|report|sp|folder):/.test(key);
 	if (isObject && value !== "E") {
 		throw new Error(`Object '${key}' takes 'E' (Execute), got '${value}'.`);
 	}
 	if (!isObject && value.includes("E")) {
 		throw new Error(
-			`'${key}' is granted 'E' but has no action:/report:/folder: prefix — entity rights are S/I/U/D/C. ` +
+			`'${key}' is granted 'E' but has no action:/report:/sp:/folder: prefix — entity rights are S/I/U/D/C. ` +
 				`If '${key}' is an action or report, prefix it (e.g. 'action:${key}' or 'report:${key}').`,
 		);
 	}

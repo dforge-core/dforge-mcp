@@ -134,7 +134,7 @@ export const roleAddSchema = {
 	rights: z
 		.record(z.string(), z.string())
 		.describe(
-			"Map: object code → rights string. Keys: same-module entity bare ('product'), cross-module entity dotted ('fin.invoice'), action/report/folder with a COLON prefix ('action:approve', 'report:summary', 'folder:east') — never a dot. Values: entities use 'S'/'I'/'U'/'D'/'C' (e.g. 'SIUDC'); actions/reports/folders use 'E'. To deny, omit the key (never map to '').",
+			"Map: object code → rights string. Keys: same-module entity bare ('product'), cross-module entity dotted ('fin.invoice'), action/report/SP/folder with a COLON prefix ('action:approve', 'report:summary', 'sp:rpt_totals', 'folder:east') — never a dot. Values: entities use 'S'/'I'/'U'/'D'/'C' (e.g. 'SIUDC'); actions/reports/SPs/folders use 'E'. A report with a datasetType 'S' dataset needs BOTH 'report:<cd>' and 'sp:<spCd>'. To deny, omit the key (never map to '').",
 		),
 };
 
