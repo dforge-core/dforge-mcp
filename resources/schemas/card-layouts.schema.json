@@ -1,0 +1,141 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "dForge Module Card Layouts",
+	"description": "Module-shipped card (form) layouts for a dForge module package (ui/card_layouts.json). Each key is the layout_name stored in dForge.entity_view_layout. Rows written from here carry module_id, so they are recreated on every install and removed on uninstall; a layout the tenant drew in the card editor has module_id NULL and is never touched.",
+	"type": "object",
+	"additionalProperties": {
+		"type": "object",
+		"properties": {
+			"entity": {
+				"type": "string",
+				"description": "Entity code the layout belongs to. Unqualified means this module owns the entity; the cross-module form 'module.entity' targets another module's entity (a bridge module shipping a layout for its host)."
+			},
+			"view": {
+				"type": "string",
+				"default": "default",
+				"description": "Entity view the layout hangs off, matching an entity_view row's view_name. Defaults to 'default' — the same fallback entity.getLayouts and entity.saveLayout use for an entity with no folder binding of its own. Matched against the entity's declared views case-insensitively, and filed under their spelling; the installer creates the view row only when nothing matches."
+			},
+			"isDefault": {
+				"type": "boolean",
+				"default": false,
+				"description": "Whether this layout opens by default. Honoured on FIRST install only, and only when the view has no default layout yet — once a tenant has chosen their own default, an upgrade does not take it back."
+			},
+			"description": {
+				"type": "string",
+				"description": "Human-readable note for the package author. Not stored."
+			},
+			"layout": {
+				"$ref": "#/$defs/cardLayout",
+				"description": "The layout body, stored verbatim into entity_view_layout.layout. Same shape the card editor saves."
+			}
+		},
+		"required": ["entity", "layout"],
+		"additionalProperties": false
+	},
+	"$defs": {
+		"cardLayout": {
+			"type": "object",
+			"properties": {
+				"sections": {
+					"type": "array",
+					"description": "Ordered sections rendered down the card.",
+					"items": { "$ref": "#/$defs/section" }
+				},
+				"sets": {
+					"type": "object",
+					"description": "Per-set-field view config, keyed by the set column code. Chooses the renderer a detail grid uses ('grid' or 'list') and its persisted options.",
+					"additionalProperties": {
+						"type": "object",
+						"properties": {
+							"viewType": {
+								"type": "string",
+								"enum": ["grid", "list"],
+								"description": "Set renderer. Defaults to the column's own metadata."
+							},
+							"options": {
+								"type": "object",
+								"description": "Opaque per-renderer options, passed verbatim to the set registration."
+							}
+						},
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["sections"],
+			"additionalProperties": false
+		},
+		"section": {
+			"oneOf": [
+				{ "$ref": "#/$defs/columnGroupSection" },
+				{ "$ref": "#/$defs/setSection" },
+				{ "$ref": "#/$defs/tabGroupSection" }
+			]
+		},
+		"columnGroupSection": {
+			"type": "object",
+			"description": "A group of fields laid out in 1, 2 or 3 columns.",
+			"properties": {
+				"type": { "const": "columnGroup" },
+				"code": { "type": "string", "description": "Section code, unique within the layout." },
+				"label": { "type": "string", "description": "Section heading, in the module's authoring language. The installer gives it an entity_column_group row keyed on this section's code, so translations/<locale>.json localizes it under entities.<entity>.columnGroups.<code>.label and the card shows the localized heading." },
+				"cols": { "type": "integer", "minimum": 1, "maximum": 3, "description": "Field columns across the group. Defaults to the card's own setting." },
+				"columns": {
+					"type": "array",
+					"description": "Fields in the group, in render order. A bare string is the column code; the object form adds pixel sizing.",
+					"items": {
+						"oneOf": [
+							{ "type": "string" },
+							{
+								"type": "object",
+								"properties": {
+									"column_cd": { "type": "string", "description": "Column code on this entity." },
+									"width": { "type": "integer", "minimum": 1, "description": "Field width in px." },
+									"height": { "type": "integer", "minimum": 1, "description": "Field height in px — for multiline/textarea fields." }
+								},
+								"required": ["column_cd"],
+								"additionalProperties": false
+							}
+						]
+					}
+				}
+			},
+			"required": ["type", "code", "columns"],
+			"additionalProperties": false
+		},
+		"setSection": {
+			"type": "object",
+			"description": "An embedded detail grid for a 1:N set column — the master/detail building block. The label comes from the column's own metadata.",
+			"properties": {
+				"type": { "const": "set" },
+				"code": { "type": "string", "description": "Section code, unique within the layout." },
+				"setField": { "type": "string", "description": "Set column code on this entity (columnType 'S')." }
+			},
+			"required": ["type", "code", "setField"],
+			"additionalProperties": false
+		},
+		"tabGroupSection": {
+			"type": "object",
+			"description": "A tab bar whose tabs are other sections. This is how a record shows several detail grids without stacking them down one long form.",
+			"properties": {
+				"type": { "const": "tabGroup" },
+				"code": { "type": "string", "description": "Section code, unique within the layout." },
+				"tabs": {
+					"type": "array",
+					"minItems": 1,
+					"description": "Tabs in order. Each references a columnGroup section by its code, or a set column by its column code.",
+					"items": {
+						"type": "object",
+						"properties": {
+							"type": { "type": "string", "enum": ["section", "set"] },
+							"code": { "type": "string", "description": "The referenced section's code, or the set column's code." }
+						},
+						"required": ["type", "code"],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["type", "code", "tabs"],
+			"additionalProperties": false
+		}
+	}
+}

@@ -107,6 +107,10 @@
 			"enum": ["none", "minimal", "full"],
 			"description": "Default audit history mode for entities in this module ('full' captures every field change; 'minimal' captures only inserts/deletes; 'none' disables). Individual entities can override."
 		},
+		"comments": {
+			"type": "boolean",
+			"description": "Default for `comments` on every entity in this module. Individual entities override it, including overriding true with false."
+		},
 		"entities": {
 			"type": "object",
 			"description": "Entity definitions and extensions: entity code → relative path to entity JSON file. Dotted keys (e.g. 'fin.invoice') indicate extensions of other modules' entities (the entity file must have an 'extends' property).",

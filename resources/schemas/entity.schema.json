@@ -38,6 +38,10 @@
 		"toString": {
 			"description": "Display pattern using column placeholders, e.g. \"{first_name} {last_name}\". Optional in extension entities (with `extends`). No `type` constraint here because `toString` collides with Object.prototype.toString in JSON validators — they read the inherited function and reject it, even when the property is absent from the JSON."
 		},
+		"comments": {
+			"type": "boolean",
+			"description": "Records of this entity accept comments \u2014 the composer and thread appear on the record card, beside the audit history. Opt-in per entity; `comments` in the manifest sets a module-wide default that this overrides in both directions."
+		},
 		"traits": {
 			"type": "array",
 			"description": "Entity traits expanded during module install (authoring shortcut). Trait definitions loaded from DB (seeded by metadata module).",
@@ -221,9 +225,48 @@
 			},
 			"additionalProperties": false
 		},
+		"registryColumnParams": {
+			"type": "object",
+			"description": "params of an accumulation (A) or ledger (L) registry column. The lock lists are what BOTH generated guards freeze — the posted-document guard while the document is posted, the period guard while its period is closed — and they are required: install refuses a registry column that omits or empties them. The header's periodDateField and the state column are watched in addition, whatever the list says.",
+			"required": ["lockedFields"],
+			"properties": {
+				"lockedFields": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "type": "string", "minLength": 1 },
+					"description": "Header fields frozen while the document is posted and while its period is closed. Required. [\"*\"] freezes the whole row."
+				},
+				"lockedLineFields": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "type": "string", "minLength": 1 },
+					"description": "Line fields frozen under a posted or period-closed header. Required when lineEntity is declared, rejected when it is not. [\"*\"] freezes the whole row; the line's foreign key to the header is watched in addition."
+				},
+				"lineEntity": { "type": "string", "description": "The line entity, defined in this module. Declare together with lineField and lockedLineFields, or none of the three for a document without lines." },
+				"lineField": { "type": "string", "description": "The line's foreign-key column(s) to the header, comma-separated in the header's key order for a composite key." },
+				"stateField": { "type": "string", "description": "The bool column that records the posted state, when it is not the registry column itself. Written only by the register engine." },
+				"periodEntity": { "type": "string", "description": "Period entity this registry closes against — one of this module's, or 'module.entity' from a dependency." },
+				"periodDateField": { "type": "string", "description": "Header date column that resolves the period." },
+				"periodKeyField": { "type": "string", "default": "period_key" },
+				"periodClosedField": { "type": "string", "default": "closed" }
+			},
+			"dependencies": {
+				"lineEntity": ["lineField", "lockedLineFields"],
+				"lineField": ["lineEntity"],
+				"lockedLineFields": ["lineEntity"],
+				"periodEntity": ["periodDateField"]
+			},
+			"additionalProperties": true
+		},
 		"field": {
 			"type": "object",
 			"description": "Entity column/field definition",
+			"allOf": [
+				{
+					"if": { "required": ["columnType"], "properties": { "columnType": { "enum": ["A", "L"] } } },
+					"then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/registryColumnParams" } } }
+				}
+			],
 			"properties": {
 				"dbDatatype": {
 					"type": "string",
@@ -551,8 +594,9 @@
 				"sign": { "$ref": "#/$defs/signConfig", "description": "Dynamic sign based on a field value (alternative to direction)" },
 				"autoCreateBalance": { "type": "boolean", "default": true },
 				"allowNegative": { "type": "boolean", "default": true },
-				"lockedFields": { "type": "array", "items": { "type": "string" }, "description": "Document fields locked when posted" }
+				"lockedFields": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "description": "Document fields locked when posted. Required; [\"*\"] freezes the whole row." }
 			},
+			"required": ["lockedFields"],
 			"additionalProperties": false
 		},
 		"signConfig": {

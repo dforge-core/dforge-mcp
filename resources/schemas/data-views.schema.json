@@ -14,7 +14,7 @@
 			"properties": {
 				"viewType": {
 					"type": "string",
-					"enum": ["grid", "list", "kanban", "calendar", "gallery", "tree-grid", "diagram", "master-detail", "library", "matrix"],
+					"enum": ["grid", "list", "kanban", "calendar", "gallery", "tree-grid", "diagram", "library", "matrix"],
 					"default": "grid",
 					"description": "View display type. Optional — omitted or unknown values fall back to 'grid' at runtime."
 				},
@@ -57,7 +57,6 @@
 				{ "$ref": "#/$defs/rules/tree-grid" },
 				{ "$ref": "#/$defs/rules/list" },
 				{ "$ref": "#/$defs/rules/diagram" },
-				{ "$ref": "#/$defs/rules/master-detail" },
 				{ "$ref": "#/$defs/rules/matrix" }
 			]
 		},
@@ -115,17 +114,6 @@
 				"then": {
 					"properties": {
 						"viewConfig": { "$ref": "#/$defs/diagramViewConfig" }
-					}
-				}
-			},
-			"master-detail": {
-				"if": {
-					"properties": { "viewType": { "const": "master-detail" } },
-					"required": ["viewType"]
-				},
-				"then": {
-					"properties": {
-						"dataSources": { "minItems": 2 }
 					}
 				}
 			},
@@ -493,7 +481,7 @@
 				},
 				"label": {
 					"type": "string",
-					"description": "Human-readable label for this data source (used in master-detail tabs)"
+					"description": "Human-readable label for this data source"
 				},
 				"columns": {
 					"type": "array",
