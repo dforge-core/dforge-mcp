@@ -4,6 +4,40 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.26
+
+`logic/stored_procedures.json` is now something this server can describe. It had no
+schema, no reference and no resource — yet a `datasetType: "S"` dataset is unusable
+without it, because that file is what registers the function as the `spCd` a dataset
+binds and the `sec_object` an `sp:` right is granted on. An author who reached the
+install error demanding the file had nothing to read and guessed at its shape
+(dForge-core#1191). `dforge://schema/stored-procedures` serves it now, and
+`dforge://reference/reports` gained the declaration block, the `functionName` rule —
+it names the FUNCTION, not the `logic/reports/*.sql` script that creates it, and
+nothing in the file ever names a script — and the missing-declaration mistake.
+
+**`reports.schema.json` was actively wrong about the field an SP dataset binds
+through.** It declared `procedureName` under `additionalProperties: false`, so the
+schema this server serves *rejected* the real `spCd` and accepted a name the platform
+has never read. Re-vendored from `@dforge-core/metadata` 0.0.29, which fixes it.
+
+The same bump corrects `entity.schema.json`, which had drifted two releases behind:
+a column's `pattern` / `patternFlags` (format rules are metadata now, enforced in the
+browser and again on `data.insert` / `data.update`) and `lockedFields` on an
+accumulation register.
+
+The references also stop contradicting themselves on parameter codes. A report
+parameter must be spelled exactly as the procedure declares its `paramCd` —
+`report.run` resolves each argument by that code alone and neither adds nor strips a
+prefix — but the worked example named report parameters `customer_id` against a
+procedure declaring `p_customer_id`, which binds NULL and makes the filter silently
+disappear. Aligned, with the rule stated beside it.
+
+**Still missing:** no tool here writes `logic/stored_procedures.json`, and
+`dforge_report_add` takes its `datasets` map unvalidated — so an agent building an SP
+report still emits the `.sql` file and the dataset and no declaration, which is the
+shape that produced dForge-core#1191 in the first place.
+
 ## 0.2.25
 
 `sp:` is now a legal role-rights key. It always was, at install — `SecurityRegistrar`

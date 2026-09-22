@@ -1,0 +1,125 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "dForge Module Stored Procedures",
+	"description": "Stored-procedure declarations for a dForge module package (logic/stored_procedures.json). Each entry registers one PostgreSQL function as a procedure a report dataset can bind with `datasetType: \"S\"` and `spCd`. The SQL that creates the function ships separately, as a CREATE OR REPLACE FUNCTION script under logic/reports/; this file does not name the script, it names the function the script creates. See docs/business-logic/stored-procedures.md.",
+	"type": "object",
+	"additionalProperties": {
+		"type": "object",
+		"required": ["functionName"],
+		"description": "Keyed by stored-procedure code (sp_cd) — module-internal, referenced from a dataset's `spCd` and a role's `sp:` right. It may not contain a dot: a dot is the module qualifier in both of those key spaces.",
+		"properties": {
+			"description": {
+				"type": "string",
+				"description": "Label for the procedure, shown in the report editor's procedure picker. Defaults to the code."
+			},
+			"schemaName": {
+				"type": "string",
+				"pattern": "^[a-zA-Z_][a-zA-Z0-9_\\-]*$",
+				"description": "PostgreSQL schema holding the function. Defaults to the module's own schema, which is what a module-shipped function normally uses."
+			},
+			"functionName": {
+				"type": "string",
+				"pattern": "^[a-zA-Z_][a-zA-Z0-9_\\-]*$",
+				"description": "The PostgreSQL function's own name, unqualified — `report.run` calls SELECT * FROM \"schemaName\".\"functionName\"(...). Required: it is the one fact this file exists to record, and install fails naming it when absent."
+			},
+			"returnsTable": {
+				"type": "boolean",
+				"default": true,
+				"description": "The function is set-returning (RETURNS TABLE / SETOF). The only shape report.run projects."
+			},
+			"params": {
+				"type": "array",
+				"description": "The call signature, in order: report.run passes exactly one positional argument per entry and NOTHING else — no folder, no user. A function taking p_folder_uid / p_user_id can never be called, and install rejects the arity mismatch. Omit the block for a function taking no arguments.",
+				"items": { "$ref": "#/$defs/param" }
+			},
+			"columns": {
+				"type": "array",
+				"description": "Result columns, stored in dForge.sp_column and used to project the dataset. Omit the block and the registrar derives them from the function's own RETURNS TABLE / OUT column names. Declare it to set labels, widths, a currency/percent control or a refEntityCd link — a declared list is used as written and never merged with the signature. A function returning an unnamed SETOF composite or a bare scalar declares no column names, so it must list them here.",
+				"items": { "$ref": "#/$defs/column" }
+			}
+		},
+		"additionalProperties": false
+	},
+
+	"$defs": {
+		"param": {
+			"type": "object",
+			"required": ["paramCd"],
+			"properties": {
+				"paramCd": {
+					"type": "string",
+					"maxLength": 50,
+					"description": "Parameter code. Conventionally the function's own argument name (p_customer_id), though the call is positional."
+				},
+				"pgType": {
+					"type": "string",
+					"default": "bigint",
+					"description": "PostgreSQL type of the argument — this is what binds the value, and it is carried even when the value is null so an omitted optional argument arrives as a TYPED null. Defaults to `bigint`, so declare it for every argument that is not one. One of: bigint, integer, smallint, numeric, real, double precision, text, boolean, uuid, date, timestamp, timestamptz, time — or any alias PostgreSQL treats as the same type (int8, int4, int, int2, decimal, float8, float4, varchar, character varying, char, bpchar, bool, timestamp without time zone, timestamp with time zone, time without time zone). Case does not matter and a type modifier is ignored, so `numeric(18,2)` may be pasted straight from the signature. jsonb, arrays, enums and citext cannot be bound and are rejected at install. Enforced by SpParamTypes, which is where this list lives — left out of an enum here so the spellings install accepts are not flagged by an editor.",
+					"examples": ["bigint", "text", "date", "numeric(18,2)", "timestamptz", "uuid", "boolean"]
+				},
+				"fieldTypeCd": {
+					"type": "string",
+					"description": "Control the report editor copies into the report param when the procedure is bound there. Optional — derived from pgType when omitted."
+				},
+				"label": {
+					"type": "string",
+					"description": "Parameter label for that same copy."
+				},
+				"required": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether the parameter must have a value. Give every optional one DEFAULT NULL in the function signature."
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"column": {
+			"type": "object",
+			"required": ["columnCd"],
+			"properties": {
+				"columnCd": {
+					"type": "string",
+					"maxLength": 100,
+					"description": "Result column name as the function returns it. Unique within the procedure."
+				},
+				"label": {
+					"type": "string",
+					"description": "Column header. Defaults to the code."
+				},
+				"fieldTypeCd": {
+					"type": "string",
+					"default": "text",
+					"description": "Control that renders the value (number, currency, date, dropdown, flags, ...)."
+				},
+				"baseDatatypeCd": {
+					"type": "string",
+					"default": "string",
+					"description": "Underlying datatype the value is read as."
+				},
+				"orderNum": {
+					"type": "integer",
+					"description": "Display order. Defaults to declaration order in steps of 10."
+				},
+				"refEntityCd": {
+					"type": "string",
+					"description": "Entity this column links to, making the value clickable. Resolved within this module and its dependencies."
+				},
+				"refColumnCd": {
+					"type": "string",
+					"description": "Column in the result holding the FK value for that link, when it is not this column."
+				},
+				"width": {
+					"type": "integer",
+					"description": "Column width in pixels."
+				},
+				"params": {
+					"type": "object",
+					"description": "Control parameters, the same shape an entity column's `params` takes — `options` for a dropdown or flags, `currency`, `align`, and so on.",
+					"additionalProperties": true
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

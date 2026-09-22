@@ -249,9 +249,9 @@
 					"$ref": "#/$defs/query",
 					"description": "Used when datasetType is 'Q'"
 				},
-				"procedureName": {
+				"spCd": {
 					"type": "string",
-					"description": "Used when datasetType is 'S'"
+					"description": "Used when datasetType is 'S': the stored-procedure code, as `logic/stored_procedures.json` keys it — NOT the PostgreSQL function name and never schema-qualified. `module.spCd` binds a dependency's procedure. Resolved to `report_ds.sp_id` at install. A role granting `report:<code>` must also grant `sp:<spCd>`, which no admin UI can add afterwards."
 				},
 				"columnsDef": {
 					"type": "object",

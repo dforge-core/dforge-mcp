@@ -363,6 +363,15 @@
 						},
 						"serverDefault": {
 							"$ref": "#/$defs/serverDefault"
+						},
+						"pattern": {
+							"type": "string",
+							"description": "Format rule for this column, as an ECMAScript regex source. Overrides the field type's own pattern (field_type.def_params.pattern, which is what makes email/phone/url reject a malformed value). Enforced in the browser and again on data.insert / data.update, so keep to constructs both engines read alike: [0-9] and \\d are the same there, \\s is normalized to JavaScript's set, and a pattern that will not compile is skipped by both rather than enforced by one."
+						},
+						"patternFlags": {
+							"type": "string",
+							"description": "Flags for 'pattern', as a JavaScript regex literal would carry them; 'i' and 'm' are the two honoured, each at most once — the RegExp constructor rejects a repeated flag, and a rule the browser cannot compile is skipped there and would then be enforced by the API alone. JavaScript has no inline (?i), so case-insensitivity has to be stated here.",
+							"pattern": "^(i|m|im|mi)?$"
 						}
 					}
 				},
@@ -569,7 +578,7 @@
 		"accumulationConfig": {
 			"type": "object",
 			"description": "Configuration for simple accumulation (document without lines, e.g. receipt → stock).",
-			"required": ["balanceEntity", "dimensions", "resources"],
+			"required": ["balanceEntity", "dimensions", "resources", "lockedFields"],
 			"properties": {
 				"balanceEntity": { "type": "string", "description": "Balance entity code (e.g. 'stock')" },
 				"dimensions": {
@@ -596,7 +605,6 @@
 				"allowNegative": { "type": "boolean", "default": true },
 				"lockedFields": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "description": "Document fields locked when posted. Required; [\"*\"] freezes the whole row." }
 			},
-			"required": ["lockedFields"],
 			"additionalProperties": false
 		},
 		"signConfig": {

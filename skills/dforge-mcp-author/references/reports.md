@@ -87,8 +87,8 @@ For SQL the query builder can't express — window functions, CTEs, cross-schema
     "datasetType": "S",
     "spCd": "rpt_ar_aging",
     "params": {
-        "as_of_date": { "fieldTypeCd": "date", "label": "As of Date", "required": true, "default": "=NOW()" },
-        "customer_id": { "fieldTypeCd": "lookup", "label": "Customer", "required": false, "params": { "link": { "entity": "account" } } }
+        "p_as_of_date": { "fieldTypeCd": "date", "label": "As of Date", "required": true, "default": "=NOW()" },
+        "p_customer_id": { "fieldTypeCd": "lookup", "label": "Customer", "required": false, "params": { "link": { "entity": "account" } } }
     },
     "columnsDef": {
         "customer_name": { "label": "Customer", "fieldTypeCd": "text", "baseDatatypeCd": "string", "width": 200 },
@@ -100,7 +100,7 @@ For SQL the query builder can't express — window functions, CTEs, cross-schema
 
 Key differences from entity datasets:
 - `datasetType: "S"`.
-- `spCd` — the stored-procedure code (the function name **without** the schema prefix; resolved to `sp_id` at install). (**Not** `sp` or `procedureName`.)
+- `spCd` — the stored-procedure **code**: the key of an entry in `logic/stored_procedures.json`, never schema-qualified, resolved to `sp_id` at install. By convention it is spelled the same as the function it declares, but it is the code that is matched, not the function name. (**Not** `sp` or `procedureName`.)
 - `columnsDef` — labels, widths and formats for the columns, keyed by column code. Optional
   since the registrar derives a procedure's columns from its `RETURNS TABLE (…)` signature;
   ship it when you want a label or a width rather than the bare column code. It is an
@@ -108,6 +108,12 @@ Key differences from entity datasets:
   A function returning an unnamed `SETOF <composite>` or a bare scalar declares no column
   names, so that one needs an explicit `columns` block in `logic/stored_procedures.json`.
 - Params work exactly as they do for an entity dataset, and `datasetType` makes no difference: declare them at report level (`parameters`) or on the dataset (`params`). Report level wins on a code collision.
+- **The parameter code must match the procedure's declared `paramCd` exactly.** `report.run`
+  resolves each argument by that code alone — no prefix is added or stripped — so a report
+  offering `customer_id` against a procedure declaring `p_customer_id` passes NULL and the
+  filter silently does nothing. Prefix the report parameter too (as above), or drop the
+  prefix from `paramCd`; the SQL argument name is unconstrained either way, the call being
+  positional.
 
 **Multi-result-set SPs** map extra datasets to the same function via `parentDatasetCd` (the dataset that owns the SP call) + `parentRef` (the named refcursor). **Not wired at runtime**: both columns install, but `report.run` executes only datasets holding their own `sp_id`, so a child dataset returns nothing. Give each dataset its own function until that changes.
 
@@ -157,6 +163,35 @@ $$;
   dataset is. Use `"Q"` for anything that must be filtered per user, and keep `"S"` for
   aggregates that are safe for everyone holding the report's grant.
 - Grant **both** `report:<code>` and `sp:<spCd>` — see `references/security.md`.
+
+### The declaration — `logic/stored_procedures.json`
+
+The function existing in the database is not enough: this file is what creates the
+`stored_procedure` row an `spCd` resolves to and the `sec_object` an `sp:` right is
+granted on. Keyed by stored-procedure code, which may not contain a dot.
+
+```json
+{
+    "rpt_ar_aging": {
+        "description": "AR Aging",
+        "functionName": "rpt_ar_aging",
+        "params": [
+            { "paramCd": "p_as_of_date",  "pgType": "date",   "fieldTypeCd": "date",   "label": "As of Date", "required": true },
+            { "paramCd": "p_customer_id", "pgType": "bigint", "fieldTypeCd": "lookup", "label": "Customer",   "required": false }
+        ]
+    }
+}
+```
+
+- **`functionName` is required** — the function's own name, unqualified. It is **not** the
+  path of the `.sql` file: nothing here names a script, because every `logic/reports/*.sql`
+  runs at install regardless. Omitting it fails the package at load, on `pack`/`validate`
+  and every install path alike.
+- **`schemaName`** is optional, defaulting to the module's own schema.
+- **`params`** is the call signature, in order — omit it for a zero-argument function.
+- **`columns`** is optional; without it install derives the result columns from the
+  function's `RETURNS TABLE (…)`.
+- Schema: `stored_procedures.schema.json`.
 
 ## Parameters
 
@@ -372,6 +407,12 @@ A dependency's report is granted with the qualified form, `"report:fin.ar_aging"
 - Setting the chart kind as `vizType` (`"vizType": "bar"`) — the panel `vizType` is `"chart"`; the kind goes in `config.chartType`.
 - Using `entityCode` / `groupBy` / `aggregations` on a dataset — use `query.entityCd` + `query.columns`, and aggregate in the viz (`agg`, `metrics`).
 - Using `sp` / `procedureName` for an SP dataset — the field is `spCd`.
+- Shipping an SP's `.sql` file and its dataset but no `logic/stored_procedures.json` entry —
+  the function exists, the dataset names something, and nothing connects the two.
+- Writing `file` / `function` in `logic/stored_procedures.json` — the one required field is
+  `functionName`, and it names the function, not the script that creates it.
+- Naming a report parameter `customer_id` for a procedure param declared `p_customer_id` —
+  the lookup is by exact code, so the argument binds NULL and the filter quietly disappears.
 - Assuming an SP dataset must carry `columnsDef` — it is an override over the columns the
   registrar derives from the function signature, not the source of them.
 - Forgetting to grant `E` on the report in at least one role — it becomes invisible.

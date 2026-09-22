@@ -173,6 +173,11 @@ export const resources: ResourceDef[] = [
 		"Reports JSON schema",
 		"JSON Schema for ui/reports.json — map of report code → { description, layout.panels[], datasets, parameters? }. Datasets and panel queries reuse the filter shape from data_views.",
 	),
+	schema(
+		"stored-procedures",
+		"Stored procedures JSON schema",
+		"JSON Schema for logic/stored_procedures.json — map of stored-procedure code → { functionName, schemaName?, params?, columns? }. Required for any report dataset with datasetType 'S': the .sql file under logic/reports/ creates the function, this file registers it as the spCd a dataset binds and the sec_object an sp: right is granted on. functionName names the FUNCTION, never the script.",
+	),
 	{
 		uri: "dforge://docs/conventions",
 		name: "dForge module conventions",
