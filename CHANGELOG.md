@@ -4,6 +4,24 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.27
+
+**`dforge://reference/formulas` told authors that one-hop navigation is synchronous and
+"resolved instantly".** It is not: on the record card and in grids every `[ref].[field]`
+resolves after the initial load. Read at face value, it made a self-referencing
+`toString` — `[parent].[name]` behind a `{display_path}` placeholder — look safe, and in
+platform builds before dForge-core#1247 that pattern froze the browser. The reference now
+states the real rule, and the sync/async section says which is which.
+
+- **Text `+` with a NULL side gives NULL**, on the card and in reports alike — documented,
+  with `COALESCE` / `IF` for a part that may be missing. The platform's client used to join
+  the NULL as empty text while SQL returned NULL; dForge-core#1247 made them agree.
+- **New "Computed toString" example.** A `toString` placeholder may name a formula column,
+  and it now renders everywhere the display does. Evaluated for the `toString`, text `+`
+  joins a NULL side as empty text so a caption never goes blank — which is why the
+  hierarchy-path example tests the parent with `IF`, not `COALESCE(a + b, c)`.
+- `dforge-module-build` points from its `toString` rule to that example.
+
 ## 0.2.26
 
 `logic/stored_procedures.json` is now something this server can describe. It had no

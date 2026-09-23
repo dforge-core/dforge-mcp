@@ -44,6 +44,13 @@ so `IF([completed_date] != null, 100, 0)` gives the same result on the record ca
 a report. At SQL time `=` / `!=` translate to `IS NOT DISTINCT FROM` / `IS DISTINCT FROM`
 to preserve that.
 
+**Text `+` with a NULL side gives NULL**, on the record card and in a report alike:
+`[first_name] + ' ' + [last_name]` is NULL when either name is missing. Wrap a part that may
+be missing — `[first_name] + ' ' + COALESCE([last_name], '')` — or test for it with `IF`.
+The one exception is a formula evaluated for an entity's `toString` (see
+[Computed toString](#computed-tostring)), where a NULL side joins as empty text so a caption
+never goes blank.
+
 ## Examples
 
 ```
@@ -205,7 +212,7 @@ and the JSON shape: `column-types.md` → "Roll-up totals over child rows — us
 [account].[primary_contact].[phone]      -- chained
 ```
 
-Navigation works through `columnType: "R"` columns (reference columns) — every step except the last must be a Reference, and the last reads a field on the final referenced record. Chains of length 1 are **synchronous** and resolved instantly. Chains of length ≥ 2 are **asynchronous** — the formula engine resolves them after the initial data load.
+Navigation works through `columnType: "R"` columns (reference columns) — every step except the last must be a Reference, and the last reads a field on the final referenced record. On the record card and in grids, any navigation — one hop or several — is **asynchronous**: the engine resolves it after the initial data load, from the referenced rows it loads alongside. A formula may navigate back into its own entity (`[parent].[name]` on a self-reference); a formula that reads itself round a loop, directly or through other records, comes back NULL.
 
 **SQL-time (reports, filters, sorts).** Multi-hop navigation works here too: QueryBuilder pre-scans the formula and registers one `LEFT JOIN` per hop, then the translator resolves the path against the final alias. A nav path may also land on a *formula* column of the referenced entity — that formula is translated against the referenced entity's alias, and its own hops are joined off that alias. The same nav map drives formula columns in filters and ORDER BY, so filtering and sorting a report by a nav-formula column works.
 
@@ -222,8 +229,10 @@ Warning wording follows the clause, because the same unresolvable path costs a d
 
 ## Sync vs async formulas
 
-- **Sync formula**: pure local math, no navigation, or one-level navigation that can be JOINed. Evaluated on load and on every edit to a dependency.
-- **Async formula**: multi-hop navigation. Evaluated after the initial data load, re-evaluated when dependencies change.
+- **Sync formula**: no navigation — fields of the same record only. Evaluated on load and on every edit to a dependency.
+- **Async formula**: any navigation (`[ref].[field]`). Evaluated after the initial data load, re-evaluated when a dependency changes — as is every formula that reads it.
+
+At SQL time (reports, filters, sorts, reference display) both kinds are translated to SQL, navigation as `LEFT JOIN`s.
 
 You don't declare which is which — the engine detects it from the formula's AST.
 
@@ -262,6 +271,32 @@ The constraint's `message` (the violation text shown to users) is **localizable*
     "description": "Full Name"
 }
 ```
+
+### Computed toString
+
+A `toString` placeholder may name a formula column — the way to build a display from more
+than plain fields, e.g. a hierarchy path:
+
+```json
+"toString": "{display_path}",
+"fields": {
+    "display_path": {
+        "columnType": "F",
+        "fieldTypeCd": "text",
+        "baseDatatypeCd": "string",
+        "flags": "V",
+        "formula": "IF([parent_id] = null, [name], [parent].[name] + ' / ' + [name])",
+        "description": "Display Path"
+    }
+}
+```
+
+The formula renders wherever the `toString` does — form caption, reference cells, pickers —
+on the client and in SQL alike. Evaluated for the `toString`, text `+` joins a NULL side as
+empty text, so the caption never goes blank; the same column in a grid or report keeps
+NULL. Test for a missing parent with `IF`, not `COALESCE(a + b, c)`: in the caption `a + b`
+is not NULL when one part is missing, so the fallback never applies. The path is one level
+deep — `[parent].[name]` reads the parent's plain name.
 
 ### Line total (quantity × price)
 

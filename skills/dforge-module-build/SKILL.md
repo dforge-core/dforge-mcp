@@ -80,6 +80,8 @@ Enough to author inline; load the linked reference for the full detail.
   `created_by`/`last_updated_by` with no default — a seeded `audit-full` entity
   must set both to `0` in every record, or use plain `audit`. → `traits`
 - **`toString`** on every entity, `{column}` braces: `"{first_name} {last_name}"`.
+  A computed display (a hierarchy path) goes in a formula column named as the
+  placeholder. → `formulas` (Computed toString)
 - **Data views:** `dataSources` array at root — never a root-level `entityCode` +
   `columns`. Sort is `"order": ["-col", "col"]`. → `data-views`
 - **Menus:** leaf items use `dataViewCode` (not `viewCode`); section nodes omit
