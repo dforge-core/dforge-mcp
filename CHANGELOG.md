@@ -13,9 +13,9 @@ CLI's static checks (`dforge module validate --json`), the same set `pack` runs,
 added to the platform reaches this tool without a copy here. A failed check is an error
 under `cli: <check name>`; the CLI's warnings are passed through.
 
-- Needs `@dforge-core/dforge-cli` with `--json` support. With an older CLI, or none, the
-  tool still runs its offline checks and adds a `cli` warning that the CLI checks were
-  skipped.
+- Needs `@dforge-core/dforge-cli` 0.2.22 or later, which adds `--json`; the dependency is
+  now `^0.2.22`. With an older CLI, or none, the tool still runs its offline checks and adds
+  a `cli` warning that the CLI checks were skipped.
 
 ## 0.2.27
 
