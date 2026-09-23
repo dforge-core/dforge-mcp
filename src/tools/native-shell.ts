@@ -107,6 +107,38 @@ function run(args: string[], cwd?: string): { stdout: string; stderr: string; co
 	};
 }
 
+// ─── validate ────────────────────────────────────────────────────────
+
+export interface CliValidateReport {
+	module: string | null;
+	version: string | null;
+	ok: boolean;
+	error: string | null;
+	checks: Array<{ name: string; ok: boolean; message?: string | null }>;
+	warnings: Array<{ where: string; message: string }>;
+}
+
+/** The CLI's static checks (`module validate --json`) — the same set `module pack` runs. */
+export type CliValidate = (moduleDir: string) => { report: CliValidateReport } | { unavailable: string };
+
+export const cliValidate: CliValidate = (moduleDir) => {
+	let r: ReturnType<typeof run>;
+	try {
+		r = run(["module", "validate", moduleDir, "--json"]);
+	} catch (e) {
+		return { unavailable: (e as Error).message };
+	}
+	try {
+		const report = JSON.parse(r.stdout.trim()) as CliValidateReport;
+		if (Array.isArray(report.checks)) return { report };
+	} catch {
+		/* not JSON — a CLI without --json */
+	}
+	return {
+		unavailable: `${r.command} did not print a JSON report (exit ${r.code}) — the CLI is probably older than --json support. Update @dforge-core/dforge-cli.`,
+	};
+};
+
 // ─── pack ────────────────────────────────────────────────────────────
 
 export const packModuleSchema = {

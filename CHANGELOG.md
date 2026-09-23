@@ -4,6 +4,19 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## Unreleased
+
+**`dforge_module_validate` reported a clean module that `pack` then rejected**
+(dForge-core#1184). A field code starting with `_`, a trigger firing a `batch` action, and a
+trigger whose action is bound to another entity all passed. The tool now also runs the
+CLI's static checks (`dforge module validate --json`), the same set `pack` runs, so a rule
+added to the platform reaches this tool without a copy here. A failed check is an error
+under `cli: <check name>`; the CLI's warnings are passed through.
+
+- Needs `@dforge-core/dforge-cli` with `--json` support. With an older CLI, or none, the
+  tool still runs its offline checks and adds a `cli` warning that the CLI checks were
+  skipped.
+
 ## 0.2.27
 
 **`dforge://reference/formulas` told authors that one-hop navigation is synchronous and

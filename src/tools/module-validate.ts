@@ -30,6 +30,7 @@ import {
 } from "./_helpers";
 import { checkFieldSpec, parseSetAggregate } from "./field-rules";
 import { checkDsl } from "./dsl-check";
+import type { CliValidate } from "./native-shell";
 
 export const moduleValidateSchema = {
 	moduleDir: z.string().describe("Path to the module root. Run this after authoring and before dforge_module_pack."),
@@ -112,6 +113,7 @@ function hasConstraintOverride(
 
 export function moduleValidate(
 	args: z.infer<z.ZodObject<typeof moduleValidateSchema>>,
+	cli?: CliValidate,
 ): ToolResult {
 	const { paths, manifest } = loadManifest(args.moduleDir);
 	const issues: Issue[] = [];
@@ -1013,6 +1015,24 @@ export function moduleValidate(
 				`translations/${file}`,
 				`missing roles.<code>.label for: ${missing.join(", ")} — completeness is enforced in every locale (including en-US); install fails with "Label for role '<code>'."`,
 			);
+		}
+	}
+
+	// ── CLI static checks ──
+	// The rules `module pack` enforces live in the CLI (ModuleStaticValidator);
+	// running it keeps them in one place instead of re-implemented here.
+	if (cli) {
+		const res = cli(args.moduleDir);
+		if ("unavailable" in res) {
+			warn("cli", `CLI checks skipped, so pack may still fail: ${res.unavailable}`);
+		} else {
+			if (res.report.error) err("cli: package", res.report.error);
+			for (const c of res.report.checks) if (!c.ok) err(`cli: ${c.name}`, c.message ?? "failed");
+			for (const w of res.report.warnings) {
+				// The offline pass already warns about a missing toString.
+				const dup = issues.some((i) => i.where === w.where && i.message.includes("toString") && w.message.includes("toString"));
+				if (!dup) warn(w.where, w.message);
+			}
 		}
 	}
 

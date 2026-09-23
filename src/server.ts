@@ -10,6 +10,7 @@ import {
 	packModule,
 	installModuleSchema,
 	installModule,
+	cliValidate,
 } from "./tools/native-shell";
 import {
 	entityFieldAddSchema,
@@ -188,11 +189,11 @@ server.registerTool(
 	{
 		title: "Validate module (offline)",
 		description:
-			"Validate the whole module OFFLINE before packing/installing. Runs every check the per-field tools can't see: dangling FK/reference targets, a missing hidden-FK column, view dataSources/columns pointing at unknown entities/fields, menu dataViewCode → missing view, role rights on unknown objects, entities with no Select grant, field-spec rules re-run across EVERY field (catching anything that entered via import or a hand edit), toString templates, Formula-vs-Generated set aggregates over virtual child columns, action script files missing from disk, triggers/jobs firing actions that don't exist, DSL static checks, and translation completeness (role labels are install-blocking). Returns errors + warnings in _validate.json. Fix every error BEFORE dforge_module_pack — it saves a slow pack/install round trip.",
+			"Validate the whole module OFFLINE before packing/installing. Runs every check the per-field tools can't see: dangling FK/reference targets, a missing hidden-FK column, view dataSources/columns pointing at unknown entities/fields, menu dataViewCode → missing view, role rights on unknown objects, entities with no Select grant, field-spec rules re-run across EVERY field (catching anything that entered via import or a hand edit), toString templates, Formula-vs-Generated set aggregates over virtual child columns, action script files missing from disk, triggers/jobs firing actions that don't exist, DSL static checks, translation completeness (role labels are install-blocking), and the CLI's own static checks — the same set dforge_module_pack runs (errors under 'cli: <check>'). Returns errors + warnings in _validate.json. Fix every error BEFORE dforge_module_pack — it saves a slow pack/install round trip.",
 		inputSchema: moduleValidateSchema,
 		annotations: READ_ONLY,
 	},
-	serialize(moduleValidate),
+	serialize((a: Parameters<typeof moduleValidate>[0]) => moduleValidate(a, cliValidate)),
 );
 
 server.registerTool(

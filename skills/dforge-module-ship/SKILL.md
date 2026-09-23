@@ -35,6 +35,9 @@ otherwise only surfaces at install:
   don't exist; `[field]` record-context in a job-invoked action
 - **DSL static checks** on every action body
 - **translation completeness** — a missing `roles.<code>.label` fails install
+- **the CLI's static checks** — the same set `dforge_module_pack` runs, reported
+  as `cli: <check name>`. A `cli` warning means they were skipped (CLI missing or
+  too old), so pack can still fail
 
 Read `files["_validate.json"]`. **Every `error` must be fixed** (apply the
 backtrack protocol in `dforge-module-build`) before continuing. Review the

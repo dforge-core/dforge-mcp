@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { moduleValidate } from "../src/tools/module-validate";
+import type { CliValidate, CliValidateReport } from "../src/tools/native-shell";
 
 const run = (dir: string) => JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
 
@@ -681,5 +682,59 @@ describe("module_validate — a job's action is checked in its own execution mod
 	it("still rejects [TRUE] in a single-mode job's action", () => {
 		const res = make({ entityCode: "thing", executionMode: "single" });
 		expect(JSON.stringify(res.errors)).toContain("no record bound");
+	});
+});
+
+describe("module_validate — CLI static checks (#1184)", () => {
+	// The fixture is clean offline; only the fake CLI reports anything.
+	const dir = join(process.cwd(), "skills", "dforge-mcp-author", "examples", "simple-todo");
+	const report = (over: Partial<CliValidateReport>): CliValidateReport => ({
+		module: "todo",
+		version: "1.0.0",
+		ok: true,
+		error: null,
+		checks: [{ name: "column flags", ok: true, message: null }],
+		warnings: [],
+		...over,
+	});
+	const runWith = (cli: CliValidate) => JSON.parse(moduleValidate({ moduleDir: dir }, cli).files["_validate.json"]);
+
+	it("reports each failed CLI check as an error", () => {
+		const res = runWith(() => ({
+			report: report({
+				ok: false,
+				checks: [
+					{ name: "column flags", ok: true },
+					{ name: "reserved column names", ok: false, message: "Entity 'widget' has column code(s) starting with '_'" },
+					{ name: "event triggers", ok: false, message: "trigger 't': action 'a' has executionMode 'batch'" },
+				],
+			}),
+		}));
+		expect(res.ok).toBe(false);
+		expect(res.errors).toEqual([
+			{ level: "error", where: "cli: reserved column names", message: "Entity 'widget' has column code(s) starting with '_'" },
+			{ level: "error", where: "cli: event triggers", message: "trigger 't': action 'a' has executionMode 'batch'" },
+		]);
+	});
+
+	it("reports a package the CLI could not load", () => {
+		const res = runWith(() => ({ report: report({ ok: false, error: "manifest has no 'moduleId' field.", checks: [] }) }));
+		expect(res.errors).toEqual([{ level: "error", where: "cli: package", message: "manifest has no 'moduleId' field." }]);
+	});
+
+	it("passes CLI warnings through", () => {
+		const res = runWith(() => ({
+			report: report({ warnings: [{ where: "entities/todo_item.json", message: "toString placeholder {todo_item_id} renders an id no user can read." }] }),
+		}));
+		expect(res.errors).toEqual([]);
+		expect(JSON.stringify(res.warnings)).toContain("renders an id no user can read");
+	});
+
+	it("warns, without failing, when the CLI is unavailable", () => {
+		const res = runWith(() => ({ unavailable: "Failed to exec dforge-cli" }));
+		expect(res.errors).toEqual([]);
+		expect(res.warnings).toContainEqual(
+			{ level: "warning", where: "cli", message: "CLI checks skipped, so pack may still fail: Failed to exec dforge-cli" },
+		);
 	});
 });
