@@ -4,7 +4,7 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
-## Unreleased
+## 0.2.28
 
 **`dforge_module_validate` reported a clean module that `pack` then rejected**
 (dForge-core#1184). A field code starting with `_`, a trigger firing a `batch` action, and a
