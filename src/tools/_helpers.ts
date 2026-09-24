@@ -29,6 +29,8 @@ export interface ModulePaths {
 	translationsDir: string;
 	dataViews: string;
 	folders: string;
+	/** docs/diagrams/ — one design-time diagram per <code>.json file. */
+	diagramsDir: string;
 	menus: string;
 	actions: string;
 	reports: string;
@@ -55,6 +57,7 @@ export function modulePaths(moduleDir: string): ModulePaths {
 		translationsDir: path.join(root, "translations"),
 		dataViews: path.join(root, "ui", "data_views.json"),
 		folders: path.join(root, "ui", "folders.json"),
+		diagramsDir: path.join(root, "docs", "diagrams"),
 		menus: path.join(root, "ui", "menus.json"),
 		actions: path.join(root, "ui", "actions.json"),
 		reports: path.join(root, "ui", "reports.json"),
@@ -87,6 +90,99 @@ export function readJsonOrDefault<T>(absPath: string, dflt: T): T {
 	} catch (e) {
 		throw new Error(`${absPath}: ${(e as Error).message}`);
 	}
+}
+
+/**
+ * Absolute paths of the diagram files under docs/diagrams/, sorted — one
+ * diagram per `<code>.json`, the file name being its code. Empty when the
+ * directory doesn't exist (diagrams are optional and design-time only).
+ */
+export function diagramFiles(diagramsDir: string): string[] {
+	if (!fs.existsSync(diagramsDir)) return [];
+	return fs
+		.readdirSync(diagramsDir)
+		.filter((f) => f.endsWith(".json"))
+		.sort()
+		.map((f) => path.join(diagramsDir, f));
+}
+
+/**
+ * Whether a docs/diagrams/<code>.json entity key is a planned entity: an own
+ * code (entity codes never contain a dot) that the manifest doesn't have yet.
+ * The diagram schema allows these — the editor draws them as a name only.
+ */
+export function isPlannedDiagramKey(key: string, entityMap: Record<string, string>): boolean {
+	return !key.includes(".") && !Object.prototype.hasOwnProperty.call(entityMap, key);
+}
+
+/**
+ * The existing entity a planned diagram key most likely misspells, or
+ * undefined when none is close — at most two edits and under a third of the
+ * shorter code, so a genuinely new name like 'future_invoice' isn't matched.
+ */
+export function likelyMisspelledEntity(key: string, entityMap: Record<string, string>): string | undefined {
+	let best: { code: string; d: number } | undefined;
+	for (const code of Object.keys(entityMap)) {
+		if (code.includes(".")) continue;
+		const d = editDistance(key, code);
+		if (d > 2 || d >= Math.min(key.length, code.length) / 3) continue;
+		if (!best || d < best.d) best = { code, d };
+	}
+	return best?.code;
+}
+
+function editDistance(a: string, b: string): number {
+	let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+	for (let i = 1; i <= a.length; i++) {
+		const cur = [i];
+		for (let j = 1; j <= b.length; j++) {
+			cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+		}
+		prev = cur;
+	}
+	return prev[b.length];
+}
+
+/**
+ * Why a docs/diagrams/<code>.json entity key resolves to nothing, or undefined
+ * when it resolves. Own manifest keys win; otherwise the longest declared
+ * dependency code followed by '.' is the module (codes may themselves contain
+ * dots). A dependency's entities are only known through its deps/<module>.json
+ * contract, so with no readable contract only the module prefix is checked.
+ * module_validate warns with it for dependency keys (an own key it doesn't
+ * resolve is a planned entity — see isPlannedDiagramKey); dforge_diagram_add
+ * rejects with it.
+ */
+export function diagramKeyProblem(
+	key: string,
+	entityMap: Record<string, string>,
+	deps: Set<string>,
+	root: string,
+): string | undefined {
+	if (Object.prototype.hasOwnProperty.call(entityMap, key)) return undefined;
+	const dep = [...deps]
+		.filter((d) => key.startsWith(`${d}.`) && key.length > d.length + 1)
+		.sort((a, b) => b.length - a.length)[0];
+	if (!dep) {
+		return key.includes(".")
+			? `'${key}' is not an entity of this module, and no declared dependency matches its module prefix. ` +
+					"Declare the dependency, or drop the entity from the diagram."
+			: `'${key}' is not an entity in manifest.entities. Drop it from the diagram, or fix the code.`;
+	}
+	const contractPath = path.join(root, "deps", `${dep}.json`);
+	if (!fs.existsSync(contractPath)) return undefined; // module-level check only
+	let consumed: unknown;
+	try {
+		consumed = (JSON.parse(fs.readFileSync(contractPath, "utf8")) as Record<string, unknown>)?.entities;
+	} catch {
+		return undefined; // an unreadable contract is not this file's problem
+	}
+	if (!consumed || typeof consumed !== "object") return undefined;
+	const entity = key.slice(dep.length + 1);
+	return Object.prototype.hasOwnProperty.call(consumed, entity)
+		? undefined
+		: `'${entity}' is not among the entities deps/${dep}.json consumes from '${dep}'. Add it to the ` +
+				"contract if the module uses it, or drop it from the diagram.";
 }
 
 /**

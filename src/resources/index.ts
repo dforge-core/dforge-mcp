@@ -124,6 +124,11 @@ export const resources: ResourceDef[] = [
 		"JSON Schema for ui/folders.json — root folder tree with per-entity view bindings.",
 	),
 	schema(
+		"diagram",
+		"Diagram JSON schema",
+		"JSON Schema for docs/diagrams/<code>.json — one entity diagram per file, the file name is its code (a subset of entities + optional x/y placement each). Design-time only: install ignores it.",
+	),
+	schema(
 		"menus",
 		"Menus JSON schema",
 		"JSON Schema for ui/menus.json — nested menu hierarchy with M.it/M.sub style items.",

@@ -6,9 +6,11 @@
 // Reference, view dataSources/columns pointing at unknown entities/fields, a
 // grid-style view over an entity with no visible column, menu dataViewCode →
 // missing view, role rights keyed on unknown entities/actions/reports, record-report
-// attachments (param declared, entity known, source column mappable), and
-// entities with no Select grant. Returns a structured issue list in
-// `_validate.json` plus a one-line summary; never writes anything.
+// attachments (param declared, entity known, source column mappable),
+// entities with no Select grant, and docs/diagrams/*.json entity keys that
+// resolve to nothing — a dependency key, or an own key close to a built
+// entity's code; other own keys are planned entities (warnings only — diagrams are design-time). Returns a
+// structured issue list in `_validate.json` plus a one-line summary; never writes anything.
 
 import { z } from "zod";
 import * as fs from "node:fs";
@@ -23,6 +25,10 @@ import {
 	expandedEntity,
 	localEntityCode,
 	walkFolders,
+	diagramFiles,
+	diagramKeyProblem,
+	isPlannedDiagramKey,
+	likelyMisspelledEntity,
 	compositeKey,
 	unknownTraits,
 	TRAIT_CODES,
@@ -818,6 +824,62 @@ export function moduleValidate(
 						"This fails the install: an unresolved view would show every column of the entity, " +
 						"which is the opposite of what naming one asks for. Declare the view, or drop " +
 						"'viewName' (or use \"default\", which means no view).",
+				);
+			}
+		}
+	}
+
+	// ── 12b-3. Diagrams: entity keys resolve, x/y come as a pair ──
+	// docs/diagrams/<code>.json — one diagram per file, the file name its code.
+	// Design-time only — the installer never reads them — so nothing here may
+	// block a pack: an unparseable file is worth one error (the editor can't open
+	// it either), everything else is a warning, and one broken file doesn't stop
+	// the others being checked. A key is the manifest's own entity code, a
+	// planned entity (an own code not built yet), or 'module.entity' for a
+	// declared dependency. Module codes can contain dots,
+	// so own keys are tried first, then the LONGEST declared dependency code
+	// followed by '.'.
+	for (const fp of diagramFiles(paths.diagramsDir)) {
+		const where = `docs/diagrams/${path.basename(fp)}`;
+		let diagram: unknown;
+		try {
+			diagram = JSON.parse(fs.readFileSync(fp, "utf8"));
+		} catch (ex) {
+			err(where, `invalid JSON: ${(ex as Error).message}`);
+			continue;
+		}
+		if (!diagram || typeof diagram !== "object" || Array.isArray(diagram)) {
+			warn(where, "must be an object — the diagram itself, with an 'entities' map.");
+			continue;
+		}
+		const diagramEntities = (diagram as Record<string, unknown>).entities;
+		if (!diagramEntities || typeof diagramEntities !== "object" || Array.isArray(diagramEntities)) {
+			warn(where, "has no 'entities' object — list the entities the diagram draws, keyed by entity code.");
+			continue;
+		}
+		for (const [key, placement] of Object.entries(diagramEntities as Record<string, unknown>)) {
+			const at = `${where} → entities.${key}`;
+			if (isPlannedDiagramKey(key, entityMap)) {
+				// A planned entity is valid design content; only a near-miss of a
+				// built entity is worth a word, since it's more likely a typo.
+				const meant = likelyMisspelledEntity(key, entityMap);
+				if (meant) {
+					warn(
+						at,
+						`'${key}' is not built yet, so the diagram draws it as a planned entity. ` +
+							`If you meant the existing '${meant}', fix the key.`,
+					);
+				}
+			} else {
+				const unresolved = diagramKeyProblem(key, entityMap, deps, paths.root);
+				if (unresolved) warn(at, unresolved);
+			}
+			const p = (placement && typeof placement === "object" ? placement : {}) as Record<string, unknown>;
+			if (("x" in p) !== ("y" in p)) {
+				warn(
+					at,
+					`sets '${"x" in p ? "x" : "y"}' without '${"x" in p ? "y" : "x"}'. Give both to pin the ` +
+						"entity, or neither to let the diagram place it.",
 				);
 			}
 		}

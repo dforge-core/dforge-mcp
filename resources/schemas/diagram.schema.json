@@ -1,0 +1,101 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/diagram.schema.json",
+	"title": "dForge Diagram",
+	"description": "One named entity diagram of a dForge module: docs/diagrams/<code>.json, the file name being the diagram's code. A diagram draws a chosen subset of entities, so a large module can be read one area at a time. Design-time only: the platform installs the module without reading it.",
+	"type": "object",
+	"required": ["entities"],
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"label": {
+			"type": "string",
+			"description": "Diagram display name. Defaults to the diagram code."
+		},
+		"description": {
+			"type": "string",
+			"description": "What part of the model the diagram covers."
+		},
+		"entities": {
+			"type": "object",
+			"description": "Entity key → placement. A key is the entity code as the module's manifest names it, or `module.entity` for an entity of a dependency — the same form a field link's `entity` takes. A key no entity has yet is a planned entity, drawn as a name only. An empty object places the entity automatically.",
+			"propertyNames": {
+				"minLength": 1
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/diagramEntity"
+			}
+		},
+		"showBoundary": {
+			"type": "boolean",
+			"description": "Also draw the entities outside the diagram that its entities reference or are referenced by, as header-only stubs, so relations leaving the diagram stay visible. Default: true."
+		},
+		"detail": {
+			"type": "string",
+			"enum": ["conceptual", "keys", "full"],
+			"description": "How much of each entity to draw: `conceptual` — the name only, relations drawn entity to entity; `keys` — primary and foreign key columns; `full` — every column. Default: full."
+		},
+		"relations": {
+			"type": "array",
+			"description": "Relations drawn by hand, for entities with no foreign key between them yet — a planned entity, or one not built that far. Where a real foreign key links the same two entities, the key is drawn and the relation is not.",
+			"items": {
+				"$ref": "#/$defs/diagramRelation"
+			}
+		}
+	},
+	"additionalProperties": false,
+	"$defs": {
+		"diagramEntity": {
+			"type": "object",
+			"properties": {
+				"x": {
+					"type": "number",
+					"description": "Left edge of the entity node, in diagram units. Set together with `y`; both omitted means automatic placement."
+				},
+				"y": {
+					"type": "number",
+					"description": "Top edge of the entity node, in diagram units. Set together with `x`."
+				},
+				"label": {
+					"type": "string",
+					"description": "Display name of a planned entity. An existing entity shows its own label, and this is ignored."
+				},
+				"description": {
+					"type": "string",
+					"description": "What a planned entity will hold. An existing entity shows its own description, and this is ignored."
+				}
+			},
+			"dependencies": {
+				"x": ["y"],
+				"y": ["x"]
+			},
+			"additionalProperties": false
+		},
+		"diagramRelation": {
+			"type": "object",
+			"required": ["from", "to"],
+			"properties": {
+				"from": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Entity key of the many side — the entity that will carry the foreign key."
+				},
+				"to": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Entity key of the one side — the entity referenced."
+				},
+				"label": {
+					"type": "string",
+					"description": "Verb read from `from` to `to`, e.g. `placed by`."
+				},
+				"required": {
+					"type": "boolean",
+					"description": "Every `from` row must have a `to` row. Default: false."
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

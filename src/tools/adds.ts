@@ -20,6 +20,8 @@ import {
 	withTodayStamp,
 	assertValidRights,
 	walkFolders,
+	diagramKeyProblem,
+	readJson,
 	type ToolResult,
 } from "./_helpers";
 
@@ -227,6 +229,127 @@ export function folderAdd(args: z.infer<z.ZodObject<typeof folderAddSchema>>): T
 		`Added folder '${args.code}' under '${args.parentPath || "(root)"}'.`,
 		{
 			[rel(paths.root, paths.folders)]: jsonText(root),
+			"manifest.json": jsonText(withTodayStamp(manifest)),
+		},
+	);
+}
+
+// ── diagram add ─────────────────────────────────────────────────────
+//
+// docs/diagrams/<code>.json is ONE diagram per file (the file name is its
+// code): a chosen subset of the module's entities, drawn by the editor.
+// Design-time only — install never reads it. Unlike the other *_add tools this
+// one also extends an existing diagram: missing entity keys are appended,
+// placed ones keep their x/y, and nothing is ever dropped. An unresolved key
+// is rejected here (module_validate only warns about it) — the caller is
+// authoring, so a typo should fail now rather than draw a dangling node.
+
+export const diagramAddSchema = {
+	moduleDir: z.string(),
+	code: z
+		.string()
+		.regex(/^[a-z][a-z0-9_]*$/)
+		.describe("Diagram code — becomes the file name docs/diagrams/<code>.json."),
+	label: z.string().optional().describe("Display name. Defaults to the fromFolder's label, else the code."),
+	description: z.string().optional().describe("What part of the model the diagram covers."),
+	entities: z
+		.array(z.string().min(1))
+		.default([])
+		.describe(
+			"Entity keys to draw: the manifest's own entity code ('invoice'), or 'module.entity' for an entity of a declared dependency ('parties.party') — the same form a field link's `entity` takes.",
+		),
+	fromFolder: z
+		.string()
+		.optional()
+		.describe(
+			"A folder code from ui/folders.json (anywhere in the tree). Adds the entities bound to that folder AND to all its descendants.",
+		),
+	showBoundary: z
+		.boolean()
+		.optional()
+		.describe(
+			"Also draw the entities outside the diagram that its entities reference or are referenced by, as header-only stubs. Default true.",
+		),
+};
+
+export function diagramAdd(args: z.infer<z.ZodObject<typeof diagramAddSchema>>): ToolResult {
+	// The code is a file name — re-check here, not only in the MCP input schema,
+	// so no caller can write outside docs/diagrams/.
+	if (!/^[a-z][a-z0-9_]*$/.test(args.code)) {
+		throw new Error(`Diagram code '${args.code}' must be snake_case (^[a-z][a-z0-9_]*$) — it becomes the file name.`);
+	}
+	const { paths, manifest } = loadManifest(args.moduleDir);
+	const entityMap = (manifest.entities ?? {}) as Record<string, string>;
+	const deps = new Set(Object.keys(manifest.dependencies ?? {}));
+
+	// fromFolder: the folder's own bindings, then every descendant's, in tree order.
+	const keys: string[] = [...args.entities];
+	let folderLabel: string | undefined;
+	if (args.fromFolder !== undefined) {
+		const root = readJsonOrDefault<Record<string, unknown>>(paths.folders, {});
+		const folder = walkFolders(root).find((f) => f.code === args.fromFolder);
+		if (!folder) {
+			throw new Error(
+				`Folder '${args.fromFolder}' is not in ui/folders.json. Pass a sub-folder's code (codes are ` +
+					"unique across the tree); for every entity in the module, list them in 'entities' instead.",
+			);
+		}
+		if (typeof folder.node.label === "string") folderLabel = folder.node.label;
+		for (const node of [folder.node, ...walkFolders(folder.node).map((f) => f.node)]) {
+			keys.push(...Object.keys((node.entities as Record<string, unknown> | undefined) ?? {}));
+		}
+	}
+	const wanted = [...new Set(keys)];
+
+	const problems = wanted
+		.map((k) => diagramKeyProblem(k, entityMap, deps, paths.root))
+		.filter((p): p is string => p !== undefined);
+	if (problems.length > 0) {
+		throw new Error(`Nothing written — ${problems.join(" ")}`);
+	}
+
+	const file = path.join(paths.diagramsDir, `${args.code}.json`);
+	const exists = fs.existsSync(file);
+	let diagram: Record<string, unknown>;
+	if (exists) {
+		const existing = readJson<unknown>(file);
+		if (
+			!existing ||
+			typeof existing !== "object" ||
+			Array.isArray(existing) ||
+			!(existing as Record<string, unknown>).entities ||
+			typeof (existing as Record<string, unknown>).entities !== "object" ||
+			Array.isArray((existing as Record<string, unknown>).entities)
+		) {
+			throw new Error(
+				`${rel(paths.root, file)} is not a diagram (an object with an 'entities' map) — fix or delete it first.`,
+			);
+		}
+		diagram = existing as Record<string, unknown>;
+		if (args.label !== undefined) diagram.label = args.label;
+		if (args.description !== undefined) diagram.description = args.description;
+		if (args.showBoundary !== undefined) diagram.showBoundary = args.showBoundary;
+	} else {
+		diagram = { label: args.label ?? folderLabel ?? args.code };
+		if (args.description !== undefined) diagram.description = args.description;
+		diagram.entities = {};
+		if (args.showBoundary !== undefined) diagram.showBoundary = args.showBoundary;
+	}
+
+	// Append only — a placed entity keeps its x/y, and nothing is dropped.
+	const entities = diagram.entities as Record<string, unknown>;
+	const added = wanted.filter((k) => !Object.prototype.hasOwnProperty.call(entities, k));
+	for (const k of added) entities[k] = {};
+
+	const relPath = rel(paths.root, file);
+	const present = wanted.length - added.length;
+	return makeResult(
+		exists
+			? `Updated diagram '${args.code}' (${relPath}): added ${added.length} entit${added.length === 1 ? "y" : "ies"}` +
+					`${present ? `, ${present} already drawn` : ""}.`
+			: `Created diagram '${args.code}' (${relPath}) with ${added.length} entit${added.length === 1 ? "y" : "ies"}.`,
+		{
+			[relPath]: jsonText(diagram),
 			"manifest.json": jsonText(withTodayStamp(manifest)),
 		},
 	);

@@ -51,6 +51,8 @@ import {
 	roleAdd,
 	folderAddSchema,
 	folderAdd,
+	diagramAddSchema,
+	diagramAdd,
 	dependencyAddSchema,
 	dependencyAdd,
 } from "./tools/adds";
@@ -265,7 +267,7 @@ server.registerTool(
 	{
 		title: "Rename an entity (refactor-safe)",
 		description:
-			"Refactor-safe rename of an entity code. Moves the entity file (old is listed in the response's `deletes` — delete it), renames the manifest key, cascades the identity PK {old}_id → {new}_id wherever an FK targets it, and repoints every reference: other entities' link.entity / references.to, view entityCode, role rights keys, action entity, folder bindings, and seed-data entityCode + PK keys. Reports/translations/menu labels/DSL are NOT rewritten (warned). Apply `files` AND `deletes` (or pass apply: true), then run dforge_module_validate.",
+			"Refactor-safe rename of an entity code. Moves the entity file (old is listed in the response's `deletes` — delete it), renames the manifest key, cascades the identity PK {old}_id → {new}_id wherever an FK targets it, and repoints every reference: other entities' link.entity / references.to, view entityCode, role rights keys, action entity, folder bindings, diagram entity keys and relation endpoints (docs/diagrams/*.json — refused if a diagram already draws the new code next to the old), and seed-data entityCode + PK keys. Reports/translations/menu labels/DSL are NOT rewritten (warned). Apply `files` AND `deletes` (or pass apply: true), then run dforge_module_validate.",
 		inputSchema: { ...entityRenameSchema, ...applyInput },
 		annotations: DESTRUCTIVE,
 	},
@@ -277,7 +279,7 @@ server.registerTool(
 	{
 		title: "Delete an entity (refactor-safe)",
 		description:
-			"Refactor-safe deletion of an entity. Removes the entity file + its seed files (listed in `deletes`), drops the manifest entry, role rights key, folder binding, and data-view sources (deleting a view left with no source). Cross-entity FKs targeting it, actions on it, and menus pointing at removed views are surfaced as warnings — fix those by hand. Apply `files` AND `deletes` (or pass apply: true), then run dforge_module_validate.",
+			"Refactor-safe deletion of an entity. Removes the entity file + its seed files (listed in `deletes`), drops the manifest entry, role rights key, folder binding, diagram entries and the relations touching it (docs/diagrams/*.json), and data-view sources (deleting a view left with no source). Cross-entity FKs targeting it, actions on it, and menus pointing at removed views are surfaced as warnings — fix those by hand. Apply `files` AND `deletes` (or pass apply: true), then run dforge_module_validate.",
 		inputSchema: { ...entityDeleteSchema, ...applyInput },
 		annotations: DESTRUCTIVE,
 	},
@@ -551,6 +553,17 @@ server.registerTool(
 		inputSchema: { ...dependencyAddSchema, ...applyInput },
 	},
 	envelope(dependencyAdd),
+);
+
+server.registerTool(
+	"dforge_diagram_add",
+	{
+		title: "Add or extend an entity diagram",
+		description:
+			"Create or extend a named entity diagram, docs/diagrams/<code>.json — one file per diagram, drawing a chosen subset of entities. Design-time only (install ignores it). Use it on a LARGE module to give each functional area its own readable diagram (e.g. 'billing', 'inventory'); a small module needs none. Pass `entities` (own code, or 'module.entity' for a declared dependency) and/or `fromFolder` to take a folder's entities plus all its descendants'. On an existing diagram it only appends missing entities — positions already set are kept and nothing is removed. Leave layout to the editor: new entities get no x/y. An entity key that resolves to nothing is rejected and nothing is written.",
+		inputSchema: { ...diagramAddSchema, ...applyInput },
+	},
+	envelope(diagramAdd),
 );
 
 server.registerTool(

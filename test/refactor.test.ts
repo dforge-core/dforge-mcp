@@ -306,3 +306,129 @@ describe("entity_field_remove — entity views", () => {
 		expect(JSON.stringify(res)).toMatch(/view 'accountant'\.total still references removed '\[price\]'/);
 	});
 });
+
+// ── Diagrams (docs/diagrams/<code>.json) ────────────────────────────────────
+// A diagram keys its entities by code, so a rename or a delete has to reach
+// every diagram file — the editor would otherwise draw a stale key as an
+// unresolved entity.
+
+function moduleWithDiagrams(): string {
+	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-diagrams-"));
+	mkdirSync(join(dir, "entities"), { recursive: true });
+	mkdirSync(join(dir, "docs", "diagrams"), { recursive: true });
+	writeFileSync(
+		join(dir, "manifest.json"),
+		JSON.stringify({ code: "t", entities: { invoice: "./entities/invoice.json", line: "./entities/line.json" } }),
+	);
+	for (const e of ["invoice", "line"]) {
+		writeFileSync(join(dir, "entities", `${e}.json`), JSON.stringify({ description: e, traits: ["identity"], fields: {} }));
+	}
+	writeFileSync(
+		join(dir, "docs", "diagrams", "billing.json"),
+		JSON.stringify({
+			label: "Billing",
+			entities: { line: {}, invoice: { x: 40, y: 80 }, "crm.account": {} },
+			relations: [
+				{ from: "line", to: "invoice", label: "belongs to" },
+				{ from: "invoice", to: "crm.account" },
+			],
+		}),
+	);
+	writeFileSync(join(dir, "docs", "diagrams", "lines.json"), JSON.stringify({ entities: { line: {} } }));
+	// A relation can name an entity the diagram doesn't place.
+	writeFileSync(
+		join(dir, "docs", "diagrams", "links.json"),
+		JSON.stringify({ entities: { payment: {} }, relations: [{ from: "payment", to: "invoice" }] }),
+	);
+	return dir;
+}
+
+describe("entity_rename — diagrams", () => {
+	const dir = moduleWithDiagrams();
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	const { files } = entityRename({ moduleDir: dir, entityName: "invoice", newName: "bill" });
+	const d = parse(files, "docs/diagrams/billing.json");
+
+	it("renames the key and keeps its placement", () => {
+		expect(d.entities.bill).toEqual({ x: 40, y: 80 });
+		expect(d.entities.invoice).toBeUndefined();
+	});
+
+	it("keeps the key's position in the diagram", () => {
+		expect(Object.keys(d.entities)).toEqual(["line", "bill", "crm.account"]);
+	});
+
+	it("repoints relation endpoints at the new code", () => {
+		expect(d.relations).toEqual([
+			{ from: "line", to: "bill", label: "belongs to" },
+			{ from: "bill", to: "crm.account" },
+		]);
+	});
+
+	it("repoints relations in a diagram that doesn't place the entity", () => {
+		expect(parse(files, "docs/diagrams/links.json").relations).toEqual([{ from: "payment", to: "bill" }]);
+	});
+
+	it("doesn't write a diagram file that doesn't draw the entity", () => {
+		expect(files["docs/diagrams/lines.json"]).toBeUndefined();
+	});
+});
+
+describe("entity_rename — diagram key collision", () => {
+	const dir = moduleWithDiagrams();
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	it("refuses when a diagram already draws a planned entity with the new code", () => {
+		writeFileSync(
+			join(dir, "docs", "diagrams", "plan.json"),
+			JSON.stringify({ entities: { invoice: { x: 0, y: 0 }, bill: { x: 200, y: 0 } }, relations: [{ from: "invoice", to: "bill" }] }),
+		);
+		expect(() => entityRename({ moduleDir: dir, entityName: "invoice", newName: "bill" })).toThrow(
+			/docs\/diagrams\/plan\.json already draws a 'bill' alongside 'invoice'/,
+		);
+	});
+
+	it("refuses when the new code is only a relation endpoint", () => {
+		writeFileSync(
+			join(dir, "docs", "diagrams", "plan.json"),
+			JSON.stringify({ entities: { invoice: {} }, relations: [{ from: "bill", to: "invoice" }] }),
+		);
+		expect(() => entityRename({ moduleDir: dir, entityName: "invoice", newName: "bill" })).toThrow(/merge the two nodes/);
+	});
+
+	it("allows it when the planned entity sits in a diagram without the old code", () => {
+		writeFileSync(join(dir, "docs", "diagrams", "plan.json"), JSON.stringify({ entities: { bill: {} } }));
+		const { files } = entityRename({ moduleDir: dir, entityName: "invoice", newName: "bill" });
+		expect(files["docs/diagrams/plan.json"]).toBeUndefined();
+	});
+});
+
+describe("entity_delete — diagrams", () => {
+	const dir = moduleWithDiagrams();
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	it("removes the entity from every diagram file", () => {
+		const { files } = entityDelete({ moduleDir: dir, entityName: "line" });
+		expect(Object.keys(parse(files, "docs/diagrams/billing.json").entities)).toEqual(["invoice", "crm.account"]);
+		expect(parse(files, "docs/diagrams/lines.json").entities).toEqual({});
+	});
+
+	it("removes the relations that touch the entity, keeping the rest", () => {
+		const { files } = entityDelete({ moduleDir: dir, entityName: "line" });
+		expect(parse(files, "docs/diagrams/billing.json").relations).toEqual([{ from: "invoice", to: "crm.account" }]);
+		expect(files["docs/diagrams/links.json"]).toBeUndefined();
+	});
+
+	it("drops relations whose endpoint the diagram doesn't place", () => {
+		const { files } = entityDelete({ moduleDir: dir, entityName: "invoice" });
+		expect(parse(files, "docs/diagrams/links.json").relations).toEqual([]);
+		expect(parse(files, "docs/diagrams/billing.json").relations).toEqual([]);
+	});
+
+	it("writes only the files that changed", () => {
+		const { files } = entityDelete({ moduleDir: dir, entityName: "invoice" });
+		expect(files["docs/diagrams/billing.json"]).toBeDefined();
+		expect(files["docs/diagrams/lines.json"]).toBeUndefined();
+	});
+});

@@ -631,6 +631,109 @@ describe("module_validate — folder viewName bindings", () => {
 	});
 });
 
+describe("module_validate — docs/diagrams/*.json", () => {
+	// Design-time only: nothing about a diagram may block a pack, so every
+	// finding but unparseable JSON is a warning. One diagram per file, the file
+	// name is its code.
+	const make = (diagrams: Record<string, unknown>, contract?: unknown) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-diagrams-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "docs", "diagrams"), { recursive: true });
+		writeFileSync(
+			join(dir, "manifest.json"),
+			JSON.stringify({
+				code: "t",
+				// 'acme' and 'acme.parties' are both codes — the longer one must win.
+				dependencies: { acme: ">=0.0.1", "acme.parties": ">=0.0.1" },
+				entities: { invoice: "./entities/invoice.json" },
+			}),
+		);
+		writeFileSync(
+			join(dir, "entities", "invoice.json"),
+			JSON.stringify({
+				description: "Invoice",
+				toString: "{qty}",
+				traits: ["identity"],
+				fields: { qty: { fieldTypeCd: "number", dbDatatype: "int4", flags: "VEM" } },
+			}),
+		);
+		if (contract !== undefined) {
+			mkdirSync(join(dir, "deps"), { recursive: true });
+			writeFileSync(join(dir, "deps", "acme.parties.json"), JSON.stringify(contract));
+		}
+		for (const [code, d] of Object.entries(diagrams)) {
+			writeFileSync(join(dir, "docs", "diagrams", `${code}.json`), typeof d === "string" ? d : JSON.stringify(d));
+		}
+		try {
+			return run(dir);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+	const diagramIssues = (issues: Array<{ where: string; message: string }>) =>
+		issues.filter((i) => i.where.startsWith("docs/diagrams/"));
+
+	it("accepts own entities and entities of declared dependencies", () => {
+		const res = make({
+			billing: { entities: { invoice: { x: 0, y: 0 }, "acme.parties.party": {}, "acme.region": {} } },
+		});
+		expect(diagramIssues(res.errors)).toEqual([]);
+		expect(diagramIssues(res.warnings)).toEqual([]);
+	});
+
+	it("errors on invalid JSON in that file only, and still checks the others", () => {
+		const res = make({ broken: "{ not json", billing: { entities: { invoce: {} } } });
+		const errors = diagramIssues(res.errors);
+		expect(errors).toHaveLength(1);
+		expect(errors[0].where).toBe("docs/diagrams/broken.json");
+		expect(errors[0].message).toContain("invalid JSON");
+		expect(JSON.stringify(diagramIssues(res.warnings))).toContain("docs/diagrams/billing.json → entities.invoce");
+	});
+
+	it("warns on a root that isn't an object, or a missing 'entities'", () => {
+		const res = make({ list: "[]", empty: { label: "Empty" } });
+		expect(diagramIssues(res.errors)).toEqual([]);
+		const where = diagramIssues(res.warnings).map((w) => w.where).sort();
+		expect(where).toEqual(["docs/diagrams/empty.json", "docs/diagrams/list.json"]);
+	});
+
+	it("accepts a planned entity — an own key not built yet — without a word", () => {
+		const res = make({
+			concept: { detail: "conceptual", entities: { invoice: {}, future_invoice: { label: "Future invoice" } } },
+		});
+		expect(diagramIssues(res.errors)).toEqual([]);
+		expect(diagramIssues(res.warnings)).toEqual([]);
+	});
+
+	it("warns — never errors, never says drop it — on a planned key that looks like a typo", () => {
+		const res = make({ billing: { entities: { invoce: {} } } });
+		expect(diagramIssues(res.errors)).toEqual([]);
+		const warnings = JSON.stringify(diagramIssues(res.warnings));
+		expect(warnings).toContain("If you meant the existing 'invoice'");
+		expect(warnings).not.toMatch(/[Dd]rop it/);
+	});
+
+	it("warns when a dotted key's module is not a declared dependency", () => {
+		const res = make({ billing: { entities: { "crm.account": {} } } });
+		expect(diagramIssues(res.errors)).toEqual([]);
+		expect(JSON.stringify(diagramIssues(res.warnings))).toContain("no declared dependency matches");
+	});
+
+	it("checks a dependency entity against its deps/ contract when there is one", () => {
+		const contract = { module: "acme.parties", version: ">=0.0.1", entities: { party: { pk: "party_id", use: ["ref:t"] } } };
+		const res = make({ billing: { entities: { "acme.parties.party": {}, "acme.parties.contact": {} } } }, contract);
+		const warnings = JSON.stringify(diagramIssues(res.warnings));
+		expect(warnings).not.toContain("'party'");
+		expect(warnings).toContain("'contact' is not among the entities deps/acme.parties.json consumes");
+	});
+
+	it("warns when x is given without y (or y without x)", () => {
+		const res = make({ billing: { entities: { invoice: { x: 10 } } } });
+		expect(diagramIssues(res.errors)).toEqual([]);
+		expect(JSON.stringify(diagramIssues(res.warnings))).toContain("sets 'x' without 'y'");
+	});
+});
+
 describe("module_validate — a job's action is checked in its own execution mode", () => {
 	// `[TRUE]`/`[FALSE]`/`[NULL]` are literals, not record reads, so batch mode
 	// lets them through. The job pass has to hand the checker the registered

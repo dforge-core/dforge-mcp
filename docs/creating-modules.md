@@ -160,5 +160,5 @@ VS Code with the [dForge extension](https://github.com/dforge-core/dforge-editor
 - [dforge-module-design](../skills/dforge-module-design/SKILL.md) — Phase 0, including the intake guardrails and gap scans
 - [dforge-module-build](../skills/dforge-module-build/SKILL.md) — Phases 1-5, the loading-policy table, core-rules cheat sheet, and the deterministic backtrack protocol
 - [dforge-module-ship](../skills/dforge-module-ship/SKILL.md) — Phase 6 and the install-fix loop
-- [README.md](../README.md) — full tool reference (34 tools) + maintainer docs
+- [README.md](../README.md) — full tool reference (35 tools) + maintainer docs
 - [iash44/dForge-core](https://github.com/iash44/dForge-core) — the platform itself: source of truth for the schemas + DSL conventions

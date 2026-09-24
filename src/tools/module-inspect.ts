@@ -9,6 +9,7 @@ import * as path from "node:path";
 import {
 	loadManifest,
 	readJsonOrDefault,
+	diagramFiles,
 	type ToolResult,
 } from "./_helpers";
 
@@ -43,6 +44,8 @@ interface InspectSummary {
 	}>;
 	views: Array<{ code: string; viewType: string; sources: string[] }>;
 	folders: { tree: Record<string, unknown>; depth: number };
+	/** docs/diagrams/<code>.json (design-time only): each diagram's entity keys, in order. */
+	diagrams: Array<{ code: string; label?: string; entities: string[] }>;
 	menus: Array<{ code: string; itemCount: number }>;
 	roles: Array<{ code: string; objectCount: number; rights: Record<string, string> }>;
 	actions: Array<{
@@ -106,6 +109,23 @@ export function moduleInspect(
 
 	const foldersTree = readJsonOrDefault<Record<string, unknown>>(paths.folders, {});
 	const folderDepth = computeDepth(foldersTree);
+
+	// One diagram per docs/diagrams/<code>.json — the file name is the code. A
+	// design-time file never fails the inspect: an unparseable one is listed
+	// empty (dforge_module_validate reports it).
+	const diagramSummaries = diagramFiles(paths.diagramsDir).map((fp) => {
+		let d: Record<string, unknown> = {};
+		try {
+			d = JSON.parse(fs.readFileSync(fp, "utf8"));
+		} catch {
+			// leave it empty
+		}
+		return {
+			code: path.basename(fp, ".json"),
+			label: typeof d?.label === "string" ? d.label : undefined,
+			entities: Object.keys((d?.entities as Record<string, unknown> | undefined) ?? {}),
+		};
+	});
 
 	const menus = readJsonOrDefault<Record<string, Record<string, unknown>>>(paths.menus, {});
 	const menuSummaries = Object.entries(menus).map(([code, m]) => ({
@@ -191,6 +211,7 @@ export function moduleInspect(
 		entities: entitySummaries,
 		views: viewSummaries,
 		folders: { tree: foldersTree, depth: folderDepth },
+		diagrams: diagramSummaries,
 		menus: menuSummaries,
 		roles: roleSummaries,
 		actions: actionSummaries,

@@ -68,7 +68,7 @@ Full descriptions are on the tools themselves — this is the map.
 | UI | `dforge_view_add`, `dforge_view_modify`, `dforge_menu_add`, `dforge_report_add` |
 | Polish | `dforge_setting_add`, `dforge_translation_sync`, `dforge_seed_add` |
 | Security | `dforge_role_add`, `dforge_role_right_set`, `dforge_folder_add` |
-| Cross-cutting | `dforge_dependency_add` |
+| Cross-cutting | `dforge_dependency_add`, `dforge_diagram_add` |
 
 **Composite tools first.** A relation, a roll-up, and a status column each span
 several coordinated keys, and hand-assembling them from `entity_field_add` is

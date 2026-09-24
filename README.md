@@ -1,6 +1,6 @@
 # @dforge-core/dforge-mcp
 
-MCP server for dForge module authoring. Exposes 34 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
+MCP server for dForge module authoring. Exposes 35 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
 Ships with **four Claude Skills** (`skills/`): a router plus one skill per lifecycle stage — design (Phase 0), build (Phases 1-5), and ship (Phase 6). The router directory carries 25 reference files (field types, flags, traits, formulas, DSL, security, etc.) and two annotated example modules.
 
@@ -74,7 +74,7 @@ claude mcp list
 # Should show: dforge — npx -y @dforge-core/dforge-mcp — connected
 ```
 
-Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 34 `dforge_*` tools should be listed.
+Or inside a Claude Code session, type `/mcp` to see all connected servers + their tools. The 35 `dforge_*` tools should be listed.
 
 ### Cursor / Zed
 
@@ -157,6 +157,7 @@ The field/entity tools validate against the `@dforge-core/metadata` registry: an
 | Tool | Behavior |
 |---|---|
 | `dforge_dependency_add` | Add a dep on another dForge module |
+| `dforge_diagram_add` | Create or extend a named entity diagram, `docs/diagrams/<code>.json` (design-time only) — one per functional area of a large module. Takes entity keys and/or `fromFolder` (a folder's entities plus its descendants'); appends only, keeping placed positions. Rejects a key that resolves to no own or dependency entity |
 | `dforge_dbml_import` | **DBML front-end** to `module_import` — parses DBML (Table blocks, typed columns, inline + top-level refs) into the table-spec, drops the source PK (identity provides `{entity}_id`), and imports. Pass `module` for a greenfield import |
 
 ### Writing files: preview vs `apply`
@@ -179,7 +180,7 @@ Served over MCP with descriptions and mime types, so the agent can tell what a U
 
 | URI pattern | Content |
 |---|---|
-| `dforge://schema/<name>` | JSON Schemas: `manifest`, `entity`, `domains`, `data-views`, `folders`, `menus`, `roles`, `jobs`, `seed-data`, `traits`, `webhooks`, `triggers`, `print-templates`, `settings`, `reports` |
+| `dforge://schema/<name>` | JSON Schemas: `manifest`, `entity`, `domains`, `data-views`, `folders`, `diagram`, `menus`, `roles`, `jobs`, `seed-data`, `traits`, `webhooks`, `triggers`, `print-templates`, `settings`, `reports` |
 | `dforge://reference/<name>` | 25 per-element authoring references — schema shape + worked example + common-mistakes list for one element type |
 | `dforge://example/<path>` | Files from the canonical `simple-todo` module (mandatory structure validators) |
 | `dforge://example/matrix-budget/<path>` | Files from the `matrix` (pivot) view example |

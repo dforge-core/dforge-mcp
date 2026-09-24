@@ -22,6 +22,7 @@ import {
 	rel,
 	makeResult,
 	withTodayStamp,
+	diagramFiles,
 	type ToolResult,
 } from "./_helpers";
 
@@ -393,8 +394,8 @@ export function entityFieldRemove(
 // Renames an entity code and propagates: the manifest key + file (old deleted),
 // the identity PK {old}_id → {new}_id wherever an FK targets it, and every
 // reference to the entity code — other entities' link.entity / references.to,
-// view entityCode, role rights keys, action entity, folder bindings, and
-// seed-data entityCode + PK keys. Reports/translations/menus/DSL are warned, not
+// view entityCode, role rights keys, action entity, folder bindings, diagram
+// entity keys and relations (refused when a diagram already draws the new code), and seed-data entityCode + PK keys. Reports/translations/menus/DSL are warned, not
 // rewritten.
 
 const SYSTEM_ENTITIES = new Set(["user", "document", "menu_item", "resource"]);
@@ -416,6 +417,26 @@ export function entityRename(
 	const entityMap = (manifest.entities ?? {}) as Record<string, string>;
 	if (!(oldE in entityMap)) throw new Error(`Entity '${oldE}' is not in the manifest.`);
 	if (newE in entityMap) throw new Error(`Entity '${newE}' already exists in this module.`);
+	// A diagram may already draw a planned newE next to oldE; renaming
+	// would collapse the two nodes (placement lost, old → new relations turned
+	// into self-loops). Refuse rather than merge silently.
+	const collisions = diagramFiles(paths.diagramsDir)
+		.filter((fp) => {
+			let d: Record<string, unknown>;
+			try {
+				d = JSON.parse(fs.readFileSync(fp, "utf8"));
+			} catch {
+				return false;
+			}
+			return !!d && typeof d === "object" && diagramMentions(d, oldE) && diagramMentions(d, newE);
+		})
+		.map((fp) => `docs/diagrams/${path.basename(fp)}`);
+	if (collisions.length > 0) {
+		throw new Error(
+			`${collisions.join(", ")} already draw${collisions.length === 1 ? "s" : ""} a '${newE}' alongside '${oldE}' — ` +
+				`renaming would merge the two nodes. Remove or rename '${newE}' in the diagram first.`,
+		);
+	}
 
 	const files: Record<string, string> = {};
 	const deletes: string[] = [];
@@ -533,6 +554,33 @@ export function entityRename(
 		changes.push("folders.json (entity bindings)");
 	}
 
+	// Diagrams: one file per diagram, entity keys renamed in place so the order
+	// holds; hand-drawn relations[].from/to follow the rename.
+	for (const fp of diagramFiles(paths.diagramsDir)) {
+		let d: Record<string, unknown>;
+		try {
+			d = JSON.parse(fs.readFileSync(fp, "utf8"));
+		} catch {
+			continue;
+		}
+		if (!d || typeof d !== "object") continue;
+		const what: string[] = [];
+		const ents = d.entities as Record<string, unknown> | undefined;
+		if (ents && typeof ents === "object" && oldE in ents) {
+			d.entities = renameKey(ents, oldE, newE);
+			what.push("entity key");
+		}
+		let relTouched = false;
+		for (const r of diagramRelations(d)) {
+			if (r.from === oldE) { r.from = newE; relTouched = true; }
+			if (r.to === oldE) { r.to = newE; relTouched = true; }
+		}
+		if (relTouched) what.push("relations");
+		if (what.length === 0) continue;
+		files[rel(paths.root, fp)] = jsonText(d);
+		changes.push(`docs/diagrams/${path.basename(fp)} (${what.join(", ")})`);
+	}
+
 	// Seed-data: entityCode + PK key.
 	if (fs.existsSync(paths.seedDataDir)) {
 		for (const file of fs.readdirSync(paths.seedDataDir).filter((f) => f.endsWith(".json"))) {
@@ -563,11 +611,27 @@ export function entityRename(
 	);
 }
 
+/** A diagram's hand-drawn relations — the object entries of `relations`, or none. */
+function diagramRelations(d: Record<string, unknown>): Array<Record<string, unknown>> {
+	if (!Array.isArray(d.relations)) return [];
+	return (d.relations as unknown[]).filter(
+		(r): r is Record<string, unknown> => !!r && typeof r === "object" && !Array.isArray(r),
+	);
+}
+
+/** Whether a diagram places `key` as an entity or names it as a relation endpoint. */
+function diagramMentions(d: Record<string, unknown>, key: string): boolean {
+	const ents = d.entities;
+	if (ents && typeof ents === "object" && Object.prototype.hasOwnProperty.call(ents, key)) return true;
+	return diagramRelations(d).some((r) => r.from === key || r.to === key);
+}
+
 // ── entity_delete (with reference cleanup) ──────────────────────────────────
 // Deletes an entity: drops the file + manifest entry + its seed files, removes
-// role rights keys + folder bindings + data-view sources (deleting a view left
-// with no source). Cross-entity FKs targeting it, actions on it, and menus that
-// pointed at a removed view are surfaced as warnings — the user decides.
+// role rights keys + folder bindings + diagram entries and relations + data-view sources
+// (deleting a view left with no source). Cross-entity FKs targeting it,
+// actions on it, and menus that pointed at a removed view are surfaced as
+// warnings — the user decides.
 
 export const entityDeleteSchema = {
 	moduleDir: z.string().describe("Path to the module root."),
@@ -647,6 +711,32 @@ export function entityDelete(
 	if (foldersTouched) {
 		files[rel(paths.root, paths.folders)] = jsonText(folders);
 		changes.push("folders.json (binding)");
+	}
+
+	// Diagrams: drop the entity, and every hand-drawn relation touching it, from
+	// every diagram file.
+	for (const fp of diagramFiles(paths.diagramsDir)) {
+		let d: Record<string, unknown>;
+		try {
+			d = JSON.parse(fs.readFileSync(fp, "utf8"));
+		} catch {
+			continue;
+		}
+		if (!d || typeof d !== "object") continue;
+		const what: string[] = [];
+		const ents = d.entities as Record<string, unknown> | undefined;
+		if (ents && typeof ents === "object" && target in ents) {
+			delete ents[target];
+			what.push("entity key");
+		}
+		const doomed = new Set(diagramRelations(d).filter((r) => r.from === target || r.to === target));
+		if (doomed.size > 0) {
+			d.relations = (d.relations as unknown[]).filter((r) => !doomed.has(r as Record<string, unknown>));
+			what.push("relations");
+		}
+		if (what.length === 0) continue;
+		files[rel(paths.root, fp)] = jsonText(d);
+		changes.push(`docs/diagrams/${path.basename(fp)} (${what.join(", ")})`);
 	}
 
 	// Views: drop sources referencing it; delete a view left with no source.
