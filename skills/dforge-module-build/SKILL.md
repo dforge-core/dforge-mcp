@@ -284,7 +284,9 @@ stated trigger; every report's params sit on a dataset.
 3. **Reflect the role list back** before computing rights. Get confirmation.
 4. **Show the rights matrix as a table** (rows = entities/actions/reports,
    columns = roles, cells = rights strings), each cell explained by the verb it
-   maps to. Get sign-off.
+   maps to. Get sign-off. Include a row for every dependency entity a lookup
+   points at: a role that inserts or updates the lookup's entity needs
+   `"module.entity": "S"` on the target, or the lookup vanishes from the form.
 5. **Column-level security only when the intake asks for it.** Roles grant rights
    per entity, not per field. When a user type must not see specific *columns*
    (salaries, cost prices, personal data), that is an **entity view**: declare

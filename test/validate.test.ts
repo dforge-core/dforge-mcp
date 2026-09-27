@@ -68,10 +68,16 @@ describe("module_validate — cross-module references", () => {
 });
 
 describe("module_validate — role rights key resolution", () => {
-	const make = (rights: Record<string, string>, dependencies: Record<string, unknown> = {}) => {
+	const make = (rights: Record<string, string>, dependencies: Record<string, unknown> = {}, objectFiles = true) => {
 		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-roles-"));
 		mkdirSync(join(dir, "entities"), { recursive: true });
 		mkdirSync(join(dir, "security"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		mkdirSync(join(dir, "logic"), { recursive: true });
+		if (objectFiles) {
+			writeFileSync(join(dir, "ui", "reports.json"), JSON.stringify({ summary: {} }));
+			writeFileSync(join(dir, "logic", "stored_procedures.json"), JSON.stringify({ rpt_names: { functionName: "rpt_names", params: [] } }));
+		}
 		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", dependencies, entities: { thing: "./entities/thing.json" } }));
 		writeFileSync(join(dir, "entities", "thing.json"), JSON.stringify({ description: "Thing", traits: ["identity"], fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } }));
 		writeFileSync(join(dir, "security", "roles.json"), JSON.stringify({ admin: { rights } }));
@@ -93,6 +99,36 @@ describe("module_validate — role rights key resolution", () => {
 	it("flags rights on an unknown entity", () => {
 		const res = make({ thing: "SIUDC", phantom: "S" });
 		expect(JSON.stringify(res.errors)).toContain("phantom");
+	});
+	it("allows report: and sp: grants on the package's own objects (#1270)", () => {
+		const res = make({ thing: "SIUDC", "report:summary": "E", "sp:rpt_names": "E", "report:t.summary": "E", "sp:t.rpt_names": "E" });
+		expect(res.errors).toEqual([]);
+	});
+	it("allows qualified report: and sp: grants on a declared dependency", () => {
+		const res = make({ thing: "SIUDC", "report:fin.ar_aging": "E", "sp:fin.rpt_aging": "E" }, { fin: ">=0.0.1" });
+		expect(res.errors).toEqual([]);
+	});
+	it("flags an sp: grant on an undeclared stored procedure", () => {
+		const res = make({ thing: "SIUDC", "sp:rpt_phantom": "E" });
+		expect(JSON.stringify(res.errors)).toContain("no such stored procedure");
+	});
+	it("says the file is missing when an own report:/sp: grant has no declarations file", () => {
+		const res = make({ thing: "SIUDC", "report:summary": "E", "sp:rpt_names": "E" }, {}, false);
+		const errs = JSON.stringify(res.errors);
+		expect(errs).toContain("ui/reports.json is missing");
+		expect(errs).toContain("logic/stored_procedures.json is missing");
+		expect(errs).not.toContain("no such");
+	});
+	it.each(["sp:", "report:t.", "sp:.proc", "report:a.b.c", "sp:Rpt"])("flags malformed key '%s' as malformed, not as a missing module or object", (key) => {
+		const res = make({ thing: "SIUDC", [key]: "E" });
+		const errs = JSON.stringify(res.errors);
+		expect(errs).toContain(`malformed rights key '${key}'`);
+		expect(errs).not.toContain("not a declared dependency");
+		expect(errs).not.toContain("no such");
+	});
+	it("flags a qualified grant on an undeclared module", () => {
+		const res = make({ thing: "SIUDC", "sp:fin.rpt_aging": "E" });
+		expect(JSON.stringify(res.errors)).toContain("not a declared dependency");
 	});
 });
 

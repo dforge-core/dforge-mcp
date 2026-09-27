@@ -35,6 +35,7 @@ export interface ModulePaths {
 	actions: string;
 	reports: string;
 	queries: string;
+	storedProcedures: string;
 	roles: string;
 	jobs: string;
 	triggers: string;
@@ -62,6 +63,7 @@ export function modulePaths(moduleDir: string): ModulePaths {
 		actions: path.join(root, "ui", "actions.json"),
 		reports: path.join(root, "ui", "reports.json"),
 		queries: path.join(root, "ui", "queries.json"),
+		storedProcedures: path.join(root, "logic", "stored_procedures.json"),
 		printTemplates: path.join(root, "ui", "print_templates.json"),
 		roles: path.join(root, "security", "roles.json"),
 		jobs: path.join(root, "logic", "jobs.json"),

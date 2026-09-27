@@ -565,10 +565,12 @@ A **domain** is a reusable, named semantic type: a base datatype, a control, siz
 - Each entry in `rights` maps entity code → rights string
 - Rights characters: `S` (Select), `I` (Insert), `U` (Update), `D` (Delete), `C` (Clone) for entities, and `E` (Execute) for actions, reports, and folder access (e.g. `"action:create_quote": "E"`). The roles JSON schema enforces `^[SIUDCE]*$`.
 - Every entity should appear in every role (even if only `"S"` for read-only)
+- A role that inserts or updates an entity needs `S` on the target of each editable lookup on it — including another module's entity, keyed `module.entity` (`"parties.party": "S"`). Without it the lookup is hidden from the create and edit forms, and a required one makes the record unsaveable. `module validate` and `module pack` warn about it
 
 **Common Mistakes:**
 - ❌ `"entityRights": { ... }` → ✅ Use `"rights": { ... }`
 - ❌ Omitting entities from a role → Entity will be inaccessible to that role
+- ❌ Granting only your own entities when a lookup points at a dependency's → the lookup vanishes from the form
 
 ### 6. Seed Data (`seed-data/*.json`)
 

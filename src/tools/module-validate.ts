@@ -411,6 +411,28 @@ export function moduleValidate(
 	const roles = readJsonOrDefault<Record<string, Record<string, unknown>>>(paths.roles, {});
 	const actions = readJsonOrDefault<Record<string, unknown>>(paths.actions, {});
 	const reports = readJsonOrDefault<Record<string, unknown>>(paths.reports, {});
+	const storedProcedures = readJsonOrDefault<Record<string, unknown>>(paths.storedProcedures, {});
+	// report: and sp: may be qualified 'module.code'; only a foreign module's objects are out of sight.
+	// Codes are [a-z][a-z0-9_]* (no dots), so the single dot is unambiguous — a
+	// malformed ref is reported as such rather than as a phantom module or object.
+	const checkObjectKey = (rcode: string, key: string, kind: string, own: Record<string, unknown>, absFile: string, file: string): void => {
+		const ref = key.slice(kind.length + 1);
+		const noun = kind === "sp" ? "stored procedure" : "report";
+		if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/.test(ref)) {
+			err(`roles → ${rcode}`, `malformed rights key '${key}' — expected '${kind}:code' or '${kind}:module.code', each part matching [a-z][a-z0-9_]*`);
+			return;
+		}
+		const dot = ref.indexOf(".");
+		const mod = dot < 0 ? manifest.code : ref.slice(0, dot);
+		const code = dot < 0 ? ref : ref.slice(dot + 1);
+		if (mod !== manifest.code) {
+			if (!deps.has(mod)) err(`roles → ${rcode}`, `grants on '${key}' but '${mod}' is not a declared dependency`);
+		} else if (!fs.existsSync(absFile)) {
+			err(`roles → ${rcode}`, `grants on '${key}' but ${file} is missing — declare the ${noun} there`);
+		} else if (!(code in own)) {
+			err(`roles → ${rcode}`, `grants on '${key}' but no such ${noun} exists in ${file}`);
+		}
+	};
 	for (const [rcode, r] of Object.entries(roles)) {
 		const rights = (r.rights as Record<string, string> | undefined) ?? {};
 		for (const key of Object.keys(rights)) {
@@ -418,8 +440,9 @@ export function moduleValidate(
 				const a = key.slice("action:".length);
 				if (!(a in actions)) err(`roles → ${rcode}`, `grants on 'action:${a}' but no such action exists`);
 			} else if (key.startsWith("report:")) {
-				const rp = key.slice("report:".length);
-				if (!(rp in reports)) err(`roles → ${rcode}`, `grants on 'report:${rp}' but no such report exists`);
+				checkObjectKey(rcode, key, "report", reports, paths.reports, "ui/reports.json");
+			} else if (key.startsWith("sp:")) {
+				checkObjectKey(rcode, key, "sp", storedProcedures, paths.storedProcedures, "logic/stored_procedures.json");
 			} else if (key.startsWith("folder:")) {
 				// folder existence lives in folders.json's tree — skip (soft)
 			} else if (!isKnownEntity(key)) {
