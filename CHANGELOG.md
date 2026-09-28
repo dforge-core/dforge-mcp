@@ -4,6 +4,19 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.31
+
+**`dforge://reference/formulas` showed check constraints in formula syntax**
+(dForge-core#1263). Its examples were `[quantity] > 0` and `[end_date] >= [start_date]`,
+but a check constraint's `expression` is copied into a PostgreSQL `CHECK (...)` as is. A
+module written from the reference passed `dforge_module_validate` and then failed the
+install with `syntax error at or near "["`. The reference now shows plain SQL over real
+column names, with `IS NULL` / `IS NOT NULL` instead of the formula engine's `= null`.
+
+- With `@dforge-core/dforge-cli` 0.2.24 or later, `dforge_module_validate` also reports
+  both mistakes as errors under `cli: check constraints`: a `[field]` reference, and a
+  comparison with `null`, which in SQL never fails the CHECK. An older CLI skips the check.
+
 ## 0.2.28
 
 **`dforge_module_validate` reported a clean module that `pack` then rejected**

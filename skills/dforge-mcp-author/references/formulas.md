@@ -246,13 +246,20 @@ In modules that use settings, formulas can reference setting values with `$[Sett
 
 ## Validation and CHECK constraints
 
-Check constraints use a subset of the formula grammar. The server parses them to AST and converts to SQL. Common patterns:
+A check constraint's `expression` is **not** a formula. It is copied verbatim into a
+PostgreSQL `CHECK (...)`, so write plain SQL over real column names — no `[brackets]`, and
+`IS NULL` / `IS NOT NULL` instead of the formula engine's null-safe `= null` / `!= null`:
 
 ```
-[quantity] > 0
-[end_date] >= [start_date]
-[email] LIKE '%@%'
+quantity > 0
+end_date IS NULL OR end_date >= start_date
+cancelled = false OR cancel_reason_id IS NOT NULL
 ```
+
+`module validate` rejects both formula habits: `[field]` fails the install with
+`syntax error at or near "["`, and `x != null` is never true in SQL, so the CHECK would
+always pass. The client pre-validates only a subset of SQL (comparisons, `AND`/`OR`/`NOT`,
+`IN`, `BETWEEN`, `IS [NOT] NULL`, arithmetic, regex `~`); the database enforces the rest.
 
 The constraint's `message` (the violation text shown to users) is **localizable** — add a per-locale override at `entities.<entityCd>.constraints.<constraintName>.message` in each `translations/<locale>.json`. The base `message` in the entity JSON is the fallback. See `translations.md` → "Constraint violation messages ARE translatable".
 
