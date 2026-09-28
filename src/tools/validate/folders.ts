@@ -17,17 +17,15 @@ import type { ValidateContext } from "./context";
 export function checkFolders(ctx: ValidateContext): void {
 	const { paths, err, entities } = ctx;
 	// Folder codes are unique across the whole tree.
-	// A folder is referenced flat and path-less — `folder:<code>` in role rights,
-	// `folders.<code>.label` in translations — so the same code in two branches
-	// makes the rights grant ambiguous and lets one folder's label overwrite the
-	// other's. Nesting alone doesn't namespace them.
+	// Role rights reference a folder flat and path-less (`folder:<code>`), so the
+	// same code in two branches makes the grant ambiguous. Nesting alone doesn't
+	// namespace them.
 	const folderRoot = readJsonOrDefault<Record<string, unknown>>(paths.folders, {});
 	for (const [code, dupPaths] of duplicateFolderCodes(folderRoot)) {
 		err(
 			"ui/folders.json",
 			`folder code '${code}' is used ${dupPaths.length} times (${dupPaths.join(", ")}). Codes must be ` +
-				`unique across the whole tree: role rights say 'folder:${code}' with no path, and translations key ` +
-				`on 'folders.${code}.label', so duplicates are ambiguous and silently collide.`,
+				`unique across the whole tree: role rights say 'folder:${code}' with no path, so duplicates are ambiguous.`,
 		);
 	}
 

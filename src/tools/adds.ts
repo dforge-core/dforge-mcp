@@ -209,9 +209,8 @@ export function folderAdd(args: z.infer<z.ZodObject<typeof folderAddSchema>>): T
 	}
 
 	// Folder codes must be unique across the WHOLE tree, not just among siblings:
-	// role rights reference a folder as `folder:<code>` with no path, and
-	// translations key on `folders.<code>.label`. A second 'east' under a
-	// different parent would make both ambiguous.
+	// role rights reference a folder as `folder:<code>` with no path. A second
+	// 'east' under a different parent would make the grant ambiguous.
 	const clash = walkFolders(root).find((f) => f.code === args.code);
 	if (clash) {
 		throw new Error(

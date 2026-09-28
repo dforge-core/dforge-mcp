@@ -508,13 +508,12 @@ export function compositeKey(...parts: string[]): string {
 // ── Folder tree ──────────────────────────────────────────────────────
 //
 // ui/folders.json IS the root folder (not a map), with sub-folders nested under
-// `children`. Folder CODES are referenced flat and path-less everywhere else in
-// the module — role rights use `folder:<code>`, and translations key on
-// `folders.<code>.label`. So two folders sharing a code in different branches
-// are genuinely ambiguous: the rights grant can't say which one it means, and
-// the translation for one silently overwrites the other. Nothing enforced that,
-// so these helpers let the add tool, the validator, and the translation sync
-// all apply the same rule.
+// `children`. Role rights reference a folder by its bare code, path-less
+// (`folder:<code>`), so two folders sharing a code in different branches are
+// genuinely ambiguous: the grant can't say which one it means. (Translations
+// key on the installer's flat code, `<module>_<path>`, which nesting does
+// namespace.) Nothing enforced that, so these helpers let the add tool, the
+// validator, and the translation sync all apply the same rule.
 
 export interface FolderNode {
 	/** The folder's code (its key under the parent's `children`). */
