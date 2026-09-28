@@ -15,6 +15,7 @@ import {
 	entityRecordContext,
 	type ToolResult,
 } from "./_helpers";
+import { readMessageTranslations } from "./validate/translations";
 import { checkDsl, type DslIssue } from "./dsl-check";
 
 export const actionCheckSchema = {
@@ -71,6 +72,7 @@ export function actionCheck(args: Args): ToolResult {
 	// action that passes here doesn't then fail at pack.
 	let moduleCode: string | undefined;
 	let entity: { qualified: string; columns: Set<string> } | undefined;
+	let messageTranslations: Record<string, Record<string, string>> | undefined;
 	// Defects found while resolving the module, reported alongside the DSL ones
 	// so a single result answers "is this body ready to commit?".
 	const preIssues: DslIssue[] = [];
@@ -82,6 +84,7 @@ export function actionCheck(args: Args): ToolResult {
 	if (args.moduleDir) {
 		const { paths, manifest } = loadManifest(args.moduleDir);
 		moduleCode = manifest.code;
+		messageTranslations = readMessageTranslations(paths.translationsDir, manifest.supportedLocales);
 
 		if (args.actionCode) {
 			const actions = readJsonOrDefault<Record<string, Record<string, unknown>>>(paths.actions, {});
@@ -146,6 +149,7 @@ export function actionCheck(args: Args): ToolResult {
 			moduleCode,
 			actionCode: args.actionCode,
 			entity,
+			messageTranslations,
 		}),
 	];
 	const errors = issues.filter((i) => i.level === "error");

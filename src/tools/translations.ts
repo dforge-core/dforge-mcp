@@ -16,6 +16,7 @@ import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { expandTraits } from "@dforge-core/metadata";
+import { actionMessageTexts } from "./validate/translations";
 import {
 	loadManifest,
 	readJsonOrDefault,
@@ -70,6 +71,10 @@ interface SkeletonEntry {
 	english: string;
 	/** True when install FAILS if this key is absent (roles only, today). */
 	required: boolean;
+	/** Where older files held this text; a translation there is carried over. */
+	legacyParts?: string[];
+	/** Only for non-English files: an English DSL message is the .dsl text itself. */
+	nonEnglishOnly?: boolean;
 }
 
 /** Build the full set of translatable keys from the module's own files. */
@@ -87,8 +92,15 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 				"which fails the install. Fix the file and sync again.",
 		);
 	}
-	const push = (section: string, pathParts: string[], english: string, required = false) => {
-		entries.push({ pathParts, english, required });
+	const push = (
+		section: string,
+		pathParts: string[],
+		english: string,
+		required = false,
+		legacyParts?: string[],
+		nonEnglishOnly = false,
+	) => {
+		entries.push({ pathParts, english, required, legacyParts, nonEnglishOnly });
 		counts[section] = (counts[section] ?? 0) + 1;
 	};
 
@@ -174,10 +186,11 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 	}
 
 	// ── folders (root + every nested sub-folder) ──
-	// Keys are FLAT folder codes — that's what the platform reads, and it matches
-	// how role rights address a folder (`folder:<code>`, no path). Two folders
-	// sharing a code would therefore collide here, one label overwriting the
-	// other; refuse rather than silently pick a winner. dforge_folder_add and
+	// A sub-folder is keyed by the flat code the installer gives it — the module
+	// code and its path joined with `_` (`ops_north`). That is the key install's
+	// completeness check requires and the registrar resolves to the folder row.
+	// Role rights still address a folder by its bare code (`folder:<code>`), so
+	// two folders sharing one stay refused. dforge_folder_add and
 	// dforge_module_validate enforce the same rule.
 	const folders = readJsonOrDefault<Dict>(paths.folders, {});
 	if (Object.keys(folders).length > 0) {
@@ -187,23 +200,35 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 				.map(([code, paths_]) => `'${code}' (${paths_.join(", ")})`)
 				.join("; ");
 			throw new Error(
-				`ui/folders.json reuses folder code(s) across branches: ${detail}. Translation keys are flat ` +
-					"(`folders.<code>.label`), so duplicates would overwrite each other — and role rights " +
-					"(`folder:<code>`) can't tell them apart either. Rename them to unique codes, then re-run.",
+				`ui/folders.json reuses folder code(s) across branches: ${detail}. Role rights ` +
+					"(`folder:<code>`) can't tell them apart. Rename them to unique codes, then re-run.",
 			);
 		}
 		// The root folder has no code of its own — it IS the file — so it's keyed
 		// on the module code.
 		push("folders", ["folders", manifest.code, "label"], str(folders, "label") ?? titleize(manifest.code));
 		for (const f of walkFolders(folders)) {
-			push("folders", ["folders", f.code, "label"], str(f.node, "label") ?? titleize(f.code));
+			const flatCode = [manifest.code, ...f.path.split("/")].join("_");
+			// Earlier syncs keyed a sub-folder by its bare code, which install never applied.
+			push("folders", ["folders", flatCode, "label"], str(f.node, "label") ?? titleize(f.code), false, [
+				"folders",
+				f.code,
+				"label",
+			]);
 		}
 	}
 
 	// ── settings (completeness-checked for declared locales) ──
+	// Older settings name themselves in `description` (what install labels the
+	// setting with) or the short `desc`.
 	const settings = readJsonOrDefault<Record<string, Dict>>(paths.settings, {});
 	for (const [code, s] of Object.entries(settings)) {
-		push("settings", ["settings", code, "label"], str(s, "label") ?? titleize(code));
+		push("settings", ["settings", code, "label"], str(s, "label") ?? str(s, "description") ?? str(s, "desc") ?? titleize(code));
+	}
+
+	// ── DSL messages: info / warn / error / exit texts, keyed by the English text ──
+	for (const text of actionMessageTexts(paths.logicDir, actions).keys()) {
+		push("messages", ["messages", text], text, false, undefined, true);
 	}
 
 	return { entries, counts };
@@ -258,6 +283,7 @@ export function translationSync(
 	}
 	const keep = new Set(entries.map((e) => compositeKey(...e.pathParts)));
 
+	const isEnglish = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
 	const files: Record<string, string> = {};
 	const report: string[] = [];
 	let totalAdded = 0;
@@ -277,10 +303,12 @@ export function translationSync(
 		const next: Dict = args.prune ? pruneTo(existing, keep) : JSON.parse(JSON.stringify(existing));
 		let added = 0;
 		for (const entry of entries) {
+			if (entry.nonEnglishOnly && isEnglish(locale)) continue;
 			const current = getIn(next, entry.pathParts);
 			// Never overwrite existing translated text.
 			if (typeof current === "string" && current.trim() !== "") continue;
-			setIn(next, entry.pathParts, entry.english);
+			const legacy = entry.legacyParts && getIn(existing, entry.legacyParts);
+			setIn(next, entry.pathParts, typeof legacy === "string" && legacy.trim() !== "" ? legacy : entry.english);
 			added++;
 			if (entry.required) missingRequired++;
 		}
@@ -290,7 +318,6 @@ export function translationSync(
 		report.push(`${locale}: +${added} key(s)${added === 0 ? " (already complete)" : ""}`);
 	}
 
-	const isEnglish = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
 	const nonEnglish = locales.filter((l) => !isEnglish(l));
 	const warning =
 		nonEnglish.length > 0 && totalAdded > 0

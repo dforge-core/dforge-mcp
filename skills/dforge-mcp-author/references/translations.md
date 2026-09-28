@@ -85,6 +85,7 @@ Translation files mirror the module's content structure. Each translatable objec
 | `actions` | Action labels, descriptions, param labels **and param dropdown option labels** | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label, options: { value: … } } } }` |
 | `reports` | Report dataset captions, param labels **and param dropdown option labels** | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label, options: { value: … } } } }` |
 | `entities.<e>.constraints` | Check/unique constraint violation messages (opt-in — warned, not enforced) | Constraint codes → `{ message }` under the owning entity |
+| `messages` | DSL `info` / `warn` / `error` / `exit` texts (opt-in — warned, not enforced) | Exact English text → translated text |
 | `entities.<e>.fields.<f>.options` | Dropdown/radio/flags **option labels** (opt-in) | Option `value` → localized label (string) or `{ label, icon, color }` |
 | `domains` | Column domain labels **and** their shared option labels (opt-in) | Domain codes → `{ label, options: { value: … } }` |
 
@@ -173,6 +174,22 @@ A `dropdown` **parameter** carries per-value labels exactly like a column, and t
 - A param may translate **only** its options and keep the authored caption — omit `label`.
 - **This requires base labels in the DSL.** `options=bank_transfer,cash` stores bare codes, and the dialog shows `bank_transfer` in *every* locale including English until you write `options=[bank_transfer:Bank transfer, cash:Cash]` (or the JSON object form). See `action-dsl.md`.
 - **Prefer a domain.** If the param's choices are the same list a column uses — which they usually are, since the value normally ends up written to that column — declare the param as `domain <domainCd>` and skip this section entirely: it inherits the domain's translated options. Reach for per-param `options` only when the list belongs to that one parameter and matches no column.
+
+### Action messages ARE translatable (opt-in)
+
+The text an action passes to `info()`, `warn()`, `error()` or `exit()` is the base text **and the key**. Translate it under `messages` in each non-English file, keyed by the exact English text; `{name}` placeholders are filled from the call's second argument (`exit()`: third, after the level) and may be reordered:
+
+```json
+"messages": {
+    "Item processed successfully": "Товар успішно оброблено",
+    "Recount completed: {count} line(s) checked": "Перерахунок завершено: перевірено рядків — {count}"
+}
+```
+
+- Lookup is in the **action's own module** (a bridge module's action uses the bridge's `messages`), in the user's language; a queued action uses the language of the user who queued it, a scheduled job the workspace default. No entry → the English text. Needs platform 1.26.0.
+- A message joined from text and values (`'Bill ' + [bill_number]`) cannot be translated — rewrite it with placeholders.
+- A link label must be data (a record number), not a word: links are placed after translation.
+- **Opt-in, never mandatory.** With `supportedLocales`, install and `dforge_module_validate` warn about untranslated and joined messages; both always warn about `messages` entries no script uses (an English wording change leaves one behind) and about placeholders with no value. `dforge_translation_sync` adds every fixed message text to the non-English files.
 
 ### Roles ARE translated — and completeness is enforced
 

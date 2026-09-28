@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { readJsonOrDefault, localEntityCode } from "../_helpers";
 import { checkDsl } from "../dsl-check";
 import type { ValidateContext } from "./context";
+import { readMessageTranslations } from "./translations";
 
 // Actions: DSL file on disk + a real target entity.
 // `script` is a BARE filename; the installer resolves it to
@@ -125,9 +126,11 @@ export function checkTriggersJobsWebhooks(ctx: ValidateContext): void {
 // run the statically-decidable subset here. See ./dsl-check.
 export function checkActionDsl(ctx: ValidateContext): void {
 	const { paths, manifest, issues, columnsOf, partialColumns, actions } = ctx;
+	const messageTranslations = readMessageTranslations(paths.translationsDir, ctx.supportedLocales);
 	for (const [acode, a] of Object.entries(actions)) {
-		const script = (a as Record<string, unknown> | undefined)?.script;
-		if (typeof script !== "string" || !script) continue;
+		// The installer defaults the script to the action code.
+		const declared = (a as Record<string, unknown> | undefined)?.script;
+		const script = typeof declared === "string" && declared ? declared : acode;
 		const dslPath = path.join(paths.logicDir, "actions", `${script}.dsl`);
 		if (!fs.existsSync(dslPath)) continue; // reported by checkActions
 		let body: string;
@@ -160,6 +163,7 @@ export function checkActionDsl(ctx: ValidateContext): void {
 				entityCode && columns
 					? { qualified: `${manifest.code}.${entityCode}`, columns }
 					: undefined,
+			messageTranslations,
 		})) {
 			issues.push({
 				level: issue.level,

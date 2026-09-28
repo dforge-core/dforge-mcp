@@ -21,7 +21,7 @@
 			"type": "object",
 			"description": "Entity key → placement. A key is the entity code as the module's manifest names it, or `module.entity` for an entity of a dependency — the same form a field link's `entity` takes. A key no entity has yet is a planned entity, drawn as a name only. An empty object places the entity automatically.",
 			"propertyNames": {
-				"minLength": 1
+				"$ref": "#/$defs/entityKey"
 			},
 			"additionalProperties": {
 				"$ref": "#/$defs/diagramEntity"
@@ -46,6 +46,11 @@
 	},
 	"additionalProperties": false,
 	"$defs": {
+		"entityKey": {
+			"type": "string",
+			"pattern": "^([a-zA-Z_][a-zA-Z0-9_-]*\\.)*[a-zA-Z_][a-zA-Z0-9_-]*$",
+			"description": "An entity code, optionally qualified by its module's code: `entity`, `module.entity`. Each part is an identifier the installer accepts: `[a-zA-Z_][a-zA-Z0-9_-]*`."
+		},
 		"diagramEntity": {
 			"type": "object",
 			"properties": {
@@ -77,13 +82,11 @@
 			"required": ["from", "to"],
 			"properties": {
 				"from": {
-					"type": "string",
-					"minLength": 1,
+					"$ref": "#/$defs/entityKey",
 					"description": "Entity key of the many side — the entity that will carry the foreign key."
 				},
 				"to": {
-					"type": "string",
-					"minLength": 1,
+					"$ref": "#/$defs/entityKey",
 					"description": "Entity key of the one side — the entity referenced."
 				},
 				"label": {

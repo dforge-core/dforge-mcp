@@ -28,7 +28,7 @@ import {
 } from "./validate/entities";
 import { checkDataViews, checkVisibleColumns, checkMenus } from "./validate/views";
 import { checkRoleRights, checkSelectCoverage } from "./validate/security";
-import { checkConstraintTranslations, checkTranslationCompleteness } from "./validate/translations";
+import { checkConstraintTranslations, checkMessageTranslations, checkTranslationCompleteness } from "./validate/translations";
 import { checkActions, checkTriggersJobsWebhooks, checkActionDsl } from "./validate/logic";
 import { checkFolders, checkDiagrams } from "./validate/folders";
 import { checkReports } from "./validate/reports";
@@ -58,6 +58,7 @@ const CHECKS: Array<(ctx: ValidateContext) => void> = [
 	checkDiagrams,
 	checkReports,
 	checkTranslationCompleteness,
+	checkMessageTranslations,
 ];
 
 export function moduleValidate(

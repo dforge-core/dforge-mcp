@@ -1,7 +1,8 @@
-// translations/ checks: constraint-message overrides, role-label completeness.
+// translations/ checks: constraint-message overrides, role-label completeness, DSL messages.
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { extractMessages, parseDsl } from "@dforge-core/metadata/dsl";
 import type { ValidateContext } from "./context";
 
 /**
@@ -154,6 +155,105 @@ export function checkTranslationCompleteness(ctx: ValidateContext): void {
 				`translations/${file}`,
 				`missing roles.<code>.label for: ${missing.join(", ")} — completeness is enforced in every locale (including en-US); install fails with "Label for role '<code>'."`,
 			);
+		}
+	}
+}
+
+const isEnglishLocale = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
+
+function readLocaleFile(translationsDir: string, locale: string): Record<string, unknown> | null {
+	const abs = resolveTranslationFile(translationsDir, locale);
+	if (!abs) return null;
+	try {
+		return JSON.parse(fs.readFileSync(abs, "utf8")) as Record<string, unknown>;
+	} catch {
+		return null;
+	}
+}
+
+function messagesBlock(root: Record<string, unknown> | null): Record<string, string> {
+	const block = root?.messages;
+	if (!block || typeof block !== "object" || Array.isArray(block)) return {};
+	return Object.fromEntries(
+		Object.entries(block).filter((e): e is [string, string] => typeof e[1] === "string" && e[1].trim() !== ""),
+	);
+}
+
+/**
+ * Each non-English locale in supportedLocales → its `messages` block (`{}` when
+ * the file or the block is absent). Undefined for a module declaring no locales:
+ * the DSL checker's untranslated / concatenated rules then stand down, as the
+ * install-time scan does.
+ */
+export function readMessageTranslations(
+	translationsDir: string,
+	supportedLocales: unknown,
+): Record<string, Record<string, string>> | undefined {
+	const declared = Array.isArray(supportedLocales)
+		? supportedLocales.filter((l): l is string => typeof l === "string")
+		: [];
+	const locales = [...new Set(declared.map((l) => l.trim()).filter((l) => l && !isEnglishLocale(l)))];
+	if (locales.length === 0) return undefined;
+	return Object.fromEntries(locales.map((l) => [l, messagesBlock(readLocaleFile(translationsDir, l))]));
+}
+
+/**
+ * The fixed message texts of every action script (text → first script using it),
+ * in source order. A script is `script` or, as the installer defaults it, the action code.
+ */
+export function actionMessageTexts(logicDir: string, actions: Record<string, unknown>): Map<string, string> {
+	const texts = new Map<string, string>();
+	for (const [code, def] of Object.entries(actions)) {
+		const declared = (def as Record<string, unknown> | undefined)?.script;
+		const script = typeof declared === "string" && declared ? declared : code;
+		const file = path.join(logicDir, "actions", `${script}.dsl`);
+		if (!fs.existsSync(file)) continue;
+		let body: string;
+		try {
+			body = fs.readFileSync(file, "utf8");
+		} catch {
+			continue;
+		}
+		for (const m of extractMessages(parseDsl(body))) {
+			if (m.text !== undefined && !texts.has(m.text)) texts.set(m.text, `logic/actions/${script}.dsl`);
+		}
+	}
+	return texts;
+}
+
+const placeholdersOf = (text: string) =>
+	new Set([...text.matchAll(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g)].map((m) => m[1]!));
+
+// `messages` entries that no script uses, and translations that add a placeholder
+// the English text lacks. Mirrors the install-time ActionMessageScanner; the
+// per-script rules (untranslated, joined text) run in checkActionDsl.
+export function checkMessageTranslations(ctx: ValidateContext): void {
+	const { paths, warn } = ctx;
+	if (!fs.existsSync(paths.translationsDir)) return;
+	let texts: Map<string, string> | undefined;
+	for (const f of fs.readdirSync(paths.translationsDir).filter((f) => f.toLowerCase().endsWith(".json")).sort()) {
+		const locale = f.slice(0, -".json".length);
+		const block = messagesBlock(readLocaleFile(paths.translationsDir, locale));
+		if (Object.keys(block).length === 0) continue;
+		if (isEnglishLocale(locale)) {
+			warn(`translations/${f}`, "has a `messages` block, which install ignores: English is the text in the .dsl scripts.");
+			continue;
+		}
+		texts ??= actionMessageTexts(paths.logicDir, ctx.actions);
+		for (const [text, translation] of Object.entries(block)) {
+			if (!texts.has(text)) {
+				warn(
+					`translations/${f}`,
+					`messages entry "${text}" matches no info/warn/error/exit text in the action scripts — it never shows. ` +
+						"The key must be the exact English text; an edit to the .dsl wording leaves the old entry behind.",
+				);
+				continue;
+			}
+			const known = placeholdersOf(text);
+			for (const ph of placeholdersOf(translation)) {
+				if (!known.has(ph))
+					warn(`translations/${f}`, `messages entry "${text}": the translation uses {${ph}}, which the English text has no value for — it shows as written.`);
+			}
 		}
 	}
 }

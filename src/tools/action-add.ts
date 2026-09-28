@@ -16,6 +16,7 @@ import {
 	withTodayStamp,
 	type ToolResult,
 } from "./_helpers";
+import { readMessageTranslations } from "./validate/translations";
 import { checkDsl } from "./dsl-check";
 
 export const actionAddSchema = {
@@ -92,6 +93,7 @@ export function actionAdd(
 		moduleCode: manifest.code,
 		actionCode: args.code,
 		entity: entityRecordContext(paths, manifest, args.entityCode, localTraits),
+		messageTranslations: readMessageTranslations(paths.translationsDir, manifest.supportedLocales),
 	});
 	const dslErrors = dslIssues.filter((i) => i.level === "error");
 	if (dslErrors.length > 0) {

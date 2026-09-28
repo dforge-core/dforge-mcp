@@ -302,11 +302,18 @@ var queued = select('comm.message', {
 
 | Function | Description |
 |---|---|
-| `error('message')` | **Abort** the action and show an error to the user. Rolls back all changes. |
-| `warn('message')` | Show a warning but continue execution. |
-| `info('message')` | Show an informational message. A **receipt for work the action did** — not a way to publish a computed value; see *When an action is the wrong tool*. |
-| `exit('message'?, 'level'?)` | **Stop the script early without error** — changes made so far are kept. Level `'info'` (default) or `'warn'` styles the message. This is the DSL's early-return: a bare `return` is not valid at the top level of `execute:`. |
+| `error('message', values?)` | **Abort** the action and show an error to the user. Rolls back all changes. |
+| `warn('message', values?, opts?)` | Show a warning but continue execution. |
+| `info('message', values?, opts?)` | Show an informational message. A **receipt for work the action did** — not a way to publish a computed value; see *When an action is the wrong tool*. |
+| `exit('message'?, 'level'?, values?)` | **Stop the script early without error** — changes made so far are kept. Level `'info'` (default), `'warning'`, `'danger'` or `'success'` styles the message. This is the DSL's early-return: a bare `return` is not valid at the top level of `execute:`. |
 | `notify(userId, 'message')` | Send an in-app notification to a specific user. First arg is a user ID (typically `[owner_id]` or similar). |
+
+The message of `error` / `warn` / `info` / `exit` is translatable: it is looked up by its exact English text in the module's `messages` translations (see `dforge://reference/translations`). Put values in `{name}` placeholders filled from `values` — never join them into the string, which leaves no fixed text to translate. `opts` carries record links (`{ links: [...] }`), so `links` is not a placeholder name:
+
+```javascript
+error('Insufficient stock. Available: {available}, requested: {requested}',
+    { available: availableQty, requested: params[quantity] })
+```
 
 ### Email
 

@@ -43,6 +43,11 @@ export interface DslCheckOpts {
 	 * that installs.
 	 */
 	entity?: { qualified: string; columns: Set<string> | Map<string, unknown> };
+	/**
+	 * Each non-English supportedLocales locale → its `messages` block. Omit it
+	 * and the untranslated / joined-text message rules stand down.
+	 */
+	messageTranslations?: Record<string, Record<string, string>>;
 }
 
 /**
@@ -69,6 +74,7 @@ export function checkDsl(src: string, opts: DslCheckOpts = {}): DslIssue[] {
 				? { code: opts.actionCode ?? "this action", executionMode, viaJob: opts.viaJob }
 				: undefined,
 		currentEntity: opts.entity ?? null,
+		messageTranslations: opts.messageTranslations,
 	};
 
 	const issues = checkDslPackage(src, ctx).map(toIssue);

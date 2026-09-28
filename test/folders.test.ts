@@ -1,6 +1,6 @@
 // Folder codes are referenced FLAT and path-less everywhere outside the tree —
-// role rights say `folder:<code>`, translations key on `folders.<code>.label` —
-// so nesting does NOT namespace them. These tests pin the uniqueness rule at
+// role rights say `folder:<code>` — so nesting does NOT namespace them.
+// Translations key on the installer's flat code (`<module>_<path>`). These tests pin the uniqueness rule at
 // all three places that depend on it.
 
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -132,7 +132,7 @@ describe("translation_sync and folder codes", () => {
 		);
 	});
 
-	it("emits a flat key per folder, plus the root keyed on the module code", () => {
+	it("emits the installer's flat code per folder, plus the root keyed on the module code", () => {
 		makeModule({
 			label: "Ops Root",
 			children: { north: { label: "North" }, south: { label: "South" } },
@@ -141,9 +141,22 @@ describe("translation_sync and folder codes", () => {
 		const tx = JSON.parse(
 			require("node:fs").readFileSync(join(dir, "translations", "en-US.json"), "utf8"),
 		);
-		// Flat codes — matching how role rights address a folder (`folder:north`).
+		// The module code and the folder's path, joined with `_` — what install resolves.
 		expect(tx.folders.ops.label).toBe("Ops Root");
-		expect(tx.folders.north.label).toBe("North");
-		expect(tx.folders.south.label).toBe("South");
+		expect(tx.folders.ops_north.label).toBe("North");
+		expect(tx.folders.ops_south.label).toBe("South");
+		expect(tx.folders.north).toBeUndefined();
+	});
+
+	it("carries a translation over from the bare-code key earlier syncs wrote", () => {
+		makeModule({ label: "Ops Root", children: { north: { label: "North" } } });
+		mkdirSync(join(dir, "translations"), { recursive: true });
+		writeFileSync(join(dir, "translations", "de-DE.json"), JSON.stringify({ folders: { north: { label: "Nord" } } }));
+		apply(translationSync({ moduleDir: dir, prune: true, locales: ["de-DE"] }));
+		const tx = JSON.parse(
+			require("node:fs").readFileSync(join(dir, "translations", "de-DE.json"), "utf8"),
+		);
+		expect(tx.folders.ops_north.label).toBe("Nord");
+		expect(tx.folders.north).toBeUndefined();
 	});
 });

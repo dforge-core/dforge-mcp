@@ -1,0 +1,267 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/translations.schema.json",
+	"title": "dForge Translations",
+	"description": "A module's translations/<locale>.json, e.g. de-DE.json. English is the base text authored in the other module files, so an en-* file is not applied at install. Every key is optional: a missing entry falls back to the base text. Labels are required only for the locales the manifest lists in supportedLocales (constraint messages and DSL messages are warned about, never required).",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"entities": {
+			"type": "object",
+			"description": "Entity code → labels for the entity, its fields, card sections and constraint messages.",
+			"additionalProperties": {
+				"$ref": "#/$defs/entity"
+			}
+		},
+		"domains": {
+			"type": "object",
+			"description": "Column domain code (domains.json) → label and option labels, translated once for every column that uses the domain.",
+			"additionalProperties": {
+				"$ref": "#/$defs/withOptions"
+			}
+		},
+		"folders": {
+			"type": "object",
+			"description": "Folder code → label. A sub-folder is keyed by its own flat code, not its path.",
+			"additionalProperties": {
+				"$ref": "#/$defs/labelOnly"
+			}
+		},
+		"views": {
+			"type": "object",
+			"description": "Data view code → label.",
+			"additionalProperties": {
+				"$ref": "#/$defs/labelOnly"
+			}
+		},
+		"menus": {
+			"type": "object",
+			"description": "Menu code → label and item labels.",
+			"additionalProperties": {
+				"$ref": "#/$defs/menu"
+			}
+		},
+		"settings": {
+			"type": "object",
+			"description": "Setting code (settings.json) → label and description.",
+			"additionalProperties": {
+				"$ref": "#/$defs/labelDesc"
+			}
+		},
+		"roles": {
+			"type": "object",
+			"description": "Module-qualified role code (e.g. \"crm.admin\") → label.",
+			"additionalProperties": {
+				"$ref": "#/$defs/labelOnly"
+			}
+		},
+		"reports": {
+			"type": "object",
+			"description": "Report code → label, dataset captions and parameter labels.",
+			"additionalProperties": {
+				"$ref": "#/$defs/report"
+			}
+		},
+		"actions": {
+			"type": "object",
+			"description": "Action code (ui/actions.json) → label, tooltip and parameter labels.",
+			"additionalProperties": {
+				"$ref": "#/$defs/action"
+			}
+		},
+		"print_templates": {
+			"type": "object",
+			"description": "Print template code → label. Accepted, but not applied at install yet.",
+			"additionalProperties": {
+				"$ref": "#/$defs/labelOnly"
+			}
+		},
+		"messages": {
+			"type": "object",
+			"description": "Text of a DSL info() / warn() / error() / exit() call, exactly as written in the .dsl file → its translation. {name} placeholders are filled from the call's values and may be reordered. See docs/business-logic/message-localization.md.",
+			"propertyNames": {
+				"minLength": 1
+			},
+			"additionalProperties": {
+				"type": "string",
+				"minLength": 1
+			}
+		}
+	},
+	"$defs": {
+		"label": {
+			"type": "string",
+			"description": "Translated display label."
+		},
+		"labelOnly": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				}
+			}
+		},
+		"labelDesc": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"desc": {
+					"type": "string",
+					"description": "Translated description or tooltip."
+				}
+			}
+		},
+		"option": {
+			"description": "A translated option: the label alone, or the label with an icon and color override.",
+			"oneOf": [
+				{
+					"type": "string"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"label": {
+							"type": "string"
+						},
+						"icon": {
+							"type": "string"
+						},
+						"color": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		},
+		"options": {
+			"type": "object",
+			"description": "Option value (the stored code) → its translation.",
+			"additionalProperties": {
+				"$ref": "#/$defs/option"
+			}
+		},
+		"withOptions": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"options": {
+					"$ref": "#/$defs/options"
+				}
+			}
+		},
+		"entity": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"desc": {
+					"type": "string"
+				},
+				"fields": {
+					"type": "object",
+					"description": "Column code → label and, for dropdown / radio / flags columns, option labels.",
+					"additionalProperties": {
+						"$ref": "#/$defs/withOptions"
+					}
+				},
+				"columnGroups": {
+					"type": "object",
+					"description": "Card-layout section code → heading.",
+					"additionalProperties": {
+						"$ref": "#/$defs/labelOnly"
+					}
+				},
+				"constraints": {
+					"type": "object",
+					"description": "Check / unique constraint name → violation message.",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"message": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		},
+		"menu": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"items": {
+					"type": "object",
+					"description": "Menu item code → label. Flat even when ui/menus.json nests items under children: a group and its children are siblings here.",
+					"additionalProperties": {
+						"$ref": "#/$defs/labelOnly"
+					}
+				}
+			}
+		},
+		"params": {
+			"type": "object",
+			"description": "Parameter code → label and dropdown option labels.",
+			"additionalProperties": {
+				"$ref": "#/$defs/withOptions"
+			}
+		},
+		"report": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"datasets": {
+					"type": "object",
+					"description": "Dataset code → caption.",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"caption": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"params": {
+					"$ref": "#/$defs/params"
+				}
+			}
+		},
+		"action": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"desc": {
+					"type": "string",
+					"description": "Translated tooltip."
+				},
+				"params": {
+					"$ref": "#/$defs/params"
+				}
+			}
+		}
+	}
+}

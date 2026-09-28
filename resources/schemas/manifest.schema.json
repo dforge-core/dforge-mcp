@@ -104,8 +104,8 @@
 		},
 		"auditHistory": {
 			"type": "string",
-			"enum": ["none", "minimal", "full"],
-			"description": "Default audit history mode for entities in this module ('full' captures every field change; 'minimal' captures only inserts/deletes; 'none' disables). Individual entities can override."
+			"enum": ["basic", "fields", "full"],
+			"description": "Default audit history level for entities in this module: 'basic' logs each insert/update/delete without field details; 'fields' adds old/new values of changed fields; 'full' also stores display values (reference and user names). Omit to disable. Individual entities can override."
 		},
 		"comments": {
 			"type": "boolean",

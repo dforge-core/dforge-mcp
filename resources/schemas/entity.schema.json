@@ -42,6 +42,11 @@
 			"type": "boolean",
 			"description": "Records of this entity accept comments \u2014 the composer and thread appear on the record card, beside the audit history. Opt-in per entity; `comments` in the manifest sets a module-wide default that this overrides in both directions."
 		},
+		"auditHistory": {
+			"type": "string",
+			"enum": ["basic", "fields", "full"],
+			"description": "Audit history level for this entity, overriding the manifest's `auditHistory`: 'basic' logs each insert/update/delete without field details; 'fields' adds old/new values of changed fields; 'full' also stores display values (reference and user names). Omit to disable."
+		},
 		"traits": {
 			"type": "array",
 			"description": "Entity traits expanded during module install (authoring shortcut). Trait definitions loaded from DB (seeded by metadata module).",
@@ -364,6 +369,14 @@
 						"serverDefault": {
 							"$ref": "#/$defs/serverDefault"
 						},
+						"currency": {
+							"type": "string",
+							"description": "currency field type: fixed ISO 4217 code (e.g. 'USD') the value is formatted in. With currencyColumn, the code used for a record whose currencyColumn is empty."
+						},
+						"currencyColumn": {
+							"type": "string",
+							"description": "currency field type: a scalar column of the same entity holding the ISO 4217 code per record, e.g. a 'currency' dropdown. Each value is formatted in its own record's currency; a total over rows in different currencies shows no symbol. A line reads its header's code through a formula column ([invoice].[currency]). Display only — nothing converts between currencies."
+						},
 						"pattern": {
 							"type": "string",
 							"description": "Format rule for this column, as an ECMAScript regex source. Overrides the field type's own pattern (field_type.def_params.pattern, which is what makes email/phone/url reject a malformed value). Enforced in the browser and again on data.insert / data.update, so keep to constructs both engines read alike: [0-9] and \\d are the same there, \\s is normalized to JavaScript's set, and a pattern that will not compile is skipped by both rather than enforced by one."
@@ -388,7 +401,7 @@
 					"description": "Reference to a reusable column domain, qualified as 'module_cd.domain_cd' (unqualified resolves within this module, then tenant-created domains). The domain supplies dbDatatype, baseDatatypeCd, fieldTypeCd, maxLen, precision and params; declaring any of those alongside 'domain' is rejected at install. The column keeps its own description, flags, orderNum, isNullable and isPk."
 				},
 				"refFilter": {
-					"description": "Filter criteria for reference lookups. Condition values support @[field] placeholders resolved against the current record at lookup time (e.g. {\"c\":\"channel\",\"o\":\"eq\",\"v\":\"@[channel]\"} narrows options to rows matching the record's own channel); a condition whose placeholder is unset is dropped rather than matching nothing."
+					"description": "Filter criteria for reference lookups. Condition values support @[field] placeholders resolved against the current record at lookup time (e.g. {\"c\":\"channel\",\"o\":\"eq\",\"v\":\"@[channel]\"} narrows options to rows matching the record's own channel), and @[ref].[field] nav placeholders that read through a Reference column, as a formula does (e.g. @[purchase_order].[supplier_id] on an order line narrows to the order's supplier, also in the New dialog of the order's Lines set). A condition whose placeholder is unset is dropped rather than matching nothing."
 				}
 			},
 			"oneOf": [
