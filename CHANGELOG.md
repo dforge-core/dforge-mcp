@@ -4,6 +4,42 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.32
+
+**`auditHistory` levels in the vendored schemas were wrong.** The
+manifest schema offered `none` / `minimal` / `full`; the platform accepts `basic` /
+`fields` / `full`, so a module written from it passed `dforge_module_validate` and then
+failed the install. The entity schema also lacked the per-entity `auditHistory` override.
+
+- Needs `@dforge-core/metadata` 0.0.32; the schemas under `resources/schemas/` are
+  re-vendored from it. `@dforge-core/dforge-cli` is now `^0.2.25`.
+
+**`dforge_translation_sync` keyed sub-folders by their bare code.** A sub-folder's
+translation key is now `<module>_<path>` (`ops_north`), the key the installer's
+completeness check requires; the bare code (`north`) was accepted nowhere. A translation
+already held under the bare key is carried over instead of reseeded with English.
+
+- A setting's source text falls back to `description`, then `desc`, before its
+  titleized code.
+
+**Action messages are translatable** (dForge-core#1299, platform 1.26.0). The text of a
+DSL `info()` / `warn()` / `error()` / `exit()` call is looked up by its exact English
+wording in a new `messages` block of `translations/<locale>.json`; values go in `{name}`
+placeholders, filled from a new second argument (`exit()`: third).
+
+- `dforge://schema/translations`: a schema for the locale files, strict at every level —
+  a misspelled section, nested menu `items` or `description` for `desc` is an error.
+- `dforge_translation_sync` adds every fixed message text to the non-English files.
+- `dforge_module_validate`, `dforge_action_check` and `dforge_action_add` report, for a
+  module declaring `supportedLocales`, a message with no translation and one joined from
+  text and values. `dforge_module_validate` always reports a `messages` entry no script
+  uses and a translation using a placeholder the English text lacks.
+- `dforge_module_validate` checked an action's DSL only when `ui/actions.json` named its
+  `script`. The installer defaults the script to the action code, and so does the
+  validator now.
+- `dforge://docs/dsl` showed `info()` links as `{ entity, id }`; they are
+  `{ label, entity, record | pk }`.
+
 ## 0.2.31
 
 **`dforge://reference/formulas` showed check constraints in formula syntax**

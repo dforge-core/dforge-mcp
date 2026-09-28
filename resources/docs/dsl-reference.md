@@ -472,14 +472,16 @@ scalar; denormalise instead of navigating; put the rest in `execute:` behind
 
 ### Messaging & notifications
 
-#### `info(message, opts?)`, `warn(message, opts?)`
-Queue user-facing toast. `opts.links: [{entity, id}]` adds "open record" buttons.
+#### `info(message, values?, opts?)`, `warn(message, values?, opts?)`
+Queue user-facing toast. `values` fills the message's `{name}` placeholders; `opts.links: [{ label, entity, record }]` makes `label` in the text a link to that record (`pk:` instead of `record:` takes a key value or object). A link label must be data — a record number — never a word, since it is found in the text after translation.
+
+**Translatable.** The message text is looked up by its exact English wording in the module's `messages` translations (`dforge://reference/translations`), in the user's language; no entry shows the English. Put varying values in `{name}` placeholders, filled from `values` — never join them into the string, which leaves no fixed text to translate. `links` is not a placeholder name.
 
 A message is a **receipt for work the action did**, not a way to publish a computed value. An action whose only output is `info('<some computed number>')` stores nothing — it can't be audited, re-read or reported on, and the value arrives unformatted. Build a **record report** (a report with an `entities` attachment: it lands on the same record toolbar, but shows the numbers *and* the rows behind them, re-read live on every open), a formula column, or an action that writes a result record instead. Do not compute in DSL what a report dataset already aggregates. See `dforge://reference/action-dsl`, *When an action is the wrong tool*, and `dforge://reference/reports`.
 
 ```dsl
-info('Created PO ' + po.po_number, {
-    links: [{ entity: 'purchase_order', id: po.purchase_order_id }]
+info('Created PO {po}', { po: po.po_number }, {
+    links: [{ label: po.po_number, entity: 'purchase_order', record: po }]
 })
 warn('Stock below reorder point — review supplier')
 ```
@@ -506,7 +508,7 @@ sendEmail([customer_id].[email], 'order_confirmation', {
 })
 ```
 
-#### `error(message)`
+#### `error(message, values?)`
 **Throw** — aborts execution immediately. Use for validation failures. Whether
 prior `insert()` / writes in this `execute:` block are rolled back **depends on the
 execution path** and is not something to rely on — validate before writing
@@ -516,10 +518,13 @@ anything (see the anti-pattern near the end of this document).
 if ([rating] == null || [rating] < 1 || [rating] > 5) {
     error('Rating must be 1-5')
 }
+if (available < params[quantity]) {
+    error('Only {n} left', { n: available })
+}
 ```
 
-#### `exit(message?, level?)`
-Successful early exit — **commits** work done so far. `level`: `"info"` (default) | `"warning"` | `"danger"` | `"success"`.
+#### `exit(message?, level?, values?)`
+Successful early exit — **commits** work done so far. `level`: `"info"` (default) | `"warning"` | `"danger"` | `"success"`. `values` fills the message's placeholders, as for `info()`.
 
 ```dsl
 if ([status] == 'closed') { exit('Already closed — nothing to do', 'info') }

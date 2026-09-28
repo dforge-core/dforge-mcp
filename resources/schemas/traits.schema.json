@@ -56,6 +56,11 @@
 				"formula": { "type": "string" },
 				"orderNum": { "type": "integer" },
 				"description": { "type": "string", "description": "Supports {entity}/{Entity} placeholders" },
+				"labels": {
+					"type": "object",
+					"description": "Translated labels keyed by culture code (e.g. de-DE). Applied to every entity that takes the field from this trait; the module's translations/<locale>.json overrides them per entity. Supports {entity}/{Entity} placeholders.",
+					"additionalProperties": { "type": "string" }
+				},
 				"maxLen": { "type": "integer" },
 				"link": {
 					"type": "object",

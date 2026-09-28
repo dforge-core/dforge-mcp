@@ -16,6 +16,7 @@ import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { expandTraits } from "@dforge-core/metadata";
+import { actionMessageTexts } from "./validate/translations";
 import {
 	loadManifest,
 	readJsonOrDefault,
@@ -72,6 +73,8 @@ interface SkeletonEntry {
 	required: boolean;
 	/** Where older files held this text; a translation there is carried over. */
 	legacyParts?: string[];
+	/** Only for non-English files: an English DSL message is the .dsl text itself. */
+	nonEnglishOnly?: boolean;
 }
 
 /** Build the full set of translatable keys from the module's own files. */
@@ -89,8 +92,15 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 				"which fails the install. Fix the file and sync again.",
 		);
 	}
-	const push = (section: string, pathParts: string[], english: string, required = false, legacyParts?: string[]) => {
-		entries.push({ pathParts, english, required, legacyParts });
+	const push = (
+		section: string,
+		pathParts: string[],
+		english: string,
+		required = false,
+		legacyParts?: string[],
+		nonEnglishOnly = false,
+	) => {
+		entries.push({ pathParts, english, required, legacyParts, nonEnglishOnly });
 		counts[section] = (counts[section] ?? 0) + 1;
 	};
 
@@ -216,6 +226,11 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 		push("settings", ["settings", code, "label"], str(s, "label") ?? str(s, "description") ?? str(s, "desc") ?? titleize(code));
 	}
 
+	// ── DSL messages: info / warn / error / exit texts, keyed by the English text ──
+	for (const text of actionMessageTexts(paths.logicDir, actions).keys()) {
+		push("messages", ["messages", text], text, false, undefined, true);
+	}
+
 	return { entries, counts };
 }
 
@@ -268,6 +283,7 @@ export function translationSync(
 	}
 	const keep = new Set(entries.map((e) => compositeKey(...e.pathParts)));
 
+	const isEnglish = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
 	const files: Record<string, string> = {};
 	const report: string[] = [];
 	let totalAdded = 0;
@@ -287,6 +303,7 @@ export function translationSync(
 		const next: Dict = args.prune ? pruneTo(existing, keep) : JSON.parse(JSON.stringify(existing));
 		let added = 0;
 		for (const entry of entries) {
+			if (entry.nonEnglishOnly && isEnglish(locale)) continue;
 			const current = getIn(next, entry.pathParts);
 			// Never overwrite existing translated text.
 			if (typeof current === "string" && current.trim() !== "") continue;
@@ -301,7 +318,6 @@ export function translationSync(
 		report.push(`${locale}: +${added} key(s)${added === 0 ? " (already complete)" : ""}`);
 	}
 
-	const isEnglish = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
 	const nonEnglish = locales.filter((l) => !isEnglish(l));
 	const warning =
 		nonEnglish.length > 0 && totalAdded > 0

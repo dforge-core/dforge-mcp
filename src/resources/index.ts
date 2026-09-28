@@ -169,6 +169,11 @@ export const resources: ResourceDef[] = [
 		"JSON Schema for ui/print_templates.json — Liquid HTML print templates and reusable snippets, bound to entities for the print menu.",
 	),
 	schema(
+		"translations",
+		"Translations JSON schema",
+		"JSON Schema for translations/<locale>.json — per-section labels (entities, fields, options, constraints, folders, views, menus, settings, roles, reports, actions) and the `messages` block that translates DSL info/warn/error/exit texts, keyed by the exact English text.",
+	),
+	schema(
 		"settings",
 		"Module settings JSON schema",
 		"JSON Schema for settings.json — flat map of setting code → { fieldTypeCd, baseDatatypeCd?, label/description, defaultValue, params, formula?, required? }.",
