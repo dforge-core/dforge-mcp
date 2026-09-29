@@ -60,8 +60,7 @@ correct: a data view describes the presentation, and the folder's entity view de
 what a user in that folder is allowed to see of it. The grid renders whichever
 columns survive the view — you do not maintain one data view per role.
 
-Entity views are also unrelated to the two other things called "view" here: a *data
-view* (`ui/data_views.json`) is a grid/kanban/calendar, and `isView` + `viewSql` on an
-entity means it is backed by a SQL view.
+Entity views are also unrelated to the other thing called "view" here: a *data view*
+(`ui/data_views.json`) is a grid/kanban/calendar.
 
 See `dforge://reference/security` → Column-level security for the full rules.

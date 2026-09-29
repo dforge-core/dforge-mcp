@@ -38,7 +38,7 @@ Translation files mirror the module's content structure. Each translatable objec
         "crm.sales-rep": { "label": "Sales Representative" }
     },
     "views": {
-        "contacts": { "label": "Contacts" },
+        "contacts": { "label": "Contacts", "desc": "People associated with customers" },
         "contacts_list": { "label": "Contact List" },
         "contacts_gallery": { "label": "Contact Cards" }
     },
@@ -80,7 +80,7 @@ Translation files mirror the module's content structure. Each translatable objec
 | `entities` | Entity labels (`label`, `desc`) and all field labels | Entity codes → `{ label, desc, fields: { field_code: { label } } }` |
 | `folders` | Folder labels | Folder codes (root folder key from `ui/folders.json`) |
 | `roles` | Role display labels | Role codes (keys from `security/roles.json`, already module-qualified — e.g. `crm.admin`) → `{ label }` |
-| `views` | Data view labels | View codes (keys from `ui/data_views.json`) |
+| `views` | Data view labels and descriptions (`label`, `desc`) | View codes (keys from `ui/data_views.json`) → `{ label, desc }` |
 | `menus` | Menu node labels (root + nested items) | Menu root key → `{ label, items: { item_code: { label } } }` matching `ui/menus.json` structure |
 | `actions` | Action labels, descriptions, param labels **and param dropdown option labels** | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label, options: { value: … } } } }` |
 | `reports` | Report dataset captions, param labels **and param dropdown option labels** | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label, options: { value: … } } } }` |
@@ -242,7 +242,7 @@ If you include these sections, the install succeeds (they're silently ignored) �
         "crm.sales-rep": { "label": "Vertriebsmitarbeiter" }
     },
     "views": {
-        "contacts": { "label": "Kontakte" }
+        "contacts": { "label": "Kontakte", "desc": "Personen, die mit Kunden verknüpft sind" }
     },
     "menus": {
         "crm_menu": {

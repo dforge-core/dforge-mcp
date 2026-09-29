@@ -44,8 +44,8 @@ export function checkReferences(ctx: ValidateContext): void {
 // EntityViewRegistrar.ValidateView / NormalizeViewNames reject at install —
 // each failure is silent at runtime (a column that isn't there, records the
 // client can't address) and only surfaces as "the folder is broken", far from
-// the file that caused it. Note: unrelated to ui/data_views.json below, and to
-// `isView`/`viewSql` (a SQL-view-backed entity) — the platform overloads "view".
+// the file that caused it. Note: unrelated to ui/data_views.json below — the
+// platform overloads "view".
 export function checkEntityViews(ctx: ValidateContext): void {
 	const { err, entities, columnsOf, fieldDefsOf, pkOf } = ctx;
 	for (const [name, e] of Object.entries(entities)) {

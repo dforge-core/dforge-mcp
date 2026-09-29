@@ -512,7 +512,7 @@ Two halves, both required:
 
 **`"default"` is the one exempt name** and means "no view" (full column set). It is what the ~100 shipped folder entries write, what `FolderExporter` writes back for a NULL `view_name`, and what the runtime auto-creates (column-less) for an entity reached without a folder binding — so rejecting it would fail every install. A module that really declares a view named `default` still gets it bound.
 
-Don't confuse the three things called "view": an **entity view** (`views`, this section) is column security; a **data view** (`ui/data_views.json`, referenced by a menu's `dataViewCode`) is a grid/kanban/calendar; `isView` + `viewSql` on an entity means it is backed by a SQL view. `folders.json`'s `viewName` binds the first.
+Don't confuse the two things called "view": an **entity view** (`views`, this section) is column security; a **data view** (`ui/data_views.json`, referenced by a menu's `dataViewCode`) is a grid/kanban/calendar. `folders.json`'s `viewName` binds the first. An entity is never backed by a SQL view — `isView` / `viewSql` are rejected; use a data view, a report or a stored procedure instead.
 
 ## Column Domains (`domains.json`)
 
