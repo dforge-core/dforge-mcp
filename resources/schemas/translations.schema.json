@@ -32,9 +32,9 @@
 		},
 		"views": {
 			"type": "object",
-			"description": "Data view code → label.",
+			"description": "Data view code → label and description (the subtitle under the view title).",
 			"additionalProperties": {
-				"$ref": "#/$defs/labelOnly"
+				"$ref": "#/$defs/labelDesc"
 			}
 		},
 		"menus": {
