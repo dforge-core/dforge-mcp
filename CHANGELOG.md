@@ -4,6 +4,19 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## Unreleased
+
+**`isView` / `viewSql` are gone** (dForge-core#1312). SQL-view entities were in the
+entity schema and the references but never built: the entity installed as an empty table,
+and passed `dforge_module_validate` on the way. They are now rejected, and will not be built.
+
+- `dforge://schema/entity` drops both keys, so an editor flags them. Re-vendored from
+  `@dforge-core/metadata` — needs the metadata release that carries the change.
+- `dforge_module_validate` reports them through the CLI's static checks — needs the CLI
+  release that carries `ViewEntityValidator`.
+- The references say why, and what to use instead: a data view, a `G` total, the Query
+  Builder, or a stored-procedure report.
+
 ## 0.2.32
 
 **`auditHistory` levels in the vendored schemas were wrong.** The

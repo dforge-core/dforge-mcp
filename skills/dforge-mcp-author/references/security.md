@@ -318,15 +318,16 @@ Each of these is an install-time error, and each is silent at runtime if it slip
 
 `"viewName": "default"` means **no view** (full column set) and declares nothing. It is what every shipped module writes, and what the runtime auto-creates for an entity reached without a folder binding — so it is exempt from the checks above. A module that really declares a view named `default` still gets it bound.
 
-### Don't confuse the three "views"
+### Don't confuse the two "views"
 
 | Term | Where | What it is |
 |---|---|---|
 | **Entity view** | `entities/*.json` → `views` | Column-level security (this section) |
 | **Data view** | `ui/data_views.json` | A grid / kanban / calendar over an entity (`data-views.md`) |
-| **SQL view** | `entities/*.json` → `isView` + `viewSql` | An entity backed by a SQL view instead of a table |
 
 `viewName` in `folders.json` binds the first. Menus' `dataViewCode` references the second.
+
+There is no SQL-view entity. `isView` / `viewSql` are rejected at validate, pack and install: a view entity would duplicate the source entity's metadata, break when that module changes a column, and read around its row and column security. For a read-only slice use a data view (nav paths, `F` columns), a `G` total, the Query Builder, or a stored-procedure report — the last is the one way to show users a slice of an entity they have no rights on, behind an explicit `sp:` grant.
 
 ### When to use subfolders
 
