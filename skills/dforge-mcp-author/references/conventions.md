@@ -42,8 +42,7 @@ my_module/
 │   ├── menus.json
 │   ├── actions.json
 │   ├── folders.json
-│   └── reports/
-│       └── <report>.json
+│   └── reports.json
 ├── security/
 │   └── roles.json
 ├── settings.json
@@ -54,6 +53,7 @@ my_module/
 │   └── de-DE.json              # IETF tags, one file per non-English locale
 ├── print_templates/
 │   └── <template>.scriban
+├── migrations/                  # upgrade data scripts, <version>.sql
 ├── files/                       # static assets
 └── webhooks.json                # optional
 ```
@@ -144,7 +144,8 @@ Both use **semver** (`MAJOR.MINOR.PATCH`).
 - If you added a new entity or column → bump both `version` and `dbSchemaVersion`.
 - If you changed a view or menu → bump `version` only.
 - If you changed translations only → bump `version` only.
-- The installer uses `dbSchemaVersion` to decide whether to run schema migrations. Wrong version = skipped migrations.
+- The installer uses `dbSchemaVersion` to decide whether to apply schema changes. Wrong version = skipped DDL.
+- Data a new version reshapes (backfill, move rows, drop a table it no longer declares) goes in `migrations/<version>.sql`, named by `version`, run once on an upgrade from below it. See `manifest.md` § Upgrade migrations.
 - **Never ship a package without bumping at least `version`** from the previous release. The installer may reject or silently skip a re-install with the same version.
 - For brand-new modules, start at `version: "0.1.0"` and `dbSchemaVersion: "0.0.1"`.
 

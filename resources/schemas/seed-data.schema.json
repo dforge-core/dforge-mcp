@@ -12,11 +12,22 @@
 		},
 		"records": {
 			"type": "array",
-			"description": "Array of records, each record is an object with column_code → value",
+			"description": "Array of records, each record is an object with column_code → value. In demo-data/ a value may be a formula: { \"$f\": \"DATEADD(@yearStart, 42, 'DAY')\" }",
 			"items": {
 				"type": "object",
 				"additionalProperties": true
 			}
+		},
+		"repeat": {
+			"type": "object",
+			"description": "demo-data/ only: insert every record once per value of @var, from..to inclusive",
+			"required": ["to"],
+			"properties": {
+				"var": { "type": "string", "default": "i" },
+				"from": { "type": "integer", "default": 1 },
+				"to": { "type": "integer" }
+			},
+			"additionalProperties": false
 		}
 	},
 	"additionalProperties": false

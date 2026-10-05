@@ -1,6 +1,16 @@
-// ui/reports.json checks: param declarations and record-report attachments.
+// ui/reports.json checks: label, param declarations and record-report attachments.
 
 import type { ValidateContext } from "./context";
+
+/** Word for word the platform's (ReportLabels.Message), so the CLI's copy dedupes against it. */
+export function unlabeledReportMessage(reportCd: string, description: unknown): string {
+	const desc = typeof description === "string" && description.trim() !== "" ? description : undefined;
+	return (
+		`Report '${reportCd}' declares no "label", so its description names it` +
+		(desc ? `: "${desc}".` : ".") +
+		" Add a short label; the description then shows under it."
+	);
+}
 
 // Reports: param declaration site + record-report attachments.
 // Mirrors the server's ReportAttachmentValidator, which is the pack-time half
@@ -11,6 +21,10 @@ export function checkReports(ctx: ValidateContext): void {
 	for (const [rcode, rawReport] of Object.entries(reports)) {
 		const report = (rawReport ?? {}) as Record<string, unknown>;
 		const where = `ui/reports.json → ${rcode}`;
+
+		if (typeof report.label !== "string" || report.label.trim() === "") {
+			warn("ui/reports.json", unlabeledReportMessage(rcode, report.description));
+		}
 
 		// Params are REPORT-scoped: the installer merges the report-level
 		// `parameters` block with every dataset's `params` into one param_set,

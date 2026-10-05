@@ -2,7 +2,7 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"$id": "https://dforge.dev/schemas/domains.schema.json",
 	"title": "dForge Column Domains",
-	"description": "domains.json — reusable, named semantic types. A domain bundles a base datatype, a control, sizing and a shared option list under one code; columns reference it via \"domain\": \"module_cd.domain_cd\" instead of restating the definition. Structural fields are materialized onto each column at install; options stay on the domain and resolve at metadata-load time, so a shared list is authored and translated exactly once.",
+	"description": "domains.json — reusable, named semantic types. A domain bundles a base datatype, a control, sizing and a shared option list under one code; columns reference it via \"domain\": \"domain_cd\" (this module's own) or \"module_cd.domain_cd\" (another module's) instead of restating the definition. Structural fields are materialized onto each column at install; options stay on the domain and resolve at metadata-load time, so a shared list is authored and translated exactly once.",
 	"type": "object",
 	"additionalProperties": {
 		"$ref": "#/$defs/domain"

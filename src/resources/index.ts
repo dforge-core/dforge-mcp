@@ -181,7 +181,7 @@ export const resources: ResourceDef[] = [
 	schema(
 		"reports",
 		"Reports JSON schema",
-		"JSON Schema for ui/reports.json — map of report code → { description, layout.panels[], datasets, parameters? }. Datasets and panel queries reuse the filter shape from data_views.",
+		"JSON Schema for ui/reports.json — map of report code → { label, description, layout.panels[], datasets, parameters? }. Datasets and panel queries reuse the filter shape from data_views.",
 	),
 	schema(
 		"stored-procedures",
@@ -218,7 +218,7 @@ export const resources: ResourceDef[] = [
 	reference("action-dsl", "Action DSL grammar + 'Registering the action' (ui/actions.json: entityCode/executionMode/script/isAsync/bi- icon)."),
 	reference("filters", "Canonical filter shape for views, folders, and reports."),
 	reference("security", "Security roles + rights matrix: 'rights' key, SIUDC for entities, E for actions/reports/folders."),
-	reference("reports", "Reports: layout panels + datasets (Query or Stored Procedure)."),
+	reference("reports", "Reports: label + description, layout panels + datasets (Query or Stored Procedure)."),
 	reference("settings", "Module settings shape."),
 	reference("jobs", "Scheduled jobs: cron, timeout, jobClass, and the no-record-context constraint."),
 	reference("number-sequences", "Number sequences for reference numbers / codes."),

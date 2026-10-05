@@ -111,7 +111,7 @@ Dependencies are a map of module codes to semver ranges. The installer checks th
 
 **Declare a dependency only on a module you actually consume something from** — an entity you reference with a link column, extend, grant rights on, or read in a view, report, formula or action. Every entry you write here obliges you to write a matching `deps/<module>.json` contract (below), so a speculative dependency is not free.
 
-**Do not depend on `admin`.** It — like `metadata` and `workspace` — is a system module, provisioned into every tenant before any other module installs. Depending on it buys nothing. The one legitimate reason to name a system module is to require a **minimum platform version** for a feature you use, e.g. `"metadata": ">=1.5.0"` for record-report attachments; that still needs a contract naming the entity the feature introduced.
+**Do not depend on `admin`.** It — like `metadata`, `workspace` and `sys-billing` — is a system module, provisioned into every tenant before any other module installs. Depending on it buys nothing. The one legitimate reason to name a system module is to require a **minimum platform version** for a feature you use, e.g. `"metadata": ">=1.5.0"` for record-report attachments. Its contract names the entity the feature introduced, or declares `"entities": {}` when the feature introduced none (`"admin": ">=1.21.0"` for upgrade migrations).
 
 **For bridge modules** (`crm-fin`, `wms-fin`, etc.), depend on both sides:
 
@@ -143,7 +143,7 @@ Every entry in `dependencies` needs a contract file at `deps/<module_code>.json`
 ```
 
 - `version` must be the same range as the manifest's dependency entry.
-- `entities` needs at least one entry; each needs a `pk` and a non-empty `use`.
+- `entities` needs at least one entry, except against a system module, where `{}` is a pure platform-version gate. Each entry needs a `pk` and a non-empty `use`.
 - `columns` is optional — omit it when you touch no specific column of that entity. Declare only real storage columns you read, write or join on, at their **storage class** (`int8`, `varchar`, `numeric`, `bool`, `date`, `timestamptz`, …; a `cuid` PK is `int8`). Never declare a virtual column (`R`/`S`/`F`) or a column your own extension adds.
 - `use` tokens are `<kind>:<symbol>` where kind is `ref`, `extends`, `formula`, `action`, `view`, `report`, `print` or `role`. `extends` must be fully qualified: `extends:parties.party`.
 
@@ -174,4 +174,22 @@ The extension file has `"extends": "fin.invoice"` inside. See MODULE_CONVENTIONS
 
 - Bump `version` on every release (bug fix, feature add, etc.).
 - Bump `dbSchemaVersion` **only** when the DB schema changes. If you added an action but no new columns, `version` goes up but `dbSchemaVersion` stays the same.
-- The installer uses `dbSchemaVersion` to decide whether to run migrations.
+- The installer uses `dbSchemaVersion` to decide whether to apply schema changes. Upgrade **data** scripts under `migrations/` are keyed by `version` instead — see below.
+
+## Upgrade migrations (`migrations/`)
+
+A table or column change needs no script: the installer generates the DDL. A script is for the DATA a new version reshapes — filling a new column from an old one, moving rows to a new table, dropping a table the new version no longer declares (the platform never drops one on its own).
+
+```
+migrations/
+└── 0.11.0.sql      # runs on an upgrade from below 0.11.0 to 0.11.0 or later
+```
+
+- **Name** — the module `version` the file upgrades to, `MAJOR.MINOR.PATCH.sql`. Keyed by `version`, not `dbSchemaVersion`. A misnamed file, or one newer than the manifest `version`, fails the package at load.
+- **When** — on an upgrade only: every file above the installed version and no higher than the package's, in ascending order. A fresh install or a same-version reinstall runs none.
+- **Where** — inside the install transaction, after the new tables and columns exist and before `NOT NULL` is applied or a register's `totals` cache is rebuilt. A table the new version removed is still there to read. A failing script rolls the upgrade back and the module stays on the old version; refuse unconvertible data with `RAISE EXCEPTION '…'`, which the operator sees.
+- **Ids** — `"dForge".next_id()` mints a row id in SQL. Declare `"admin": ">=1.21.0"` in `dependencies`; that is also what guarantees a platform that runs migrations.
+- **Locks** — a script writing a posted document or its register journal wraps the writes in `SELECT set_config('registry.posting', 'true', true);` … `'false'`, so the post locks stand aside. Period locks do not; reopen a closed period and close it again.
+- A `kind: "pack"` module cannot carry migrations.
+
+Reference: `modules/gl/migrations/0.11.0.sql` in dForge-core.

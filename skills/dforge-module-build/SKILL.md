@@ -237,6 +237,10 @@ If none fire, skip specialized views for that entity.
 **3c. Reports** only when aggregation/grouping isn't covered by views — or when
 Phase 2a sent you here because the "action" only wanted to show a number.
 
+Give each report a short `label` (its name: page title, breadcrumb, parameter
+dialog) and a `description` of what it shows, which appears under the label.
+Without a label the description becomes the title, and validate/pack warn.
+
 Params are **report-scoped**: declare them in the report-level `parameters`
 block, or as shorthand under `datasets.<cd>.params` when exactly one dataset uses
 the param. The installer merges both into the report's one param set, report level

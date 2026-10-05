@@ -396,6 +396,61 @@ describe("module_validate — reports: param declaration site", () => {
 	});
 });
 
+describe("module_validate — report label", () => {
+	const make = (report: Record<string, unknown>, cli?: CliValidate) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-rptlabel-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { order: "./entities/order.json" } }));
+		writeFileSync(
+			join(dir, "entities", "order.json"),
+			JSON.stringify({ description: "Order", traits: ["identity"], fields: { name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" } } }),
+		);
+		writeFileSync(
+			join(dir, "ui", "reports.json"),
+			JSON.stringify({
+				rpt: {
+					...report,
+					layout: { panels: [{ vizType: "table", datasetCd: "rows" }] },
+					datasets: { rows: { datasetType: "Q", query: { entityCd: "order" } } },
+				},
+			}),
+		);
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }, cli).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+	const message =
+		'Report \'rpt\' declares no "label", so its description names it: "Open orders by customer". Add a short label; the description then shows under it.';
+
+	it("warns, without failing, when a report has no label", () => {
+		const res = make({ description: "Open orders by customer" });
+		expect(res.errors).toEqual([]);
+		expect(res.warnings).toContainEqual({ level: "warning", where: "ui/reports.json", message });
+	});
+
+	it("says nothing when the report has a label", () => {
+		const res = make({ label: "Open Orders", description: "Open orders by customer" });
+		expect(JSON.stringify(res.warnings ?? [])).not.toContain("label");
+	});
+
+	it("lists the CLI's copy of the warning once", () => {
+		const res = make({ description: "Open orders by customer" }, () => ({
+			report: {
+				module: "t",
+				version: "1.0.0",
+				ok: true,
+				error: null,
+				checks: [],
+				warnings: [{ where: "ui/reports.json", message }],
+			},
+		}));
+		expect(res.warnings.filter((w: { message: string }) => w.message === message)).toHaveLength(1);
+	});
+});
+
 describe("module_validate — record-report attachments", () => {
 	const make = (entitiesBlock: unknown, opts: { dependencies?: Record<string, unknown> } = {}) => {
 		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-rptattach-"));

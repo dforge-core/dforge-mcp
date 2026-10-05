@@ -12,9 +12,13 @@
 			"type": "object",
 			"required": ["description", "layout", "datasets"],
 			"properties": {
+				"label": {
+					"type": "string",
+					"description": "Report name: the page title, breadcrumb and parameter dialog. Recommended: without it the description is the name, and module pack, validate and install warn"
+				},
 				"description": {
 					"type": "string",
-					"description": "Human-readable report title"
+					"description": "What the report shows, under its name on the page. The name too when label is omitted"
 				},
 				"layout": {
 					"$ref": "#/$defs/layout"
@@ -242,8 +246,8 @@
 				},
 				"datasetType": {
 					"type": "string",
-					"enum": ["Q", "S"],
-					"description": "Q = SQL/entity query, S = stored procedure"
+					"enum": ["Q", "S", "R"],
+					"description": "Q = SQL/entity query, S = stored procedure, R = an accounting register read over an interval"
 				},
 				"query": {
 					"$ref": "#/$defs/query",
@@ -252,6 +256,10 @@
 				"spCd": {
 					"type": "string",
 					"description": "Used when datasetType is 'S': the stored-procedure code, as `logic/stored_procedures.json` keys it — NOT the PostgreSQL function name and never schema-qualified. `module.spCd` binds a dependency's procedure. Resolved to `report_ds.sp_id` at install. A role granting `report:<code>` must also grant `sp:<spCd>`, which no admin UI can add afterwards."
+				},
+				"register": {
+					"$ref": "#/$defs/registerSource",
+					"description": "Used when datasetType is 'R'"
 				},
 				"columnsDef": {
 					"type": "object",
@@ -289,6 +297,63 @@
 				},
 				"rollup": {
 					"$ref": "#/$defs/rollup"
+				}
+			},
+			"additionalProperties": false
+		},
+
+		"registerSource": {
+			"type": "object",
+			"description": "An accounting register read over an interval: one row per account of the register's chart, with opening_debit, opening_credit, turnover_debit, turnover_credit, closing_debit and closing_credit for one resource. Balances are netted per account — shown on the side they fall on. Whole periods are read from the register's totals cache, the part-periods at the edges from its postings. Needs Select on the register's posting entity and on the chart.",
+			"required": ["name", "resource", "interval"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[^.]+\\.[^.]+$",
+					"description": "The register, `module_cd.register_cd`. This module's own, or a declared dependency's. It must be an accounting register."
+				},
+				"resource": {
+					"type": "string",
+					"description": "The one resource the six balance columns are about."
+				},
+				"interval": {
+					"type": "object",
+					"description": "The days read between, both inclusive: two date params (`from` / `to` as `@param`), or the record of `entity` a key param finds (`key` as `@param`) with `from` / `to` naming its two date columns.",
+					"required": ["from", "to"],
+					"properties": {
+						"entity": { "type": "string", "description": "Entity holding the interval, e.g. an accounting period." },
+						"key": { "type": "string", "pattern": "^@.+", "description": "Param holding that entity's key." },
+						"from": { "type": "string", "description": "`@param`, or the entity's first-day column." },
+						"to": { "type": "string", "description": "`@param`, or the entity's last-day column." }
+					},
+					"additionalProperties": false
+				},
+				"columns": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Columns to show, in order: chart columns in nav notation, `<chart>.<column>` (e.g. 'account.account_code'), and any of the six balance columns, bare. Naming no balance column shows all six; a rollup always emits all six."
+				},
+				"filter": {
+					"$ref": "#/$defs/filter",
+					"description": "A filter over the chart, in the same nav notation; `@param` values allowed."
+				},
+				"sort": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/sortClause" },
+					"description": "Chart columns to sort by, in nav notation. Ignored under a rollup, which sorts by its tree."
+				},
+				"rollup": {
+					"type": "object",
+					"description": "The query rollup without 'leafKey' and 'measures': the rows are accounts and the six balance columns are the measures.",
+					"required": ["tree", "treeKey", "parentField", "labels"],
+					"properties": {
+						"tree": { "type": "string" },
+						"treeKey": { "type": "string" },
+						"parentField": { "type": "string" },
+						"labels": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+						"order": { "type": "string" }
+					},
+					"additionalProperties": false
 				}
 			},
 			"additionalProperties": false
@@ -354,7 +419,7 @@
 				},
 				"domain": {
 					"type": "string",
-					"description": "Column domain (`domain_cd` or `module_cd.domain_cd`) the parameter borrows its control and option list from. The options and their translations stay on the domain, so a list shared with an entity column is authored once. The DSL equivalent for action params is `paramCd: domain <domainCd>`.",
+					"description": "Column domain the parameter borrows its control and option list from. A bare `domain_cd` means this module's own domain, then a tenant-created one, and never another module's, even one with the same code. `module_cd.domain_cd` names a domain of any installed module; declare that module as a dependency. The options and their translations stay on the domain, so a list shared with an entity column is authored once. The DSL equivalent for action params is `paramCd: domain <domainCd>`.",
 					"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)?$"
 				},
 				"label": { "type": "string" },

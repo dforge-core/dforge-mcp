@@ -466,7 +466,7 @@ server.registerTool(
 	{
 		title: "Add a report",
 		description:
-			"PHASE 3: Add a report to ui/reports.json. Read dforge://schema/reports for the layout/datasets/parameters shape.",
+			"PHASE 3: Add a report to ui/reports.json. Give it a short `label` (its name: page title, breadcrumb, parameter dialog) and a `description` of what it shows, which appears under the label; without a label the description becomes the title and pack/validate/install warn. Read dforge://schema/reports for the layout/datasets/parameters shape.",
 		inputSchema: { ...reportAddSchema, ...applyInput },
 	},
 	envelope(reportAdd),
@@ -549,7 +549,7 @@ server.registerTool(
 	{
 		title: "Add a module dependency",
 		description:
-			"Add a dependency on another dForge module. Writes BOTH halves the platform requires: the manifest.json entry and the deps/<module>.json contract declaring what this module consumes — a manifest dependency without a contract fails validate, pack and install. Name the consumed entities in `entities`; do not declare a dependency you cannot name one for, and do not depend on the system modules (admin, metadata, workspace) except to gate a minimum platform version.",
+			"Add a dependency on another dForge module. Writes BOTH halves the platform requires: the manifest.json entry and the deps/<module>.json contract declaring what this module consumes — a manifest dependency without a contract fails validate, pack and install. Name the consumed entities in `entities`; do not declare a dependency you cannot name one for, and do not depend on the system modules (admin, metadata, workspace, sys-billing) except to gate a minimum platform version — a gate for a feature that introduced no entity passes `entities: []`.",
 		inputSchema: { ...dependencyAddSchema, ...applyInput },
 	},
 	envelope(dependencyAdd),

@@ -91,6 +91,20 @@ describe("dependencyAdd", () => {
 		expect(res.warning).toContain("system module");
 	});
 
+	it("writes a platform-version gate on a system module with no entity", () => {
+		const res = dependencyAdd({ moduleDir: dir, moduleCode: "admin", version: ">=1.21.0", entities: [] });
+		applyToDisk(dir, res);
+		expect(readJson("manifest.json").dependencies.admin).toBe(">=1.21.0");
+		expect(readJson("deps/admin.json")).toEqual({ module: "admin", version: ">=1.21.0", entities: {} });
+		expect(res.warning).toBeUndefined();
+	});
+
+	it("still requires an entity against a non-system module", () => {
+		expect(() =>
+			dependencyAdd({ moduleDir: dir, moduleCode: "fin", version: ">=0.1.0", entities: [] }),
+		).toThrow(/at least one 'fin' entity/);
+	});
+
 	it("refuses to overwrite a stale contract", () => {
 		mkdirSync(join(dir, "deps"), { recursive: true });
 		writeFileSync(join(dir, "deps", "fin.json"), "{}");
