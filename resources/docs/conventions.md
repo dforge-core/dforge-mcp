@@ -71,6 +71,8 @@ Use the CRM sample module (`modules/crm/`) as a reference implementation.
 ├── /print_templates/          # HTML/CSS print templates (optional)
 │   ├── invoice.html
 │   └── invoice.css
+├── /migrations/               # Upgrade data scripts, {version}.sql (optional)
+│   └── 0.2.0.sql
 └── /files/                    # Module static files (optional) — README, docs
     └── README.md
 ```
@@ -963,6 +965,24 @@ Use semantic versioning: `MAJOR.MINOR.PATCH`
 
 1. **`version`**: Overall module version (includes all changes)
 2. **`dbSchemaVersion`**: Database schema version (only bumped for schema changes)
+
+### Upgrade Migrations (`migrations/`)
+
+A table or column change needs no script: the installer generates the DDL. A script is for the DATA a new version reshapes — filling a new column from an old one, moving rows to a new table, dropping a table the new version no longer declares (the platform never drops one on its own).
+
+```
+migrations/
+└── 0.11.0.sql      # runs on an upgrade from below 0.11.0 to 0.11.0 or later
+```
+
+- **Name** — the module `version` the file upgrades to, `MAJOR.MINOR.PATCH.sql`. Keyed by `version`, not `dbSchemaVersion`. A misnamed file, or one newer than the manifest `version`, fails the package at load.
+- **When** — on an upgrade only: every file above the installed version and no higher than the package's, in ascending order. A fresh install or a same-version reinstall runs none.
+- **Where** — inside the install transaction, after the new tables and columns exist and before `NOT NULL` is applied or a register's `totals` cache is rebuilt. A table the new version removed is still there to read. A failing script rolls the upgrade back and the module stays on the old version; refuse unconvertible data with `RAISE EXCEPTION '…'`, which the operator sees.
+- **Ids** — `"dForge".next_id()` mints a row id in SQL. Declare `"admin": ">=1.21.0"` in `dependencies`; that is also what guarantees a platform that runs migrations.
+- **Locks** — a script writing a posted document or its register journal wraps the writes in `SELECT set_config('registry.posting', 'true', true);` … `'false'`, so the post locks stand aside. Period locks do not; reopen a closed period and close it again.
+- A `kind: "pack"` module cannot carry migrations.
+
+Reference: `modules/gl/migrations/0.11.0.sql` in dForge-core.
 
 ---
 

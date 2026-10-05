@@ -1,0 +1,415 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "dForge Module Registers",
+	"description": "Register declarations for a dForge module package (registers.json at module root). A register is the object that owns its dimensions, resources and invariants; the A/L columns on documents bind to it and supply only direction + field mapping. See docs/business-logic/registers.md.",
+	"type": "object",
+	"minProperties": 1,
+	"maxProperties": 100,
+	"propertyNames": {
+		"pattern": "^[a-z][a-z0-9_]*$",
+		"maxLength": 100,
+		"description": "Register code, unique within the module. Referenced from a register column as 'module_cd.register_cd'."
+	},
+	"additionalProperties": {
+		"type": "object",
+		"required": ["kind", "dimensions", "resources"],
+		"allOf": [
+			{
+				"if": { "properties": { "kind": { "const": "balance" } }, "required": ["kind"] },
+				"then": {
+					"required": ["entity"],
+					"properties": {
+						"period": false, "recorder": false,
+						"chart": false, "composition": false, "analyticFields": false, "lineMode": false,
+						"account": false,
+						"debitAccount": false, "creditAccount": false,
+						"debitAnalyticFields": false, "creditAnalyticFields": false,
+						"sideDimensions": false
+					},
+					"description": "A balance register keeps state, so it needs the entity that holds it. It dates its movements on the journal row under 'journalDate'; 'period' belongs to an information register, whose records ARE the dated thing. Its writer is recorded on the journal row, which is what 'recorder' names for an information register that has no journal."
+				}
+			},
+			{
+				"if": { "properties": { "kind": { "const": "turnover" } }, "required": ["kind"] },
+				"then": {
+					"required": ["journal", "journalDirection", "journalDate"],
+					"properties": {
+						"entity": false,
+						"period": false,
+						"recorder": false,
+						"chart": false, "composition": false, "analyticFields": false, "lineMode": false,
+						"account": false,
+						"debitAccount": false, "creditAccount": false,
+						"debitAnalyticFields": false, "creditAnalyticFields": false,
+						"sideDimensions": false,
+						"allowNegative": false,
+						"autoCreate": false
+					},
+					"description": "A turnover register keeps no state: it IS its journal, so the journal and both its stamps are mandatory and there is nothing for 'entity', 'period', 'allowNegative' or 'autoCreate' to mean."
+				}
+			},
+			{
+				"if": { "properties": { "kind": { "const": "info" } }, "required": ["kind"] },
+				"then": {
+					"required": ["entity"],
+					"properties": {
+						"journal": false,
+						"journalDirection": false,
+						"journalDate": false,
+						"chart": false, "composition": false, "analyticFields": false, "lineMode": false,
+						"account": false,
+						"debitAccount": false, "creditAccount": false,
+						"debitAnalyticFields": false, "creditAnalyticFields": false,
+						"sideDimensions": false,
+						"totals": false,
+						"allowNegative": false,
+						"autoCreate": false
+					},
+					"description": "An information register is one table: it has no journal to stamp and no state whose behaviour 'allowNegative' or 'autoCreate' could describe. Its records are written directly, or by a document's posting when it declares a 'recorder'."
+				}
+			}
+			,
+			{
+				"if": { "properties": { "kind": { "const": "accounting" } }, "required": ["kind"] },
+				"then": {
+					"required": ["chart", "journal", "journalDate", "lineMode"],
+					"properties": {
+						"entity": false,
+						"period": false,
+						"recorder": false,
+						"journalDirection": false,
+						"allowNegative": false,
+						"autoCreate": false
+					},
+					"allOf": [
+						{
+							"if": { "properties": { "lineMode": { "const": "classic" } }, "required": ["lineMode"] },
+							"then": {
+								"required": ["account", "analyticFields"],
+								"properties": {
+									"debitAccount": false, "creditAccount": false,
+									"debitAnalyticFields": false, "creditAnalyticFields": false,
+									"sideDimensions": false
+								},
+								"description": "A classic posting is one account on one side, so it names one account column and one set of analytic slots. Nothing about it is two-sided \u2014 the side IS which resource column holds the amount."
+							}
+						},
+						{
+							"if": { "properties": { "lineMode": { "const": "compound" } }, "required": ["lineMode"] },
+							"then": {
+								"required": [
+									"debitAccount", "creditAccount",
+									"debitAnalyticFields", "creditAnalyticFields"
+								],
+								"properties": { "account": false, "analyticFields": false },
+								"description": "A compound row carries both accounts, so it records the correspondence between them and every part of it may differ per side. There is no single 'account' and no single analytic slot set: the two accounts declare their own compositions, and slot 2 on the debited account is a different analytic of a different kind from slot 2 on the credited one."
+							}
+						}
+					],
+					"description": "An accounting register keys its postings by an account, not by a dimension tuple it declares once. What analytics a posting carries, and what each one MEANS, is a property of the account: measured on a production chart of 468 accounts, the analytic count runs 0 to 4 and slot 2 is Nomenclature on one account and Contracts on another. So the chart and the per-account composition are part of the declaration, and 'entity' \u2014 one row per dimension tuple \u2014 has nothing to name."
+				}
+			}
+			,
+			{
+				"if": {
+					"allOf": [
+						{ "required": ["totals"] },
+						{ "properties": { "kind": { "not": { "const": "accounting" } } }, "required": ["kind"] }
+					]
+				},
+				"then": {
+					"required": ["journal", "journalDirection", "journalDate"],
+					"properties": {
+						"totals": { "properties": { "accountField": false, "dimensions": false } }
+					},
+					"description": "A totals cache is an aggregate of the journal, so it presupposes one, and a stamped one. Without a direction the cached increase and decrease could not be told apart; without a date a movement belongs to no period, and no read could tell that from no movement at all. Such a register declares its key once, as dimensions, so its cache is keyed by ALL of them: there is no account to key by and no coarser subset to choose, its reads being served from the cache."
+				}
+			}
+			,
+			{
+				"if": {
+					"allOf": [
+						{ "required": ["totals"] },
+						{ "properties": { "kind": { "const": "accounting" } }, "required": ["kind"] }
+					]
+				},
+				"then": {
+					"required": ["journal", "journalDate"],
+					"properties": { "totals": { "required": ["accountField"] } },
+					"description": "An accounting register's cache aggregates its postings, which record a SIDE in their resource columns rather than a direction — 'journalDirection' is refused on this kind — so the cache needs no direction stamp and names a column for each side instead. It is keyed by the account a cached row belongs to, so 'accountField' is required."
+				}
+			}
+		],
+		"properties": {
+			"kind": {
+				"type": "string",
+				"enum": ["balance", "turnover", "info", "accounting"],
+				"description": "Register kind. 'balance' keeps a running state per dimension tuple (1C регистр накопления / остатки); 'turnover' keeps none and answers only for intervals (1C регистр накопления / обороты), the majority of accumulation registers in practice; 'info' holds values that change over time, or a plain keyed lookup when it declares no period (1C регистр сведений). 'accounting' keys its postings by an account whose analytics the CHART declares, per account, because what an analytic slot means depends on the account it is on. Both of its line modes are posted and read."
+			},
+			"description": {
+				"type": "string",
+				"maxLength": 500,
+				"description": "Human-readable purpose of the register."
+			},
+			"entity": {
+				"type": "string",
+				"description": "Entity holding the register's rows: the state table for 'balance' (one row per dimension tuple), the record table for 'info'. Required for both and rejected for 'turnover', which has no state and is its journal. Unqualified resolves within this module; 'module_cd.entity_cd' targets another module's entity. The state table is declared by the module today — the installer does not generate it yet."
+			},
+			"journal": {
+				"type": "string",
+				"description": "Entity holding the movement rows written at post time. Optional for 'balance' only for back-compatibility with registers that ship no journal; omitting it means reversal cannot read back what posting wrote. Mandatory for 'turnover', which has nothing else. Every binding writes to the declared journal — it is not a per-document choice."
+			},
+			"journalDirection": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Column on the journal entity where the platform stamps the direction of each movement: +1 into the register, -1 out of it. Written by the engine, never by a binding. Without it a movement row does not say which way it went — the resource value is a magnitude, and only the posting column's own params knew the sign — so no reader other than the original writer can aggregate the journal. Required for getTurnover and for as-of-date reads, and mandatory on a 'turnover' register."
+			},
+			"journalDate": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Column on the journal entity holding the date each movement belongs to. The register names the column; each binding names the document column that supplies it ('dateField' in the register column's params), and the installer requires one once this is declared — a writer that left it unmapped would punch a dateless hole in every as-of read. Required for getTurnover and for as-of-date reads, and mandatory on a 'turnover' register."
+			},
+			"totals": {
+				"type": "object",
+				"description": "A per-period cache of what moved through the register, so a read does not have to visit every movement. Optional and invisible to callers: the same reads answer the same questions from a cheaper source. What is cached is the turnover WITHIN each period and never a closing balance — a balance cache would make one backdated posting rewrite every period after it, while per-period turnover is local to the period the movement is dated in, whenever that is. The balance is recovered from it instead: the state as it stands, minus the cached turnover of the periods after the date. On 'balance' and 'turnover' a cached row is keyed by (dimensions, period); on 'accounting' by (account, cached dimensions, period). An 'info' register keeps records rather than sums and caches nothing.",
+				"required": ["entity", "period", "periodField", "resources"],
+				"additionalProperties": false,
+				"properties": {
+					"entity": {
+						"type": "string",
+						"description": "Entity holding the cached rows, declared by the module exactly as the state table and the journal are. It must carry a column per register dimension under the same names, plus the period column and both fields of every resource, and have its PRIMARY KEY over exactly (dimensions, periodField) with no surrogate id — all checked at install. A cached row is nothing but its key and its sums, and the key is what both maintenance paths conflict on, so a cache keyed more coarsely than its register would merge rows that belong apart with nothing downstream to object: a coarser grouping satisfies a stricter constraint automatically."
+					},
+					"period": {
+						"type": "string",
+						"enum": ["day", "month", "quarter", "year"],
+						"description": "How much one cached row covers. Finer means more rows and a cheaper ragged edge on a read; coarser means the opposite. This is the register's own granularity, and it has nothing to do with an accounting period a document might close."
+					},
+					"periodField": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column on the totals entity holding the FIRST date of the period a row covers. A date rather than a label like '2026-09', so a read compares it against the bounds it was given without consulting a calendar."
+					},
+					"accountField": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column on the totals entity holding the account a cached row belongs to. Required on an 'accounting' register and refused on every other kind: an accounting register is read per account, so that is what its cache is keyed by, and a compound posting names TWO accounts and folds into two cached rows — one per side, each taking that side's column of every two-sided dimension — so which column holds the one cannot be derived. The analytics are NOT in the key: measured on the base this is ported from, 24.3M postings carry 99.8M analytic rows, so the analytics are where the cardinality is and a cache keyed by them would be about as large as what it summarises. A read that narrows by an analytic goes to the postings, as a read of a part-period goes to them for its edges."
+					},
+					"dimensions": {
+						"type": "array",
+						"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+						"description": "Which of the register's dimensions the cache is grouped by; omitted, it is all of them. Only on an 'accounting' register. What it is for is a dimension a posting may legitimately leave empty — a two-sided one, where the measured original fills a currency only for the accounts that keep one. A cached row's key holds no NULL, so install refuses a cached dimension whose posting column is nullable, naming the two ways out: make the column mandatory, or leave the dimension out here and let the cache sum across it. A read that narrows by an uncached dimension goes to the postings."
+					},
+					"resources": {
+						"type": "object",
+						"description": "Where each resource caches its two halves — increase and decrease on a balance or turnover register, debit and credit on an accounting one. EVERY resource the register declares must appear: a cache holding some of them would answer some questions from itself and others from the movements, at different costs, with nothing saying which.",
+						"minProperties": 1,
+						"additionalProperties": {
+							"type": "object",
+							"anyOf": [
+								{ "required": ["inField", "outField"] },
+								{ "required": ["debitField", "creditField"] }
+							],
+							"additionalProperties": false,
+							"properties": {
+								"inField": {
+									"type": "string",
+									"pattern": "^[a-z_][a-z0-9_]*$",
+									"description": "Column caching what moved INTO the register in this period."
+								},
+								"outField": {
+									"type": "string",
+									"pattern": "^[a-z_][a-z0-9_]*$",
+									"description": "Column caching what moved OUT. Kept apart from the increase rather than netted, for the same reason the journal stamps a direction instead of storing a signed value: a net figure answers neither half, and a register whose balance is back to zero still has a turnover worth reporting."
+								},
+								"debitField": {
+									"type": "string",
+									"pattern": "^[a-z_][a-z0-9_]*$",
+									"description": "Column caching this resource's DEBIT side, on an accounting register. Declared with 'creditField' in place of 'inField' / 'outField': an accounting register has sides rather than directions and stamps none, so the accumulation spelling would name something it never records."
+								},
+								"creditField": {
+									"type": "string",
+									"pattern": "^[a-z_][a-z0-9_]*$",
+									"description": "Column caching the CREDIT side. Kept apart from the debit rather than netted, because which of the two increases an account depends on what kind of account it is: the reads return both sides and their difference rather than guessing which one the caller calls good."
+								}
+							}
+						}
+					}
+				}
+			},
+			"period": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Column on an information register's entity holding the moment each record takes effect. Declaring it makes the register periodic, and 'the value as of a date' becomes the last record at or before it. Omit it for a plain keyed lookup with no history \u2014 121 of the 285 information registers in the 1C base measured for this design are of that shape, so it is the common case rather than a degenerate one. Only valid on 'info'."
+			},
+			"recorder": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Column on an information register's entity where the platform stamps which document wrote each record \u2014 the same jsonb 'source' shape a journal row carries, holding { entity, pk, line, postedBy }. Declaring it makes the register SUBORDINATE to a document: an A column binds to it, posting writes its records, unposting deletes them, and the register's rows stop being something a user maintains. Omit it for an independent register, whose records are written by ordinary means. The split is not a nuance: measured on the 1C base this design is ported from, 115 of the 285 information registers are subordinate and hold 15.7M of the 20.8M rows, and no register is ever both. Only valid on 'info'."
+			},
+			"chart": {
+				"type": "string",
+				"description": "Chart of accounts an accounting register posts against. Unqualified resolves within this module; 'module_cd.entity_cd' targets another module's. Only valid on 'accounting'."
+			},
+			"composition": {
+				"type": "object",
+				"description": "Where the chart says which analytics each account takes. This is the heart of the kind: the composition is DATA \u2014 accounts are rows, and an accountant adds an analytic to an account without a module upgrade \u2014 so the register names the entity and the three columns that carry it rather than listing the analytics itself. Only valid on 'accounting', and required there exactly when the posting declares analytic slot columns: a register keyed by account and dimensions alone has no slots for it to describe.",
+				"required": ["entity", "account", "slot", "analytic"],
+				"additionalProperties": false,
+				"properties": {
+					"entity": {
+						"type": "string",
+						"description": "Entity holding one row per (account, slot)."
+					},
+					"account": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column pointing at the account the row belongs to."
+					},
+					"slot": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column holding the slot number: WHICH of the posting's analytic columns this analytic is written into. Positional storage is what the measured base's totals tables use, and it is available because the fill is dense \u2014 an unset analytic is written explicitly rather than omitted, so the declared count and the written count matched exactly across 348,227 analytic sets."
+					},
+					"analytic": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column naming WHAT this slot holds \u2014 the analytic kind. Two accounts may use slot 2 for different kinds, which is the fact a register-level dimension tuple cannot express."
+					}
+				}
+			},
+			"account": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Column on the posting entity that points at the chart of accounts. Not derivable from the journal foreign keys, which is why the register names it: in 'classic' mode a posting has one account and in 'compound' it has two, and that difference is exactly what 'lineMode' records \u2014 so a guess would work until correspondence was built and then silently pick a side. Mandatory alongside 'journalDate': a balance as of a date is the read this kind exists for, and a dimension such as period_key answers which month, never as of the 14th. Only valid on 'accounting'."
+			},
+			"debitAccount": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Posting column holding the DEBITED account, on a compound register. Only valid on 'accounting' with \"lineMode\": \"compound\"."
+			},
+			"creditAccount": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Posting column holding the CREDITED account. Declared with 'debitAccount': the pair is what records correspondence, and a compound register with only one of them would be a classic register with a misleading mode."
+			},
+			"debitAnalyticFields": {
+				"type": "array",
+				"minItems": 0,
+				"maxItems": 8,
+				"uniqueItems": true,
+				"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+				"description": "Analytic slot columns for the DEBITED account, in slot order. Two arrays rather than one because the two accounts declare their own compositions: slot 2 on the debited account and slot 2 on the credited one are analytics of different kinds, and one array would force them into one column. Only valid on a compound register."
+			},
+			"creditAnalyticFields": {
+				"type": "array",
+				"minItems": 0,
+				"maxItems": 8,
+				"uniqueItems": true,
+				"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+				"description": "Analytic slot columns for the CREDITED account, in slot order and capped independently of the debit side. Only valid on a compound register."
+			},
+			"sideDimensions": {
+				"type": "object",
+				"minProperties": 1,
+				"maxProperties": 8,
+				"propertyNames": { "pattern": "^[a-z_][a-z0-9_]*$" },
+				"description": "Dimensions that are TWO-SIDED, with the posting column for each side. Measured on the base this design is ported from, one accounting register keeps Организация shared and splits Валюта and НалоговоеНазначение per side, while a second register in the same base splits one of its two \u2014 so which dimensions split is a property of the declaration and not of the mode. A dimension left in 'dimensions' stays shared: one column for the whole row. Only valid on a compound register.",
+				"additionalProperties": {
+					"type": "object",
+					"required": ["debitField", "creditField"],
+					"additionalProperties": false,
+					"properties": {
+						"debitField": {
+							"type": "string",
+							"pattern": "^[a-z_][a-z0-9_]*$",
+							"description": "Posting column carrying this dimension's value on the debit side."
+						},
+						"creditField": {
+							"type": "string",
+							"pattern": "^[a-z_][a-z0-9_]*$",
+							"description": "Posting column carrying it on the credit side."
+						}
+					}
+				}
+			},
+			"analyticFields": {
+				"type": "array",
+				"minItems": 0,
+				"maxItems": 8,
+				"uniqueItems": true,
+				"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+				"description": "The posting entity's analytic slot columns, in slot order: slot 1 is written into the first, slot 2 into the second. Each is a jsonb entity link, because an analytic's value is a UNION \u2014 one kind in the measured base resolves to three different document types in the same column, which a 'link' naming one entity cannot type. The length of this array is how many analytics a posting can carry; an account declaring more than that is refused when it posts, not at install, because the platform does not parse a check constraint's expression. Only valid on 'accounting'."
+			},
+			"lineMode": {
+				"type": "string",
+				"enum": ["classic", "compound"],
+				"description": "'classic' \u2014 one posting row is one account on one side, and which side is which resource column holds the amount. 'compound' \u2014 one row carries a debit account AND a credit account, so the correspondence between them is recorded and a dimension, a resource or an analytic may differ per side. The two are different shapes rather than settings: a compound register names no single 'account' and no single 'analyticFields', and a classic one names nothing two-sided. Only valid on 'accounting'."
+			},
+			"dimensions": {
+				"type": "array",
+				"minItems": 1,
+				"maxItems": 8,
+				"uniqueItems": true,
+				"items": {
+					"type": "string",
+					"pattern": "^[a-z_][a-z0-9_]*$"
+				},
+				"description": "The register's own dimension column names, as they exist on the state entity ('balance'), the journal ('turnover') or the record entity ('info'). For 'balance' and 'turnover' a binding maps its document's columns onto these names; the names themselves belong to the register and cannot vary per writer. For 'info' they are the slice key, and an INDEPENDENT one's entity must declare a unique constraint over them (plus 'period' when periodic) \u2014 install refuses otherwise, because without it 'the value on that date' has no single answer. A subordinate one is not held to that: two documents may legitimately record the same key at the same period \u2014 two receipts of one product into one warehouse on one day \u2014 and the slice read carries a declared tiebreaker instead."
+			},
+			"resources": {
+				"type": "object",
+				"minProperties": 1,
+				"maxProperties": 64,
+				"propertyNames": {
+					"pattern": "^[a-z_][a-z0-9_]*$"
+				},
+				"additionalProperties": {
+					"type": "object",
+					"oneOf": [
+						{ "required": ["field"], "properties": { "debitField": false, "creditField": false } },
+						{ "required": ["debitField", "creditField"], "properties": { "field": false } }
+					],
+					"properties": {
+						"debitField": {
+							"type": "string",
+							"pattern": "^[a-z_][a-z0-9_]*$",
+							"description": "On an accounting register, the posting column holding this resource's debit side. Declared with 'creditField' and instead of 'field'. Measured on the base this design is ported from, its postings carry one shared amount plus three split by side, and a second accounting register in the same base splits differently again \u2014 so splitting is a property of the resource rather than of the kind. WHAT THE PAIR MEANS DEPENDS ON 'lineMode', which is mandatory, so exactly one reading applies at a time. Under 'classic' a row is one account on one side, so these are where the amount goes when the row is a debit or a credit and exactly one carries a value. Under 'compound' they are the debited side's value and the credited side's value of one resource on one row, and both may carry one \u2014 a currency amount whose two sides are in different currencies is two different numbers, which is why the pair exists at all."
+						},
+						"creditField": {
+							"type": "string",
+							"pattern": "^[a-z_][a-z0-9_]*$",
+							"description": "The credit side of a split resource. Declared with 'debitField'."
+						},
+						"field": {
+							"type": "string",
+							"pattern": "^[a-z_][a-z0-9_]*$",
+							"description": "Column this resource accumulates into — on the state entity for a 'balance' register, on the journal for a 'turnover' one. On a COMPOUND accounting register it is the natural form: one row, one amount, this account debited and that one credited. A CLASSIC one refuses it, because a one-sided row carrying a shared column would hold an amount with nothing to say which side it fell on."
+						},
+						"required": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether every binding must map this resource to one of its own columns. True (the default) is right whenever a writer that omitted it would be posting a silent zero. Set false for a resource only some writers supply — a register recording what was ordered and what was issued is fed by two document types from different angles, and neither carries the other's number. It is a property of the resource, not of the kind: a 'balance' register fed the same way needs the same licence."
+						},
+						"description": {
+							"type": "string",
+							"maxLength": 500
+						}
+					},
+					"additionalProperties": false
+				},
+				"description": "The register's measured columns, keyed by resource name \u2014 what it accumulates ('balance', 'turnover') or what a slice of it returns ('info'), as opposed to the dimensions that key it. A binding maps a document column to each resource the register marks required. The 64 bound is generous because an 'info' register's resources are VALUES rather than quantities, and a register of settings legitimately carries dozens: measured on a base being ported, one register holding who signs which customs paper carries 28 \u2014 a post and a name per document kind, in two languages, for two factories \u2014 and its one reader names all 28. An accumulation register wanting more than a handful is usually several registers."
+			},
+			"allowNegative": {
+				"type": "boolean",
+				"default": false,
+				"description": "Whether the state may go below zero. A register invariant — it cannot be asserted by one writing document and denied by another. Meaningless on 'turnover', which keeps no state, and rejected there."
+			},
+			"autoCreate": {
+				"type": "boolean",
+				"default": true,
+				"description": "Create the state row on first movement into a dimension tuple. A register invariant, not a per-writer choice. Meaningless on 'turnover' and rejected there."
+			}
+		},
+		"additionalProperties": false
+	}
+}

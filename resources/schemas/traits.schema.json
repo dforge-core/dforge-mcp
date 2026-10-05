@@ -79,9 +79,34 @@
 						"serverDefault": { "$ref": "#/$defs/serverDefault" }
 					},
 					"additionalProperties": true
+				},
+				"domain": {
+					"type": "string",
+					"description": "Reference to a reusable column domain. A bare 'domain_cd' resolves in the module of the entity taking the trait, then tenant-created domains, so one generic trait gives each module its own list; 'module_cd.domain_cd' pins one module's domain for every entity. A module's own traits.json must qualify a domain the module itself defines: written bare, it would bind to a same-named domain of whichever module takes the trait, and pack rejects it. The domain supplies the type, control, sizing and options."
 				}
 			},
-			"additionalProperties": false
+			"additionalProperties": false,
+			"oneOf": [
+				{
+					"title": "Domain-backed trait field",
+					"description": "Defers to a column domain. Must not restate what the domain owns, and takes no 'link' — it is a plain scalar column.",
+					"required": ["domain"],
+					"properties": {
+						"link": false,
+						"dbDatatype": false,
+						"fieldTypeCd": false,
+						"maxLen": false,
+						"params": false
+					}
+				},
+				{
+					"title": "Inline trait field",
+					"description": "Declares its own type and control, as trait fields always have.",
+					"properties": {
+						"domain": false
+					}
+				}
+			]
 		},
 		"serverDefault": {
 			"type": "object",

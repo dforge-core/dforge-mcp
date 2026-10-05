@@ -6,7 +6,7 @@
 // Reference, view dataSources/columns pointing at unknown entities/fields, a
 // grid-style view over an entity with no visible column, menu dataViewCode →
 // missing view, role rights keyed on unknown entities/actions/reports, record-report
-// attachments (param declared, entity known, source column mappable),
+// attachments (param declared, entity known, source column mappable), reports with no label,
 // entities with no Select grant, and docs/diagrams/*.json entity keys that
 // resolve to nothing — a dependency key, or an own key close to a built
 // entity's code; other own keys are planned entities (warnings only — diagrams are design-time). Returns a
@@ -80,8 +80,12 @@ export function moduleValidate(
 			if (res.report.error) err("cli: package", res.report.error);
 			for (const c of res.report.checks) if (!c.ok) err(`cli: ${c.name}`, c.message ?? "failed");
 			for (const w of res.report.warnings) {
-				// The offline pass already warns about a missing toString.
-				const dup = issues.some((i) => i.where === w.where && i.message.includes("toString") && w.message.includes("toString"));
+				// The offline pass already warns about a missing toString and a missing report label.
+				const dup = issues.some(
+					(i) =>
+						(i.where === w.where && i.message.includes("toString") && w.message.includes("toString")) ||
+						(i.level === "warning" && i.message === w.message),
+				);
 				if (!dup) warn(w.where, w.message);
 			}
 		}

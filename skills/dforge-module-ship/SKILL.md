@@ -101,6 +101,11 @@ role / trigger / job counts. Then confirm both version strings with the user:
 - **`version`** — always bump (semver) before packing.
 - **`dbSchemaVersion`** — bump only if entity fields were added, removed, or
   type-changed since the last install.
+- **Data on upgrade** — if the new version moves or reshapes existing rows, or
+  removes an entity whose table must go, ship `migrations/<version>.sql` named by
+  the new `version` and declare `"admin": ">=1.21.0"`. The installer generates the
+  DDL; it never moves data or drops a table on its own. See
+  `dforge://docs/conventions` § Upgrade Migrations.
 
 Get explicit confirmation on both before packing. This version confirmation
 applies only to the initial pack. During the install-fix loop, re-pack without

@@ -18,10 +18,15 @@
 		},
 		"entities": {
 			"type": "object",
-			"description": "Consumed provider entities, keyed by entity code (e.g. 'party').",
-			"minProperties": 1,
+			"description": "Consumed provider entities, keyed by entity code (e.g. 'party'). At least one, except against a system module (admin, metadata, workspace, sys-billing), where {} declares a pure platform-version gate for a feature that introduced no entity.",
 			"additionalProperties": { "$ref": "#/definitions/entityContract" }
 		}
+	},
+	"if": {
+		"not": { "properties": { "module": { "enum": ["admin", "metadata", "workspace", "sys-billing"] } }, "required": ["module"] }
+	},
+	"then": {
+		"properties": { "entities": { "minProperties": 1 } }
 	},
 	"definitions": {
 		"entityContract": {

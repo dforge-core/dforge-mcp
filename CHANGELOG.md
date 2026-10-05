@@ -4,7 +4,38 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
-## Unreleased
+## 0.2.34 — 2026-10-06
+
+**A report has a `label` beside its `description`** (dForge-core 61ad762). The label is
+the report's name — page title, breadcrumb, parameter dialog — and the description shows
+under it, as a data view's does. Without a label the description is the name, as before,
+and the platform now warns about it.
+
+- `dforge_report_add` takes `report.label`, writes it ahead of `description`, and warns
+  when it is omitted. Its help asks for a short label plus a description.
+- `dforge_module_validate` warns, with the platform's wording, about a report with no
+  label. The CLI's copy of the same warning is listed once.
+- `dforge://schema/reports` carries `label`. Pre-staged from dForge-core; it is
+  re-vendored from `@dforge-core/metadata` 0.0.34 at publish, and the CLI warning needs
+  `@dforge-core/dforge-cli` 0.2.27.
+- `dforge://reference/reports` and the build skill name reports with `label`.
+
+**Upgrade migrations** (dForge-core 9e93062). A module may ship `migrations/<version>.sql`
+for the data a new version reshapes; an upgrade runs each one above the installed version,
+inside the install transaction. `dforge://docs/conventions` and the manifest reference say
+when they run, how they are named, `"dForge".next_id()` and the `"admin": ">=1.21.0"`
+dependency; the ship skill's version audit asks for one when a release moves data.
+`dforge_module_pack` packs the whole directory, `migrations/` included.
+
+**A dependency on a system module may name no entity.** `dforge_dependency_add` takes
+`entities: []` against admin, metadata, workspace or sys-billing — a pure platform-version
+gate such as `"admin": ">=1.21.0"` for upgrade migrations. It writes `"entities": {}` to
+the contract and a plain version string to the manifest. Any other module still needs an
+entity. `dforge://schema/deps` says the same, pre-staged from dForge-core.
+
+- Dependencies: `@dforge-core/metadata` `^0.0.34`, `@dforge-core/dforge-cli` `^0.2.27`.
+
+## 0.2.33
 
 **`isView` / `viewSql` are gone** (dForge-core#1312). SQL-view entities were in the
 entity schema and the references but never built: the entity installed as an empty table,

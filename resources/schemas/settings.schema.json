@@ -10,7 +10,6 @@
 	"$defs": {
 		"setting": {
 			"type": "object",
-			"required": ["fieldTypeCd"],
 			"properties": {
 				"fieldTypeCd": {
 					"type": "string",
@@ -47,8 +46,32 @@
 				"params": {
 					"type": "object",
 					"description": "Field-type-specific parameters. Examples: dropdown → { options: [...] }; number → { min, max }; lookup → { link: { entity, otherKey } }."
+				},
+				"domain": {
+					"type": "string",
+					"description": "Reference to a reusable column domain. A bare 'domain_cd' means this module's own domain, then a tenant-created one, and never another module's, even one with the same code. 'module_cd.domain_cd' names a domain of any installed module; declare that module as a dependency. The domain supplies fieldTypeCd, baseDatatypeCd and params; declaring any of those alongside 'domain' is rejected at install. The setting keeps its own label, defaultValue, formula and required flag."
 				}
 			},
+			"oneOf": [
+				{
+					"title": "Domain-backed setting",
+					"description": "Setting whose control and option list come from a reusable column domain. Requires 'domain' and must NOT restate what the domain owns.",
+					"required": ["domain"],
+					"properties": {
+						"fieldTypeCd": false,
+						"baseDatatypeCd": false,
+						"params": false
+					}
+				},
+				{
+					"title": "Inline setting",
+					"description": "Setting that declares its own control and parameters. Requires 'fieldTypeCd'.",
+					"required": ["fieldTypeCd"],
+					"properties": {
+						"domain": false
+					}
+				}
+			],
 			"additionalProperties": false
 		}
 	}

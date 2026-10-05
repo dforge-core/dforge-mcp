@@ -7,11 +7,14 @@ SP files: `logic/reports/rpt_*.sql`
 
 ## Structure
 
-A report has `description`, a `datasets` map, a `layout` object (`{ panels: [...] }`), optional per-dataset `params`, and an optional `entities` array (record-report attachments). Panels reference datasets by code via `datasetCd`.
+A report has a `label`, a `description`, a `datasets` map, a `layout` object (`{ panels: [...] }`), optional per-dataset `params`, and an optional `entities` array (record-report attachments). Panels reference datasets by code via `datasetCd`.
+
+**Name it with `label`, describe it with `description`.** `label` is the report's name: page title, breadcrumb and parameter dialog. `description` says what it shows and appears under the label, as a data view's does. Without a `label` the description becomes the name, so a sentence ends up as the page title. `dforge_module_validate`, `module pack` and install warn about it; install does not refuse it. Translate the name as `reports.<cd>.label`.
 
 ```json
 {
     "sales_pipeline": {
+        "label": "Sales Pipeline",
         "description": "Open opportunities by stage",
         "datasets": {
             "pipeline": {
@@ -341,7 +344,8 @@ A report can be **attached to an entity** so it opens from a record — the way 
 
 ```json
 "credit_check": {
-    "description": "Customer Credit Check — limit against outstanding AR and open quotes",
+    "label": "Credit Check",
+    "description": "Credit limit against outstanding AR and open quotes",
     "entities": [
         { "entityCd": "parties.party", "params": { "customer_id": "party_id" }, "orderNum": 45 },
         { "entityCd": "crm.quote",     "params": { "customer_id": "customer_id" }, "orderNum": 45 }

@@ -1,4 +1,4 @@
-// Coverage for menu_add / seed_add / translation_sync, plus the validator
+// Coverage for menu_add / report_add / seed_add / translation_sync, plus the validator
 // checks that back them: action script files, trigger/job action references,
 // and translation completeness.
 
@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { menuAdd } from "../src/tools/menu";
+import { reportAdd } from "../src/tools/adds";
 import { seedAdd } from "../src/tools/seed";
 import { translationSync } from "../src/tools/translations";
 import { moduleValidate } from "../src/tools/module-validate";
@@ -138,6 +139,35 @@ describe("menu_add", () => {
 				label: "Child",
 			}),
 		).toThrow(/is a leaf item/);
+	});
+});
+
+describe("report_add", () => {
+	const body = {
+		layout: { panels: [{ vizType: "table", datasetCd: "rows" }] },
+		datasets: { rows: { datasetType: "Q", query: { entityCd: "product" } } },
+	};
+
+	it("writes the label first, ahead of the description", () => {
+		const res = reportAdd({
+			moduleDir: dir,
+			code: "stock",
+			report: { description: "Products and their SKUs", ...body, label: "Stock" },
+		});
+		expect(res.warning).toBeUndefined();
+		apply(res);
+		const report = readJson("ui/reports.json").stock;
+		expect(Object.keys(report).slice(0, 2)).toEqual(["label", "description"]);
+		expect(report.label).toBe("Stock");
+	});
+
+	it("still adds a report with no label, and warns that the description names it", () => {
+		const res = reportAdd({ moduleDir: dir, code: "stock", report: { description: "Products and their SKUs", ...body } });
+		expect(res.warning).toBe(
+			'Report \'stock\' declares no "label", so its description names it: "Products and their SKUs". Add a short label; the description then shows under it.',
+		);
+		apply(res);
+		expect(readJson("ui/reports.json").stock).not.toHaveProperty("label");
 	});
 });
 

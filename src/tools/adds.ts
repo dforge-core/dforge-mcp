@@ -24,6 +24,7 @@ import {
 	readJson,
 	type ToolResult,
 } from "./_helpers";
+import { unlabeledReportMessage } from "./validate/reports";
 
 // ── report add ──────────────────────────────────────────────────────
 
@@ -35,7 +36,15 @@ export const reportAddSchema = {
 		.describe("Report code (keys ui/reports.json)."),
 	report: z
 		.object({
-			description: z.string(),
+			label: z
+				.string()
+				.optional()
+				.describe(
+					"The report's name: page title, breadcrumb and parameter dialog. Keep it short ('Trial Balance'). Omitted, the description names the report and pack/validate/install warn.",
+				),
+			description: z
+				.string()
+				.describe("What the report shows, under its label on the page ('Debit and credit totals per account for a period')."),
 			layout: z.record(z.string(), z.unknown()),
 			datasets: z.record(z.string(), z.unknown()),
 			parameters: z
@@ -61,7 +70,7 @@ export const reportAddSchema = {
 		})
 		.passthrough()
 		.describe(
-			"Full report spec per reports.schema.json: { description, layout: { panels: [...] }, datasets: { code: {...} }, parameters?, entities?, reloadInterval? }. PARAMS ARE REPORT-SCOPED: declare them in the top-level `parameters` block, or as shorthand under `datasets.<cd>.params` when exactly one dataset uses the param — the installer merges both into the report's single param set, report level winning on a collision. A param several datasets use belongs at report level; there is no meaningful dataset to attribute it to. Within a param, use `required` (not `isRequired`) and nest a lookup's binding as `params: { link: { entity } }` (not a top-level `link`).",
+			"Full report spec per reports.schema.json: { label, description, layout: { panels: [...] }, datasets: { code: {...} }, parameters?, entities?, reloadInterval? }. PARAMS ARE REPORT-SCOPED: declare them in the top-level `parameters` block, or as shorthand under `datasets.<cd>.params` when exactly one dataset uses the param — the installer merges both into the report's single param set, report level winning on a collision. A param several datasets use belongs at report level; there is no meaningful dataset to attribute it to. Within a param, use `required` (not `isRequired`) and nest a lookup's binding as `params: { link: { entity } }` (not a top-level `link`).",
 		),
 };
 
@@ -71,11 +80,17 @@ export function reportAdd(args: z.infer<z.ZodObject<typeof reportAddSchema>>): T
 	if (Object.prototype.hasOwnProperty.call(reports, args.code)) {
 		throw new Error(`Report '${args.code}' already exists in ui/reports.json.`);
 	}
-	reports[args.code] = args.report;
-	return makeResult(`Added report '${args.code}'.`, {
-		[rel(paths.root, paths.reports)]: jsonText(reports),
-		"manifest.json": jsonText(withTodayStamp(manifest)),
-	});
+	// label first, so the file reads name → description → body.
+	const { label, ...rest } = args.report;
+	reports[args.code] = label?.trim() ? { label, ...rest } : rest;
+	return makeResult(
+		`Added report '${args.code}'.`,
+		{
+			[rel(paths.root, paths.reports)]: jsonText(reports),
+			"manifest.json": jsonText(withTodayStamp(manifest)),
+		},
+		label?.trim() ? undefined : unlabeledReportMessage(args.code, args.report.description),
+	);
 }
 
 // ── setting add ─────────────────────────────────────────────────────
@@ -360,8 +375,8 @@ export function diagramAdd(args: z.infer<z.ZodObject<typeof diagramAddSchema>>):
 // installs, so depending on one buys nothing on its own. The single legitimate
 // reason is to require a minimum platform version for a feature you use
 // (e.g. metadata >= 1.5.0 for record-report attachments) — hence a warning, not
-// a hard error.
-const SYSTEM_MODULES = new Set(["admin", "metadata", "workspace"]);
+// a hard error. Such a gate may name no entity: its contract is `"entities": {}`.
+const SYSTEM_MODULES = new Set(["admin", "metadata", "workspace", "sys-billing"]);
 
 export const dependencyAddSchema = {
 	moduleDir: z.string(),
@@ -372,9 +387,8 @@ export const dependencyAddSchema = {
 	version: z.string().default(">=0.1.0").describe("Semver range."),
 	entities: z
 		.array(z.string())
-		.min(1)
 		.describe(
-			"The provider entities this module consumes, e.g. ['party']. Required: every dependency needs a deps/<module>.json contract naming at least one entity, and a dependency you cannot name a consumed entity for should not be declared at all. Also narrows the manifest dep to the object form `{ version, entities }`.",
+			"The provider entities this module consumes, e.g. ['party']. Every dependency needs a deps/<module>.json contract naming at least one entity, and a dependency you cannot name a consumed entity for should not be declared at all. Narrows the manifest dep to the object form `{ version, entities }`. Exception: against a system module (admin, metadata, workspace, sys-billing) pass [] for a pure platform-version gate, e.g. admin >=1.21.0 for upgrade migrations; the contract then declares \"entities\": {} and the manifest dep stays a plain version string.",
 		),
 	use: z
 		.array(z.string())
@@ -403,6 +417,13 @@ export function dependencyAdd(
 			`Dependency on '${args.moduleCode}' already exists. Edit manifest.json directly to change the version.`,
 		);
 	}
+	const isSystem = SYSTEM_MODULES.has(args.moduleCode);
+	const gateOnly = args.entities.length === 0;
+	if (gateOnly && !isSystem) {
+		throw new Error(
+			`Name at least one '${args.moduleCode}' entity this module consumes. Only a system module (${[...SYSTEM_MODULES].join(", ")}) may be depended on with no entity, as a platform-version gate.`,
+		);
+	}
 	const contractPath = path.join(paths.root, "deps", `${args.moduleCode}.json`);
 	if (fs.existsSync(contractPath)) {
 		throw new Error(
@@ -415,7 +436,7 @@ export function dependencyAdd(
 		...manifest,
 		dependencies: {
 			...deps,
-			[args.moduleCode]: { version: args.version, entities: args.entities },
+			[args.moduleCode]: gateOnly ? args.version : { version: args.version, entities: args.entities },
 		},
 	});
 
@@ -423,7 +444,7 @@ export function dependencyAdd(
 	// it: a manifest dependency without deps/<module>.json fails module validate,
 	// pack and install alike. Writing only the manifest half (what this tool used
 	// to do) leaves an unpackable module — see dforge-core issue #1090.
-	const placeholderUse = !args.use || args.use.length === 0;
+	const placeholderUse = !gateOnly && (!args.use || args.use.length === 0);
 	const use: string[] = placeholderUse ? [`ref:${manifest.code}`] : args.use!;
 	const contract = {
 		module: args.moduleCode,
@@ -443,26 +464,30 @@ export function dependencyAdd(
 				`Replace it with the real usage (e.g. 'ref:<my_entity>.<my_column>', 'extends:${args.moduleCode}.<entity>', 'role:<role_cd>') — it is the record of WHY the dependency exists.`,
 		);
 	}
-	if (!args.pks) {
+	if (!gateOnly && !args.pks) {
 		warnings.push(
 			`PKs were guessed as '<entity>_id'. Check them against ${args.moduleCode}'s entity files — a wrong pk fails the install-time satisfaction check.`,
 		);
 	}
-	if (SYSTEM_MODULES.has(args.moduleCode)) {
+	if (isSystem && !gateOnly) {
 		warnings.push(
 			`'${args.moduleCode}' is a system module — always provisioned, so this dependency is only meaningful as a minimum-platform-version gate. If you are not gating a platform feature, drop it.`,
 		);
 	}
-	warnings.push(
-		`Declare the columns you actually read, write or join on under each entity's 'columns' — see dforge://schema/deps.`,
-	);
+	if (!gateOnly) {
+		warnings.push(
+			`Declare the columns you actually read, write or join on under each entity's 'columns' — see dforge://schema/deps.`,
+		);
+	}
 
 	return makeResult(
-		`Added dependency on '${args.moduleCode}' (${args.version}) for entities [${args.entities.join(", ")}], with the required deps/${args.moduleCode}.json contract.`,
+		gateOnly
+			? `Added platform-version gate on '${args.moduleCode}' (${args.version}), with a deps/${args.moduleCode}.json contract that declares no entity.`
+			: `Added dependency on '${args.moduleCode}' (${args.version}) for entities [${args.entities.join(", ")}], with the required deps/${args.moduleCode}.json contract.`,
 		{
 			"manifest.json": jsonText(newManifest),
 			[`deps/${args.moduleCode}.json`]: jsonText(contract),
 		},
-		warnings.join("\n"),
+		warnings.length ? warnings.join("\n") : undefined,
 	);
 }
