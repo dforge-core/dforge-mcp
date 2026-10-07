@@ -117,9 +117,32 @@
 					"type": "object",
 					"description": "Control parameters, the same shape an entity column's `params` takes — `options` for a dropdown or flags, `currency`, `align`, and so on.",
 					"additionalProperties": true
+				},
+				"domain": {
+					"type": "string",
+					"description": "Reference to a reusable column domain. Unqualified resolves within this module, then tenant-created domains; 'module_cd.domain_cd' binds to that module. The domain supplies the control, datatype and option list — and its options are translated once, for every consumer."
 				}
 			},
-			"additionalProperties": false
+			"additionalProperties": false,
+			"oneOf": [
+				{
+					"title": "Domain-backed result column",
+					"description": "Defers to a column domain. Must not restate what the domain owns.",
+					"required": ["domain"],
+					"properties": {
+						"fieldTypeCd": false,
+						"baseDatatypeCd": false,
+						"params": false
+					}
+				},
+				{
+					"title": "Inline result column",
+					"description": "Declares its own control and datatype.",
+					"properties": {
+						"domain": false
+					}
+				}
+			]
 		}
 	}
 }

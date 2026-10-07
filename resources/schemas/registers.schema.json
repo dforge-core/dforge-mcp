@@ -19,7 +19,7 @@
 				"then": {
 					"required": ["entity"],
 					"properties": {
-						"period": false, "recorder": false,
+						"period": false, "recorder": false, "recordChangesOnly": false,
 						"chart": false, "composition": false, "analyticFields": false, "lineMode": false,
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
@@ -36,7 +36,7 @@
 					"properties": {
 						"entity": false,
 						"period": false,
-						"recorder": false,
+						"recorder": false, "recordChangesOnly": false,
 						"chart": false, "composition": false, "analyticFields": false, "lineMode": false,
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
@@ -76,7 +76,7 @@
 					"properties": {
 						"entity": false,
 						"period": false,
-						"recorder": false,
+						"recorder": false, "recordChangesOnly": false,
 						"journalDirection": false,
 						"allowNegative": false,
 						"autoCreate": false
@@ -106,7 +106,7 @@
 							}
 						}
 					],
-					"description": "An accounting register keys its postings by an account, not by a dimension tuple it declares once. What analytics a posting carries, and what each one MEANS, is a property of the account: measured on a production chart of 468 accounts, the analytic count runs 0 to 4 and slot 2 is Nomenclature on one account and Contracts on another. So the chart and the per-account composition are part of the declaration, and 'entity' \u2014 one row per dimension tuple \u2014 has nothing to name."
+					"description": "An accounting register keys its postings by an account, not by a dimension tuple it declares once. What analytics a posting carries, and what each one MEANS, is a property of the account: the analytic count differs from account to account, and slot 2 may be Nomenclature on one account and Contracts on another. So the chart and the per-account composition are part of the declaration, and 'entity' \u2014 one row per dimension tuple \u2014 has nothing to name."
 				}
 			}
 			,
@@ -145,6 +145,11 @@
 				"type": "string",
 				"enum": ["balance", "turnover", "info", "accounting"],
 				"description": "Register kind. 'balance' keeps a running state per dimension tuple (1C регистр накопления / остатки); 'turnover' keeps none and answers only for intervals (1C регистр накопления / обороты), the majority of accumulation registers in practice; 'info' holds values that change over time, or a plain keyed lookup when it declares no period (1C регистр сведений). 'accounting' keys its postings by an account whose analytics the CHART declares, per account, because what an analytic slot means depends on the account it is on. Both of its line modes are posted and read."
+			},
+			"label": {
+				"type": "string",
+				"maxLength": 200,
+				"description": "Display name, shown wherever the register is offered beside entities (the query builder's From picker). Localized under the translation files' registers.<code>.label. The register code when omitted."
 			},
 			"description": {
 				"type": "string",
@@ -192,12 +197,12 @@
 					"accountField": {
 						"type": "string",
 						"pattern": "^[a-z_][a-z0-9_]*$",
-						"description": "Column on the totals entity holding the account a cached row belongs to. Required on an 'accounting' register and refused on every other kind: an accounting register is read per account, so that is what its cache is keyed by, and a compound posting names TWO accounts and folds into two cached rows — one per side, each taking that side's column of every two-sided dimension — so which column holds the one cannot be derived. The analytics are NOT in the key: measured on the base this is ported from, 24.3M postings carry 99.8M analytic rows, so the analytics are where the cardinality is and a cache keyed by them would be about as large as what it summarises. A read that narrows by an analytic goes to the postings, as a read of a part-period goes to them for its edges."
+						"description": "Column on the totals entity holding the account a cached row belongs to. Required on an 'accounting' register and refused on every other kind: an accounting register is read per account, so that is what its cache is keyed by, and a compound posting names TWO accounts and folds into two cached rows — one per side, each taking that side's column of every two-sided dimension — so which column holds the one cannot be derived. The analytics are NOT in the key: a posting typically carries several analytic values, so the analytics are where the cardinality is and a cache keyed by them would be about as large as what it summarises. A read that narrows by an analytic goes to the postings, as a read of a part-period goes to them for its edges."
 					},
 					"dimensions": {
 						"type": "array",
 						"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
-						"description": "Which of the register's dimensions the cache is grouped by; omitted, it is all of them. Only on an 'accounting' register. What it is for is a dimension a posting may legitimately leave empty — a two-sided one, where the measured original fills a currency only for the accounts that keep one. A cached row's key holds no NULL, so install refuses a cached dimension whose posting column is nullable, naming the two ways out: make the column mandatory, or leave the dimension out here and let the cache sum across it. A read that narrows by an uncached dimension goes to the postings."
+						"description": "Which of the register's dimensions the cache is grouped by; omitted, it is all of them. Only on an 'accounting' register. What it is for is a dimension a posting may legitimately leave empty — a two-sided one, such as a currency filled only for the accounts that keep one. A cached row's key holds no NULL, so install refuses a cached dimension whose posting column is nullable, naming the two ways out: make the column mandatory, or leave the dimension out here and let the cache sum across it. A read that narrows by an uncached dimension goes to the postings."
 					},
 					"resources": {
 						"type": "object",
@@ -239,12 +244,17 @@
 			"period": {
 				"type": "string",
 				"pattern": "^[a-z_][a-z0-9_]*$",
-				"description": "Column on an information register's entity holding the moment each record takes effect. Declaring it makes the register periodic, and 'the value as of a date' becomes the last record at or before it. Omit it for a plain keyed lookup with no history \u2014 121 of the 285 information registers in the 1C base measured for this design are of that shape, so it is the common case rather than a degenerate one. Only valid on 'info'."
+				"description": "Column on an information register's entity holding the moment each record takes effect. Declaring it makes the register periodic, and 'the value as of a date' becomes the last record at or before it. Omit it for a plain keyed lookup with no history \u2014 many information registers are of that shape, so it is a common case rather than a degenerate one. Only valid on 'info'."
 			},
 			"recorder": {
 				"type": "string",
 				"pattern": "^[a-z_][a-z0-9_]*$",
-				"description": "Column on an information register's entity where the platform stamps which document wrote each record \u2014 the same jsonb 'source' shape a journal row carries, holding { entity, pk, line, postedBy }. Declaring it makes the register SUBORDINATE to a document: an A column binds to it, posting writes its records, unposting deletes them, and the register's rows stop being something a user maintains. Omit it for an independent register, whose records are written by ordinary means. The split is not a nuance: measured on the 1C base this design is ported from, 115 of the 285 information registers are subordinate and hold 15.7M of the 20.8M rows, and no register is ever both. Only valid on 'info'."
+				"description": "Column on an information register's entity where the platform stamps which document wrote each record \u2014 the same jsonb 'source' shape a journal row carries, holding { entity, pk, line, postedBy }. Declaring it makes the register SUBORDINATE to a document: an A column binds to it, posting writes its records, unposting deletes them, and the register's rows stop being something a user maintains. Omit it for an independent register, whose records are written by ordinary means. The split is not a nuance: subordinate registers tend to hold most of the rows, and no register is ever both. Only valid on 'info'."
+			},
+			"recordChangesOnly": {
+				"type": "boolean",
+				"default": false,
+				"description": "Posting skips a record whose resources all equal the slice in effect on its period for the same dimensions: a document setting a value that is already so writes nothing, and still posts. A property of the register rather than of any writer, because the answer is in the register. Only valid on an 'info' register that declares a 'recorder'. A resource's 'absentAs' says what it compares as before anything is in effect; without it the first record is always written. 1C posting handlers commonly do the same, comparing the new value with the slice and an absent one as zero."
 			},
 			"chart": {
 				"type": "string",
@@ -268,7 +278,7 @@
 					"slot": {
 						"type": "string",
 						"pattern": "^[a-z_][a-z0-9_]*$",
-						"description": "Column holding the slot number: WHICH of the posting's analytic columns this analytic is written into. Positional storage is what the measured base's totals tables use, and it is available because the fill is dense \u2014 an unset analytic is written explicitly rather than omitted, so the declared count and the written count matched exactly across 348,227 analytic sets."
+						"description": "Column holding the slot number: WHICH of the posting's analytic columns this analytic is written into. Positional storage is what 1C's totals tables use, and it is available because the fill is dense \u2014 an unset analytic is written explicitly rather than omitted, so the declared count and the written count match exactly."
 					},
 					"analytic": {
 						"type": "string",
@@ -313,7 +323,7 @@
 				"minProperties": 1,
 				"maxProperties": 8,
 				"propertyNames": { "pattern": "^[a-z_][a-z0-9_]*$" },
-				"description": "Dimensions that are TWO-SIDED, with the posting column for each side. Measured on the base this design is ported from, one accounting register keeps Организация shared and splits Валюта and НалоговоеНазначение per side, while a second register in the same base splits one of its two \u2014 so which dimensions split is a property of the declaration and not of the mode. A dimension left in 'dimensions' stays shared: one column for the whole row. Only valid on a compound register.",
+				"description": "Dimensions that are TWO-SIDED, with the posting column for each side. One accounting register may keep the organisation shared and split the currency and tax purpose per side, while another splits only one of them \u2014 so which dimensions split is a property of the declaration and not of the mode. A dimension left in 'dimensions' stays shared: one column for the whole row. Only valid on a compound register.",
 				"additionalProperties": {
 					"type": "object",
 					"required": ["debitField", "creditField"],
@@ -338,7 +348,7 @@
 				"maxItems": 8,
 				"uniqueItems": true,
 				"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
-				"description": "The posting entity's analytic slot columns, in slot order: slot 1 is written into the first, slot 2 into the second. Each is a jsonb entity link, because an analytic's value is a UNION \u2014 one kind in the measured base resolves to three different document types in the same column, which a 'link' naming one entity cannot type. The length of this array is how many analytics a posting can carry; an account declaring more than that is refused when it posts, not at install, because the platform does not parse a check constraint's expression. Only valid on 'accounting'."
+				"description": "The posting entity's analytic slot columns, in slot order: slot 1 is written into the first, slot 2 into the second. Each is a jsonb entity link, because an analytic's value is a UNION \u2014 one kind may resolve to several different document types in the same column, which a 'link' naming one entity cannot type. The length of this array is how many analytics a posting can carry; an account declaring more than that is refused when it posts, not at install, because the platform does not parse a check constraint's expression. Only valid on 'accounting'."
 			},
 			"lineMode": {
 				"type": "string",
@@ -373,7 +383,7 @@
 						"debitField": {
 							"type": "string",
 							"pattern": "^[a-z_][a-z0-9_]*$",
-							"description": "On an accounting register, the posting column holding this resource's debit side. Declared with 'creditField' and instead of 'field'. Measured on the base this design is ported from, its postings carry one shared amount plus three split by side, and a second accounting register in the same base splits differently again \u2014 so splitting is a property of the resource rather than of the kind. WHAT THE PAIR MEANS DEPENDS ON 'lineMode', which is mandatory, so exactly one reading applies at a time. Under 'classic' a row is one account on one side, so these are where the amount goes when the row is a debit or a credit and exactly one carries a value. Under 'compound' they are the debited side's value and the credited side's value of one resource on one row, and both may carry one \u2014 a currency amount whose two sides are in different currencies is two different numbers, which is why the pair exists at all."
+							"description": "On an accounting register, the posting column holding this resource's debit side. Declared with 'creditField' and instead of 'field'. One register's postings may carry one shared amount plus several split by side, and another register split differently again \u2014 so splitting is a property of the resource rather than of the kind. WHAT THE PAIR MEANS DEPENDS ON 'lineMode', which is mandatory, so exactly one reading applies at a time. Under 'classic' a row is one account on one side, so these are where the amount goes when the row is a debit or a credit and exactly one carries a value. Under 'compound' they are the debited side's value and the credited side's value of one resource on one row, and both may carry one \u2014 a currency amount whose two sides are in different currencies is two different numbers, which is why the pair exists at all."
 						},
 						"creditField": {
 							"type": "string",
@@ -384,6 +394,10 @@
 							"type": "string",
 							"pattern": "^[a-z_][a-z0-9_]*$",
 							"description": "Column this resource accumulates into — on the state entity for a 'balance' register, on the journal for a 'turnover' one. On a COMPOUND accounting register it is the natural form: one row, one amount, this account debited and that one credited. A CLASSIC one refuses it, because a one-sided row carrying a shared column would hold an amount with nothing to say which side it fell on."
+						},
+						"absentAs": {
+							"type": ["number", "string", "boolean"],
+							"description": "Under the register's 'recordChangesOnly': what this resource compares as when no record is in effect yet, or the one in effect holds nothing. A number, a boolean or a string, read as the resource column's type. Omit it and an absent slice differs from every value, so the first record is always written; declare 0 to treat a first value of 0 as no change, as 1C does with ЕСТЬNULL(…, 0)."
 						},
 						"required": {
 							"type": "boolean",
@@ -397,7 +411,7 @@
 					},
 					"additionalProperties": false
 				},
-				"description": "The register's measured columns, keyed by resource name \u2014 what it accumulates ('balance', 'turnover') or what a slice of it returns ('info'), as opposed to the dimensions that key it. A binding maps a document column to each resource the register marks required. The 64 bound is generous because an 'info' register's resources are VALUES rather than quantities, and a register of settings legitimately carries dozens: measured on a base being ported, one register holding who signs which customs paper carries 28 \u2014 a post and a name per document kind, in two languages, for two factories \u2014 and its one reader names all 28. An accumulation register wanting more than a handful is usually several registers."
+				"description": "The register's measured columns, keyed by resource name \u2014 what it accumulates ('balance', 'turnover') or what a slice of it returns ('info'), as opposed to the dimensions that key it. A binding maps a document column to each resource the register marks required. The 64 bound is generous because an 'info' register's resources are VALUES rather than quantities, and a register of settings legitimately carries dozens \u2014 one holding who signs which document may carry a post and a name per document kind, in several languages, for several sites. An accumulation register wanting more than a handful is usually several registers."
 			},
 			"allowNegative": {
 				"type": "boolean",

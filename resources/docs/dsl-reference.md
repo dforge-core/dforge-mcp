@@ -337,16 +337,20 @@ Current UTC timestamp.
 [completed_at] = now()
 ```
 
-#### `addDays(date, days) → DateTime`
-Add (or subtract with negative) integer days.
+#### `addDays(date, days) → same kind as date`
+Add (or subtract with negative) integer days. `date` is a date field, a `Date` or an ISO
+string. A date field stays a date and a `yyyy-MM-dd` string stays a string. Null stays null;
+any other value is an error.
 
 ```dsl
 [due_date] = addDays(now(), 30)
+[ship_date] = addDays([order_date], 3)
 var lastWeek = addDays(now(), -7)
 ```
 
 #### `addSeconds(date, seconds) → DateTime`, `addMinutes(date, minutes) → DateTime`
-Fractional-unit arithmetic.
+Fractional-unit arithmetic over the same inputs as `addDays`. The result has a time of day,
+so a date field or a `yyyy-MM-dd` string comes back as a `DateTime`.
 
 ```dsl
 [token_expires_at] = addMinutes(now(), 15)

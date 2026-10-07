@@ -4,6 +4,39 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.35 — 2026-10-07
+
+**`addDays()` moves a date field** (dForge-core #1382). `addDays([order_date], 3)` used to
+return the date unchanged. `dforge://docs/dsl` and the author skill now say what the date
+builtins take: a date field, a `Date` or an ISO string. Any other value is now an error,
+where the platform used to pass it through unchanged.
+
+**An entity index is `fields` plus an optional `using`.** The installer used to skip an index
+declared with `columns` without a word; `pack`, `validate` and install now refuse it, and
+`dforge://schema/entity` types the index object. The flags reference no longer offers an
+index or the nonexistent `isUnique` for a unique column: that is a `unique` constraint.
+
+**A stored-procedure result column may name a `domain`** (dForge-core #1323), which supplies
+its control, datatype and options. `dforge://schema/stored-procedures` and the reports
+reference say so.
+
+**Register bindings** — `dforge://schema/entity` and `dforge://schema/registers` carry what
+the platform added since 0.0.34:
+
+- `groupLinesBy`: one movement per distinct value of the named line columns.
+- A `map` / `headerMap` / `dateField` value starting with `=` is an expression.
+- `dateTrunc` (`day`, `month`, `year`) on the binding's date.
+- A register `label`, translated under the new `registers` section of
+  `dforge://schema/translations`.
+- `recordChangesOnly` on an `info` register with a `recorder`, and `absentAs` on its
+  resources.
+
+The `accumulation` and `ledger` trait references now point at `registers.json` instead of
+column params.
+
+- Dependencies: `@dforge-core/metadata` `^0.0.35`, `@dforge-core/dforge-cli` `^0.2.28`.
+  Schemas pre-staged from dForge-core; re-vendored from metadata 0.0.35 at publish.
+
 ## 0.2.34 — 2026-10-06
 
 **A report has a `label` beside its `description`** (dForge-core 61ad762). The label is

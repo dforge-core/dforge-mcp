@@ -104,13 +104,13 @@ Use in combination with `accumulation` or `ledger` traits for accounting/registr
 
 ### `accumulation`
 
-**Marker trait — adds no columns.** Indicates the entity is an accumulation register. Configuration lives in `A`-type column params (balance entity, dimensions, resources).
+**Marker trait — adds no columns.** Indicates the entity is an accumulation register. The register itself is declared once in the module's `registers.json`; an `A`-type column only binds to it (`register`, `map`, `dateField`, …). Schema: `dforge://schema/registers`.
 
 Advanced feature for accounting/registry modules.
 
 ### `ledger`
 
-**Marker trait — adds no columns.** Indicates the entity uses double-entry bookkeeping. Configuration lives in `L`-type column params (lines, movement entity, balance entity).
+**Marker trait — adds no columns.** Indicates the entity uses double-entry bookkeeping. The `accounting` register is declared in `registers.json`; an `L`-type column binds to it.
 
 Advanced feature for accounting modules.
 

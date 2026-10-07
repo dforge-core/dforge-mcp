@@ -118,12 +118,12 @@ These are **NOT** flag letters. They're separate properties on the column defini
 | Need | How to declare | NOT this |
 |---|---|---|
 | Primary key | `"isPk": true` (or use `identity` trait) | NOT a `P` flag |
-| Unique column | Add a unique index in the entity's `indexes` block, or `"isUnique": true` | NOT a `U` flag |
+| Unique column | A `unique` constraint in the entity's `constraints` block: `"ux_code": { "type": "unique", "fields": ["code"] }` | NOT a `U` flag, NOT an index |
 | Searchable | Configure in data view columns or search settings | NOT an `S` flag |
 
 ## Mistakes to avoid
 
-- Using `"U"` for unique — **not a valid flag**. Use `"isUnique": true` or indexes.
+- Using `"U"` for unique — **not a valid flag**. Use a `unique` constraint. There is no `isUnique` property, and an entry in `indexes` is never unique.
 - Using `"S"` for searchable — **not a valid flag**.
 - Using `"P"` for primary key — **not a valid flag**. Use `"isPk": true` or the `identity` trait.
 - Declaring `M` **and** `"isNullable": true` on the same field — a contradiction that fails the pack.

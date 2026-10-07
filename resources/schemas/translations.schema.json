@@ -58,6 +58,13 @@
 				"$ref": "#/$defs/labelOnly"
 			}
 		},
+		"registers": {
+			"type": "object",
+			"description": "Register code (as registers.json keys it) → label and description.",
+			"additionalProperties": {
+				"$ref": "#/$defs/labelDesc"
+			}
+		},
 		"reports": {
 			"type": "object",
 			"description": "Report code → label, dataset captions and parameter labels.",

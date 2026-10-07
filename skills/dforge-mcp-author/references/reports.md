@@ -194,6 +194,10 @@ granted on. Keyed by stored-procedure code, which may not contain a dot.
 - **`params`** is the call signature, in order — omit it for a zero-argument function.
 - **`columns`** is optional; without it install derives the result columns from the
   function's `RETURNS TABLE (…)`.
+- A result column may name a **`domain`** (`domain_cd` or `module_cd.domain_cd`) instead of
+  `fieldTypeCd` / `baseDatatypeCd` / `params`: a status the function returns then shows its
+  labels without restating the entity's option list. Naming a domain and restating any of
+  the three is refused.
 - Schema: `stored_procedures.schema.json`.
 
 ## Parameters

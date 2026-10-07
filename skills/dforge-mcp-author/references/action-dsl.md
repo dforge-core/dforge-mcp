@@ -348,7 +348,7 @@ error('Insufficient stock. Available: {available}, requested: {requested}',
 | Function | Returns | Description |
 |---|---|---|
 | `now()` | DateTime | Current date/time. Use for `date`, `datetime`, and `timestamp` fields. **Lowercase** — this is the execute-block date function. |
-| `addDays(date, n)` | Date | Add `n` days to a date, e.g. `addDays(now(), 30)`. |
+| `addDays(date, n)` | Same as `date` | Add `n` days to a date field, a `Date` or an ISO string, e.g. `addDays([order_date], 3)`. Null stays null; anything else is an error. |
 | `addMinutes(date, n)` | DateTime | Add `n` minutes, e.g. `addMinutes(now(), 15)`. |
 | `addSeconds(date, n)` | DateTime | Add `n` seconds. |
 | `currentUserId()` | Long | The acting user's tenant user ID. |

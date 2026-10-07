@@ -114,7 +114,24 @@
 		},
 		"indexes": {
 			"type": "object",
-			"description": "Database index definitions"
+			"description": "Database indexes, keyed by index name (the Postgres index name). A register's journal and state tables need none declared: the platform builds the indexes its own reads and writes use.",
+			"additionalProperties": {
+				"type": "object",
+				"required": ["fields"],
+				"additionalProperties": false,
+				"properties": {
+					"fields": {
+						"type": "array",
+						"minItems": 1,
+						"items": { "type": "string" },
+						"description": "Indexed columns, in order. Install refuses any key other than fields and using - \"columns\", which a unique constraint accepts, included."
+					},
+					"using": {
+						"enum": ["btree", "hash", "gin", "gist", "brin"],
+						"description": "Index method. Omitted, btree."
+					}
+				}
+			}
 		},
 		"numberSequence": {
 			"$ref": "#/$defs/numberSequence",
@@ -242,9 +259,11 @@
 				"lineField": { "type": "string", "description": "The line's foreign-key column(s) to the header, comma-separated in the header's key order for a composite key." },
 				"stateField": { "type": "string", "description": "The bool column that records the posted state, when it is not the registry column itself. Written only by the register engine." },
 				"register": { "type": "string", "description": "The register this column posts to, as 'module_cd.register_cd' (declared in that module's registers.json). Binding to one replaces restating what the register is: the declaration supplies the state entity, dimensions, resources, journal, allowNegative and autoCreate, and this column keeps only what legitimately differs per writer — direction/sign, 'map' and 'dateField'." },
-				"map": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Register dimension or resource name -> this document's column carrying it. Every resource the register declares must be mapped (install refuses otherwise); a dimension left out binds to a column of the same name. Only meaningful with 'register'. On an accumulation (A) column a value may be a one-hop reference path, '<reference column>.<target column>', read through the reference at posting time (off the line when the binding posts from lines)." },
-				"headerMap": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Register dimension or resource name -> this DOCUMENT's column carrying it, for a binding that posts from LINES. A line binding reads every other value off the line, and a dimension that belongs to the document (a dealer, an organisation, a date) cannot be put on the line: a G column is a same-row expression or an aggregate over a child set, so it cannot read a parent. Explicit rather than a fallback, because 'not on the line, try the header' turns a typo into a silent read of an unrelated header column with the same name. Install refuses: a name on neither table, a field also named in 'map', a column also read off the line by 'map', a column that is part of the line's key, a column 'lockedFields' does not freeze (the posting is keyed by it, so it has to hold still while the document is posted), and a RESOURCE unless the register is 'info' (a quantity from the document would be added once per line; an information register's records replace rather than add). A value may be a one-hop reference path off the document, whose reference key column 'lockedFields' must then freeze." },
-				"dateField": { "type": "string", "description": "This document's date column, supplying the date the register stamps on each journal row. Required once the register declares a 'journalDate' — one writer that supplied none would make every balance read as of a date quietly short, across all writers. On an accumulation (A) column it may be a one-hop reference path, '<reference column>.<target column>'." },
+				"map": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Register dimension or resource name -> this document's column carrying it. Every resource the register declares must be mapped (install refuses otherwise); a dimension left out binds to a column of the same name. Only meaningful with 'register'. On an accumulation (A) column a value may be a one-hop reference path, '<reference column>.<target column>', read through the reference at posting time (off the line when the binding posts from lines), or an expression: a string starting with '=' holding an F-column formula over the same row with one-hop reference reads — \"=COALESCE([transit_warehouse_id], [dest_warehouse_id])\"." },
+				"headerMap": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Register dimension or resource name -> this DOCUMENT's column carrying it, for a binding that posts from LINES. A line binding reads every other value off the line, and a dimension that belongs to the document (a dealer, an organisation, a date) cannot be put on the line: a G column is a same-row expression or an aggregate over a child set, so it cannot read a parent. Explicit rather than a fallback, because 'not on the line, try the header' turns a typo into a silent read of an unrelated header column with the same name. Install refuses: a name on neither table, a field also named in 'map', a column also read off the line by 'map', a column that is part of the line's key, a column 'lockedFields' does not freeze (the posting is keyed by it, so it has to hold still while the document is posted), and a RESOURCE unless the register is 'info' (a quantity from the document would be added once per line; an information register's records replace rather than add). A value may be a one-hop reference path off the document, whose reference key column 'lockedFields' must then freeze, or an expression over the document ('=...', see 'map')." },
+				"groupLinesBy": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true, "description": "Line columns whose distinct values each post ONE movement, instead of one per line — a production report posting 'this unit worked today' once per unit with a count of 1. 'map' is then read over a group row: the grouped line columns, every column of the document, and one-hop reads through a reference of either, so an expression may mix the document and the group key. A quoted constant is stamped once per group; a numeric line column mapped to a resource is summed over the group. Install refuses: a binding that posts from the document, an L column, a grouped column the line does not store or 'lockedLineFields' does not freeze, a line column read that is neither grouped nor a summed resource, a non-numeric summed resource, a column both grouped and summed, an ungrouped line resource on an 'info' register, a name both the line and the document carry, and a document column read that 'lockedFields' does not freeze. Accumulation (A) columns only." },
+				"dateField": { "type": "string", "description": "This document's date column, supplying the date the register stamps on each journal row. Required once the register declares a 'journalDate' — one writer that supplied none would make every balance read as of a date quietly short, across all writers. On an accumulation (A) column it may be a one-hop reference path, '<reference column>.<target column>', or an expression over the document ('=...', see 'map')." },
+				"dateTrunc": { "type": "string", "enum": ["day", "month", "year"], "description": "Takes the date 'dateField' supplies back to the start of its day, month or year before the register stamps it — for a document that carries a time while the register's records sit on whole days. The calendar is the value's as stored; no time zone is applied. Needs 'dateField'. Accumulation (A) columns only." },
 				"skipPostingWhenEmpty": { "type": "array", "items": { "type": "string" }, "description": "THE EXCEPTION, not the normal way to model this — read the guide before declaring it. Register dimensions (by the register's names) whose empty value means THIS POSTING records nothing: the line, or the document when the binding posts from the document. One posting is skipped, never the register and never the document. When that is all the document would have recorded it is left unposted to this register, and the flag is per binding, so its other registers post as usual. An empty dimension NOT listed refuses the posting, naming the row and the dimension. It leaves a document fully posted while some of its lines produced no movement, which usually means the document is modelling two kinds of line in one table: since 'lineEntity' is declared per BINDING, prefer giving each register its own line table (goods lines post to stock, service lines do not) so that every line of each table posts. Declare this only when the distinction is not structural but lives in the data — a batch or serial number filled on some rows and not others — so there is no second table to put those rows in. Accumulation (A) columns only. Formerly skipWhenNull: a package using the old name is refused at install, while a tenant's already-stored params keep being read under it." },
 				"periodEntity": { "type": "string", "description": "Period entity this registry closes against — one of this module's, or 'module.entity' from a dependency." },
 				"periodDateField": { "type": "string", "description": "Header date column that resolves the period." },
@@ -253,6 +272,8 @@
 			},
 			"dependencies": {
 				"headerMap": ["lineEntity"],
+				"groupLinesBy": ["lineEntity"],
+				"dateTrunc": ["dateField"],
 				"lineEntity": ["lineField", "lockedLineFields"],
 				"lineField": ["lineEntity"],
 				"lockedLineFields": ["lineEntity"],
