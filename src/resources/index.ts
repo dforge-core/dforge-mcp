@@ -188,6 +188,21 @@ export const resources: ResourceDef[] = [
 		"Stored procedures JSON schema",
 		"JSON Schema for logic/stored_procedures.json — map of stored-procedure code → { functionName, schemaName?, params?, columns? }. Required for any report dataset with datasetType 'S': the .sql file under logic/reports/ creates the function, this file registers it as the spCd a dataset binds and the sec_object an sp: right is granted on. functionName names the FUNCTION, never the script.",
 	),
+	schema(
+		"registers",
+		"Registers JSON schema",
+		"JSON Schema for registers.json at the module root — map of register code → { kind (balance | turnover | info | accounting), dimensions, resources, journal/entity, totals, ... }. Documents bind to a register from their A / L columns instead of restating it.",
+	),
+	schema(
+		"card-layouts",
+		"Card layouts JSON schema",
+		"JSON Schema for ui/card_layouts.json — layout name → sections (columnGroup, set, tabGroup). Master/detail is a card layout with a tabGroup of set tabs, not a view type.",
+	),
+	schema(
+		"demo-vars",
+		"Demo data variables JSON schema",
+		"JSON Schema for demo-data/vars.json — a flat map of variable name → literal or { \"$f\": formula }. Demo-data formulas read them as @name.",
+	),
 	{
 		uri: "dforge://docs/conventions",
 		name: "dForge module conventions",
@@ -236,6 +251,7 @@ export const resources: ResourceDef[] = [
 		mimeType: "text/x-python",
 		read: () => readSkill("scripts/xlsx_to_model.py"),
 	},
+	reference("registers", "Registers: accumulation (balance / turnover / info) and accounting (classic / compound) registers, registers.json, binding a document from its A / L columns (map, per-side debit/credit objects), and the reads. Load before authoring registers.json or an A / L column."),
 	reference("data-migration", "Migrating data from a legacy database."),
 	reference("manifest", "manifest.json shape: moduleId UUID, semver, entities map, locale-keyed translations, security block."),
 	reference("validation-checklist", "Final pre-pack self-review checklist covering every file type."),

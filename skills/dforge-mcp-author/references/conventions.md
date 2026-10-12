@@ -112,6 +112,21 @@ Use explicit **numeric** PKs in seed data so cross-file references work. The `id
 
 **Common mistake**: using UUID strings like `"10000000-0000-0000-0000-000000000001"` — **wrong**. The `cuid` datatype is a numeric `int8`, not a UUID string. Seed data PKs must be numbers. Use a numbering scheme that avoids collisions (e.g. 1001-1099 for countries, 2001-2099 for regions, etc.).
 
+## Demo data
+
+Sample records live in `demo-data/`, not `seed-data/`. `seed-data/` holds reference tables every install needs; `demo-data/` is loaded only on request, so a workspace for real work does not start full of fake customers and invoices.
+
+- **Same file shape as seed data** (`entityCode` + `records`, numbered prefixes for FK order, explicit primary keys), and the same schema.
+- **Loaded on request:** `dforge-cli module install … --with-demo-data`, the "Install demo data" checkbox in the install dialogs, or `dforge-cli data demo add` on an installed module. A module's dependencies' demo data loads first. Rows already there are left alone, so repeating is safe.
+- **Workspace type gates it:** a `production` workspace refuses demo data; `staging` or an unset type needs confirmation (`--yes`).
+- **A value can be a formula**, evaluated once at insert: `{ "$f": "DATEADD(TODAY(), -80, 'DAY')" }`. `[column]` reads another column of the same row, and `@name` reads a variable. `TODAY()`, `DATEADD`, `YEAR`, `FORMAT` and `CONCAT` exist. Relative dates keep a scenario intact whatever the install date.
+- **`repeat`** builds several rows from one template, with `@m` in formulas.
+- **`demo-data/vars.json`** declares the variables: a flat `{ "name": value }` map, where a value is a literal or `{ "$f": "formula" }` and may read other variables. It is not a data file; the loader skips it, and each module has its own.
+- **References by text:** a reference column may name its target by its `toString` text instead of a numeric key; no match, or two, is an error.
+- **Not re-evaluated:** a formula runs at insert; an upgrade never recomputes it.
+
+Depth: the platform changelog entry "Demo data: its own folder, formulas, and a checkbox at install".
+
 ## Translations
 
 Translation files live in `translations/` and are named after the **IETF locale tag** (`de-DE.json`, `uk-UA.json`, etc.). Filenames are auto-discovered; declare which ones you ship in `manifest.supportedLocales`. English is the default — labels and descriptions live in entity/view JSON, so **don't** create `en.json` or `en-US.json` (they're skipped by the installer).

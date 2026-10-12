@@ -1,0 +1,28 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://dforge.dev/schemas/demo_vars.schema.json",
+	"title": "dForge Demo Data Variables",
+	"description": "demo-data/vars.json: the variables demo-data formulas read as @name. A flat map of variable name to value. It is not a data file; the loader skips it, and each module has its own (nothing is shared between modules).",
+	"type": "object",
+	"propertyNames": {
+		"pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+		"description": "A letter or underscore, then letters, digits or underscores. Names are case-insensitive, and a repeat variable of the same name shadows the file's."
+	},
+	"additionalProperties": {
+		"description": "A plain value (string, number, boolean or null) is substituted as a literal. { \"$f\": \"...\" } is a formula expanded where the variable is used, e.g. { \"$f\": \"DATEADD(TODAY(), -30, 'DAY')\" }; it may read other variables with @name (a cycle fails the install) but not [column] values.",
+		"oneOf": [
+			{ "type": ["string", "number", "boolean", "null"] },
+			{
+				"type": "object",
+				"required": ["$f"],
+				"properties": {
+					"$f": {
+						"type": "string",
+						"description": "Formula whose result is the variable's value"
+					}
+				},
+				"additionalProperties": false
+			}
+		]
+	}
+}

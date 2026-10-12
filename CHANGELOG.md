@@ -4,6 +4,23 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.38 — 2026-10-12
+
+**A register column's `map` may name a debit and a credit column.** On an accounting (`L`) column,
+a resource the register splits by side maps to `{ "debit": "<line column>", "credit": "<line column>" }`;
+install requires it. `dforge://schema/entity` now allows it (metadata 0.0.39). Before this,
+`gl`, `acc-registry` and any module with a two-sided ledger failed schema validation.
+
+**A registers reference.** `dforge://reference/registers` covers the register kinds (balance, turnover,
+information, accounting classic and compound), `registers.json`, binding a document from its `A` / `L`
+columns, the DSL and report reads, and the common mistakes.
+
+**Demo data is documented.** The conventions reference gains a "Demo data" section: `demo-data/` beside
+`seed-data/`, loaded on request; `$f` formulas, `repeat`, and `vars.json`; the workspace-type gate.
+
+**Three schemas are served.** `dforge://schema/registers`, `card-layouts` and `demo-vars` were vendored or
+new but not registered. `demo-vars` is the schema for `demo-data/vars.json` (metadata 0.0.38).
+
 ## 0.2.37 — 2026-10-12
 
 **Author references brought in line with the hand-authoring copy in dForge-core.** Content that
