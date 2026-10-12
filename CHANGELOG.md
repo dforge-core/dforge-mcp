@@ -4,6 +4,31 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.36 — 2026-10-12
+
+**`settings.json` gains `$constraints`**: check constraints across a module's settings, SQL over
+setting codes (`"expression": "default_discount_pct <= max_discount_pct"`). The settings schema
+and `dforge://schema/translations` describe it.
+
+**Function libraries.** Helpers a module's actions share go in `logic/functions/*.dsl`; another
+module's functions are imported under `"functions"` in `deps/<module>.json` and called as
+`<module>.<fn>()`. `dforge_module_validate` and install check the imports.
+
+**A broken function library is reported once, as itself**, and a `ref` or `domain` may name a
+hyphenated module (`ref cdy-hr.department`); a qualified ref to an unknown module is refused at
+pack and validate.
+
+**DSL reference caught up** (`dforge://docs/dsl`, `action-dsl`): a Function libraries section
+(contents, names, state, imports, errors), the six register reads (`getBalance` ... `getCorrespondence`;
+the built-in count is now 42), text action params staying text, `ref` to a hyphenated module, the
+5-minute action-definition cache after a CLI install, and `query()` CTE and write-target qualification.
+
+**Module install reports a skip.** Installing a package whose version is already installed
+prints `already at vN — nothing installed (use --force to reinstall)` instead of success.
+
+**Register dimensions are never empty** (author skill): an empty dimension refuses the posting by
+design; use a default record, not `COALESCE(…, 0)`.
+
 ## 0.2.35 — 2026-10-07
 
 **`addDays()` moves a date field** (dForge-core #1382). `addDays([order_date], 3)` used to

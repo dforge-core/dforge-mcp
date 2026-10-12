@@ -10,8 +10,15 @@ module artifacts.
 
 **Before each phase:** run `dforge_module_inspect` and parse
 `files["_inspect.json"]` — never plan a patch against what you assume is there.
+For Phase 1, first present the proposed entity inventory based only on context
+already provided and get approval before any tool call; if that context is
+insufficient, ask the user for the missing information without calling tools.
+Immediately after approval, run the inspection before any file changes.
 **After each phase:** record it with
 `dforge_module_plan({ action: "complete_phase", moduleDir, phase: "N", note: "..." })`.
+If `dforge_module_inspect` or `dforge_module_plan` fails or is unavailable, stop,
+report the tool name and error to the user, and do not proceed to the next phase
+or patch files.
 
 ## Loading policy — one reference per step, at the step
 
@@ -34,6 +41,7 @@ flags, or column patterns.
 | Hide columns from a user type (column-level security) | `dforge://reference/security` (§Column-level security), `dforge://example/column-security/entities/product.json`, `dforge://example/column-security/ui/folders.json` | — |
 | Add a menu | `dforge://reference/menus`, `dforge://example/ui/menus.json` | — |
 | Add an action | `dforge://reference/action-dsl`, `dforge://example/logic/actions/mark_done.dsl`, `dforge://example/ui/actions.json` | `dforge://docs/dsl` |
+| Share helpers between actions, or call another module's functions | `dforge://reference/action-dsl` (§Function libraries): `logic/functions/*.dsl`, imports in `deps/<module>.json` | `dforge://schema/deps` |
 | Add a trigger | — | `dforge://schema/triggers`; condition syntax in `dforge://docs/dsl` |
 | Add a scheduled job | `dforge://reference/jobs` | `dforge://schema/jobs` |
 | Add a webhook | — | `dforge://schema/webhooks` |
@@ -67,6 +75,12 @@ Enough to author inline; load the linked reference for the full detail.
   size/precision. Common fixes: `number` not `integer`/`float`; `phone` not
   `phoneNumber`; `date` not `datePicker`; `timestamptz` not `datetime`; `bool`
   not `boolean`; `varchar`/`text` not `string`. → `field-types`
+- **Register dimensions are never empty.** An empty dimension refuses the
+  posting by design; do not make one optional or add a `COALESCE([x_id], 0)`
+  technical key. Variants: one `variant_id` dimension, with a default variant
+  for products without options. Untracked batch/series: a seeded default
+  record, not `0`. Optional analytics: accounting analytic slots or plain
+  columns. Ad hoc slices by an optional attribute: a report, not a dimension.
 - **Formula columns** (`columnType: "F"`): `baseDatatypeCd` required, no
   `dbDatatype`, `flags: "V"`. → `formulas`
 - **Roll-up totals** over a child set are Generated (`G`) columns with
@@ -126,7 +140,8 @@ Proposed entities (N):
 Loop with the user until they explicitly approve.
 
 **Pre-scaffold consistency checks** against `docs/DESIGN.md` — if any fail,
-surface it and go back to Phase 0c; don't silently adjust the design:
+surface it and go back to Phase 0 and re-run the design step that produced
+`docs/DESIGN.md`; don't silently adjust the design:
 
 1. Every FK in the relationship map has a corresponding field on the child.
 2. Every action's `canExecute` guard references a status value that exists.
@@ -147,13 +162,15 @@ approval, then patch. Reach for the **composite tools first**:
 
 **Field batching rule** — the only Phase 1 exception to one-at-a-time. A field
 is batchable only if ALL of: scalar primitive (string/integer/decimal/boolean/
-date), no FK or reference, no formula, and unambiguous nullability. Everything
-else goes one at a time. This never justifies batching entities, views, roles,
-actions, or reports.
+date), no FK or reference, no formula, and its nullability is stated explicitly
+by the user (required = M flag, optional = VE flag). Everything else goes one
+at a time. This never justifies batching entities, views, roles, actions, or
+reports.
 
 **Extension entities last.** `extends: "module.entity"`, `toString: null`,
 dotted manifest key. Snapshot the base entity's fields with
-`dforge_module_inspect` on the dependency dir when it's available locally;
+`dforge_module_inspect` on the dependency dir when the dependency module
+directory exists in the current workspace (check the `deps/<module>.json` path);
 otherwise document the known base fields and note that drift tracking is the
 user's responsibility.
 
@@ -209,7 +226,7 @@ must set `jobClass: 'long_running'`. `dforge_module_validate` flags violations.
 
 **3a. Default grids first.** Every entity gets a `viewType: "grid"` view with
 `dataSources: [{ entityCode, columns: [...] }]`. The scaffolder already wrote one
-per entity, so you'll often `view_modify` rather than `view_add`.
+per entity, so you'll often `dforge_view_modify` rather than `dforge_view_add`.
 
 View codes are semantic — the entity name (`feedback_item`), a plural
 (`invoices`), or descriptive (`invoices_kanban`). **Never use the literal code
@@ -279,12 +296,15 @@ stated trigger; every report's params sit on a dataset.
 ## Phase 5 — Security (5a required)
 
 1. **Inspect first.** The scaffolder pre-created `<code>.admin` with `SIUDC` on
-   every entity declared at scaffold time. It exists — don't re-create it
-   (`role_add` fails on an existing code; use `role_right_set` to amend).
+   every entity declared at scaffold time. Preserve this scaffold-generated
+   baseline role; don't re-create it (`dforge_role_add` fails on an existing
+   code; use `dforge_role_right_set` to amend). It is not an inferred user type.
 2. **Derive roles from the intake's user types and verbs.** Re-read the user-type
    sentences in `docs/REQUIREMENTS.md`. One role per distinct user type, named
-   `<code>.<user-type>`. **Forbidden:** a generic admin/contributor/viewer matrix
-   the user didn't ask for.
+   `<code>.<user-type>`. **Forbidden:** adding generic admin/contributor/viewer
+   roles or a matrix the user didn't ask for. The scaffold-generated
+   `<code>.admin` baseline is the sole exception; include its existing rights
+   when showing the actual rights matrix.
 3. **Reflect the role list back** before computing rights. Get confirmation.
 4. **Show the rights matrix as a table** (rows = entities/actions/reports,
    columns = roles, cells = rights strings), each cell explained by the verb it
@@ -332,16 +352,18 @@ When a later phase exposes a problem in an earlier one, in order:
 3. **Identify the target phase + decision.**
 4. **Get user sign-off**, including cascading impacts.
 5. **Apply the smallest tool that fits** — this overrides the phase labels:
-   `entity_field_add` over `entity_add`; `entity_field_rename` over remove+add;
-   `role_right_set` over `role_add`; `view_modify` over remove+add.
+   `dforge_entity_field_add` over `dforge_entity_add`;
+   `dforge_entity_field_rename` over remove+add;
+   `dforge_role_right_set` over `dforge_role_add`;
+   `dforge_view_modify` over remove+add.
 6. **Re-run `dforge_module_inspect`**, fix knock-on impacts, resume.
 
 **Multi-trigger rule:** if several phases expose gaps at once, resolve the
 **earliest-phase** gap first, complete its backtrack, re-inspect, then
 re-evaluate.
 
-**Rename and delete are handled for you** — `entity_field_rename`,
-`entity_field_remove`, `entity_rename`, `entity_delete` each propagate the
+**Rename and delete are handled for you** — `dforge_entity_field_rename`,
+`dforge_entity_field_remove`, `dforge_entity_rename`, `dforge_entity_delete` each propagate the
 cascade in one call. **Always apply the response's `deletes` as well as
 `files`** (or just pass `apply: true`, which guarantees it). Each tool surfaces
 what it could NOT auto-fix — reports, translations, menu labels, DSL bodies,

@@ -59,6 +59,10 @@ params:
 
 Types are a subset of column field types: `text`, `textarea`, `number`, `currency`, `percent`, `checkbox`, `date`, `datetime`, `dropdown`, `lookup`, `user`.
 
+A `ref` names the entity by its code, qualified as `module.entity` for another module; a hyphenated module code is fine (`ref cdy-hr.department`), the schema form `cdy_hr.department` is not. Pack and install refuse a `ref` to a module that is neither this one, a declared dependency nor a system module, and install refuses one naming no installed entity.
+
+A param declared with a text field type (`text`, `textarea`, ...) stays a string whatever JSON type the client sent: `007` keeps its zeros, and a barcode compares to a text column without a cast. No `'' + params[x]` workaround is needed. Every other param is unwrapped as before.
+
 Access in execute block: `params[param_name]` (bracket syntax, NOT dot syntax).
 
 #### Dropdown params: label the options, or borrow a domain
@@ -298,6 +302,21 @@ var queued = select('comm.message', {
 - `query()` remains the escape hatch for anything this shape can't express: aggregates, multi-hop
   joins, CTEs, `FOR UPDATE`.
 
+### Register reads
+
+The first argument names a **register** (`module_cd.register_cd`, as declared in that module's `registers.json`), not an entity. These only ask questions; a document posts through its `A` / `L` column.
+
+| Function | Returns | Description |
+|---|---|---|
+| `getBalance('module.register', dims?, asOf?)` | Object, per resource | Balance of an accumulation register. A dimension left out of `dims` is summed over. |
+| `getTurnover('module.register', dims, from, to)` | Object, `{in, out, net}` per resource | Movement over an interval. `dims` may be `null`; `from` and `to` are required. |
+| `getSlice('module.register', dims, onDate?, mode?)` | Object or `null` | One record of an information register, the latest on or before `onDate`, plus `_period`. No dimension may be omitted. |
+| `getAccountBalance('module.register', account, filter?, asOf?)` | Object, `{debit, credit, net}` per resource | Balance of one account of an accounting register. |
+| `getAccountTurnover('module.register', account, filter, from, to)` | Object, `{debit, credit, net}` per resource | Movement of one account over an interval. |
+| `getCorrespondence('module.register', debitAccount, creditAccount, filter, from, to)` | Object, per resource | Movement between two accounts. Needs `lineMode: "compound"`; refuses an analytic filter. |
+
+An analytic filter is the key alone (`{ cost_center: 42 }`) or `{ entity, value }` to name one entity of a union kind.
+
 ### Messaging
 
 | Function | Description |
@@ -391,6 +410,67 @@ error('Insufficient stock. Available: {available}, requested: {requested}',
 > **`CURRENT_USER_ID()`** in `canExecute:` or a formula column — a *formula-engine* function
 > (undefined in `execute:`) that the server translates to an exact `::bigint` SQL literal.
 
+
+## Function libraries
+
+Helpers several actions share go once in `logic/functions/*.dsl`, never pasted into each action. A library is detected by presence; `manifest.json` declares nothing.
+
+```js
+// logic/functions/accounting.dsl
+var recNo = 0
+
+function round2(x) {
+    return Math.round(x * 100) / 100
+}
+
+function accountId(code) {
+    var rows = query('SELECT account_id FROM account WHERE code = @code', { code: code })
+    if (rows.length == 0) error('Account {code} does not exist.', { code: code })
+    return rows[0].account_id
+}
+```
+
+```js
+// logic/actions/commit_sale.dsl
+execute:
+    [amount] = round2([amount])
+    var account = accountId(getSetting('sale_account'))
+    recNo = recNo + 1
+```
+
+- **Contents.** Top-level `function` declarations and top-level `var` / `let` / `const`; any other top-level statement is refused at install. Every built-in an action has.
+- **No record context.** `[field]`, `[ref].[target]`, `params[...]` and `old[...]` are refused: pass values as arguments (`round2([amount])`). `[name]` standing alone is refused too, even where JavaScript would read an array; write a one-element array as `Array.of(name)`. An index (`rows[i]`) is fine.
+- **Names.** File names use letters, digits, `_`, `-`. A library may not declare a built-in's name, a JS global (`Math`, `Date`), `schema` or a `__` name. A name is declared once across a module's libraries. An action may not declare a global of a library's name (a top-level function or variable, or a `var` outside any function): delete the local copy. Inside a function, or a block-scoped `let` / `const`, a name may repeat.
+- **State.** Top-level variables start afresh on every run (each record of a `single` action, each batch, trigger fire and job run), so a counter like `recNo` never leaks between runs or users.
+- **Messages.** `error()` / `warn()` / `info()` / `exit()` texts in a library are translated from the module's `messages` block like an action's.
+- **Errors.** A runtime error names the file and line: `(logic/functions/tax.dsl, line 3)`. A library that does not compile is reported once, as itself (`Function library failed to compile:` with file and line), at pack, validate and install, not as undefined calls in the actions.
+- **Linked at run time**, not copied into actions: changing a library changes every action that calls it.
+- **Not available:** formulas (`F` columns, `canExecute:`) cannot call libraries; the in-app editor does not show them; Studio refuses a module that has libraries or imports.
+
+### Another module's functions
+
+List the functions under `"functions"` in that dependency's contract `deps/<module>.json`, then call them as `<module_with_underscores>.<fn>()`:
+
+```json
+{
+    "module": "cdy-accounting",
+    "version": ">=0.3.0",
+    "entities": {},
+    "functions": ["roleOf"]
+}
+```
+
+```js
+execute:
+    var account = cdy_accounting.roleOf([doc_type], 'stock')
+```
+
+- The namespace is the provider's code with `-` replaced by `_`, so `foo-bar` and `foo_bar` share one. Only the listed functions are in it; a call to another fails at install. Only a module in `dependencies` can be called.
+- The function runs as its provider: unqualified tables resolve in the provider's schema, `getSetting()` reads the provider's settings, its messages use the provider's translations. User, folder, transaction and run limits are the caller's.
+- A provider's top-level variables are its own, fresh per run.
+- Libraries may call imported functions too, and imports chain (a provider's functions call what the provider imports). Import only what you call yourself.
+- Install checks each imported name is a top-level function of the installed provider's libraries. A contract that imports only functions may declare `"entities": {}`.
+- A provider upgrade that drops an imported function is not re-checked against consumers: the call finds `undefined` at run time.
 
 ## Real examples from the codebase
 
@@ -650,6 +730,8 @@ In `ui/actions.json`:
 | `orderNum` | Recommended | Display order in the action menu |
 | `isAsync` | Optional | `true` **permits** background execution — it does not force it. A parameterless action is queued directly; one with params is offered to the user as both "Run" and "Run in Background". Queued runs get a completion notification |
 
+**Definitions are cached.** The server reads an action's definition through a per-tenant cache (5 minutes), cleared on module install, uninstall and Studio publish. A CLI install is noticed only through a connected browser, so without one a changed action can run stale for up to 5 minutes.
+
 ## Atomicity
 
 `isTransacted: true` makes the run **one transaction**, in both execution modes.
@@ -710,7 +792,7 @@ be either.
 > and `ON COMMIT DROP` on any temp table. Only `query()` can do any of this — the
 > structured built-ins emit plain DML — and nothing checks it statically.
 
-1. **Table names are schema-qualified** within the module: `crm.contact`, `wms.stock_movement`, `fin.invoice`. Use the module code as the schema prefix. (Module codes with a hyphen, e.g. `crm-fin`, cannot be schema-qualified in raw SQL — another reason to use the structured built-ins, which accept the qualified `module.entity` code.)
+1. **Bare table names are qualified automatically** with the current module's schema after `FROM` / `JOIN` / `USING`, and as the target of `INSERT INTO`, `MERGE INTO` and `UPDATE`. A name already qualified (`wms.stock_movement`) is left as written, so qualify only another module's table. Left alone: words that name no table (`IS DISTINCT FROM`, `EXTRACT(year FROM d)`, `FOR UPDATE`, `DO UPDATE SET`, `SELECT ... INTO var`), built-in set functions (`generate_series`, `unnest`), literals and comments. A CTE name is a source only inside the query that declares its `WITH` (and in its own body only under `RECURSIVE`); a write target is always the real table, so `WITH t AS (...) UPDATE t ...` updates the module's `t`. `;`-separated statements are each qualified. (Module codes with a hyphen, e.g. `crm-fin`, cannot be schema-qualified by hand in raw SQL; use the structured built-ins, which accept `module.entity`.)
 2. **Use `@param` placeholders** for values — NEVER concatenate user input into SQL strings. The engine auto-parameterizes.
 3. **SELECT, INSERT, UPDATE, DELETE all work** via `query()`. For reads, it returns row arrays. For writes, it executes the statement.
 4. **`insert()` is preferred over `query('INSERT ...')`**, `update()`/`delete()` over `query('UPDATE/DELETE ...')`, and `select()` over `query('SELECT ...')` for module entities — raw SQL skips auto-fill (PKs, audit, number sequences) and metadata validation.
@@ -731,6 +813,11 @@ be either.
 - Calling `TODAY()` or `NOW()` (uppercase) inside `execute:` — **wrong**, they're undefined there and install fails with `'TODAY' is not defined`. Use lowercase **`now()`** in `execute:`; `TODAY()`/`NOW()` are formula-only (`canExecute:`, formula columns).
 - Forgetting that `insert()` returns the full row — you can use `quote.quote_id` immediately after insert.
 - Using `[field]` inside a `query()` SQL string — **wrong**. `[field]` is resolved in JS scope, not inside SQL strings. Pass values as `@param` arguments.
+- A **function library** (`logic/functions/*.dsl`) that reads `[field]` / `params[...]` / `old[...]`, uses `[name]` alone (write `Array.of(name)`), or has a top-level statement that is not a `function` / `var` / `let` / `const` -- all refused at install. Pass values in as arguments. See *Function libraries*.
+- Keeping a **local copy** of a library function in an action (a top-level function, or a `var` of the same name outside any function) -- refused at install. Delete the copy.
+- Calling another module's function without importing it: list it under `"functions"` in `deps/<module>.json`, call it as `<module_with_underscores>.fn()`.
+- `ref cdy_hr.department` (schema form) in `params:` -- installs with no picker target. Write `ref cdy-hr.department`.
+- `'' + params[barcode]` to keep a text param text -- no longer needed.
 
 ## Internal API (advanced)
 

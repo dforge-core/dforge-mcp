@@ -135,6 +135,15 @@ For each action:
 - [ ] Referenced entities exist
 - [ ] Referenced parameters are declared in `params:`
 
+## Function libraries (`logic/functions/*.dsl`)
+
+- [ ] Only top-level `function` declarations and `var` / `let` / `const`; no other top-level statement
+- [ ] No `[field]`, `[ref].[target]`, `params[...]`, `old[...]`, and no `[name]` standing alone (use `Array.of(name)`); values come in as arguments
+- [ ] No name that is a built-in, a JS global, `schema` or starts with `__`; each name declared once across the libraries
+- [ ] No action keeps a local copy of a library function
+- [ ] Every imported function is listed under `"functions"` in `deps/<module>.json`, exists as a top-level function in the provider, and is called as `<module_with_underscores>.fn()`
+- [ ] A `ref` to another module in `params:` uses the module code (`ref cdy-hr.department`) and the module is a declared dependency
+
 ## Settings
 
 - [ ] `settings.json` exists if the module has any settings

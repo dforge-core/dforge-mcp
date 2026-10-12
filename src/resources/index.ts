@@ -201,7 +201,7 @@ export const resources: ResourceDef[] = [
 		uri: "dforge://docs/dsl",
 		name: "dForge action DSL reference",
 		description:
-			"Full reference for the dForge action DSL (logic/actions/*.dsl files): block structure (params/canExecute/onBeforeStart/execute), execution modes (single/each/batch), field-access syntax ([field], params[name], [ref].[field], records.*), all 30 built-in host functions (query/insert/error/exit/now/sendEmail/...), supported JS subset (ES5 via Esprima/Jint), common patterns, and pitfalls. **Load this before authoring any DSL action (Phase 2 of the wizard).**",
+			"Full reference for the dForge action DSL (logic/actions/*.dsl files): block structure (params/canExecute/onBeforeStart/execute), execution modes (single/each/batch), field-access syntax ([field], params[name], [ref].[field], records.*), all 42 built-in host functions, incl. register reads, plus function libraries (logic/functions/*.dsl) (query/insert/error/exit/now/sendEmail/...), supported JS subset (ES5 via Esprima/Jint), common patterns, and pitfalls. **Load this before authoring any DSL action (Phase 2 of the wizard).**",
 		mimeType: "text/markdown",
 		read: () => readVendored("docs/dsl-reference.md"),
 	},

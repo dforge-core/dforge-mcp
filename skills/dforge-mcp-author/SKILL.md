@@ -71,9 +71,9 @@ Full descriptions are on the tools themselves — this is the map.
 | Cross-cutting | `dforge_dependency_add`, `dforge_diagram_add` |
 
 **Composite tools first.** A relation, a roll-up, and a status column each span
-several coordinated keys, and hand-assembling them from `entity_field_add` is
+several coordinated keys, and hand-assembling them from `dforge_entity_field_add` is
 the top source of broken modules. The composite tools emit the whole shape and
-can't express the broken variants. Reach for `entity_field_add` only for a
+can't express the broken variants. Reach for `dforge_entity_field_add` only for a
 plain scalar column.
 
 ## Writing files: preview vs `apply`
