@@ -46,7 +46,19 @@
 		},
 		"settings": {
 			"type": "object",
-			"description": "Setting code (settings.json) → label and description.",
+			"description": "Setting code (settings.json) → label and description; $constraints → constraint name → message.",
+			"properties": {
+				"$constraints": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"message": { "type": "string" }
+						}
+					}
+				}
+			},
 			"additionalProperties": {
 				"$ref": "#/$defs/labelDesc"
 			}

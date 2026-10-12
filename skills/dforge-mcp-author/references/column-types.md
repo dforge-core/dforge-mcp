@@ -101,6 +101,17 @@ A reference entry may declare `onDelete` and/or `onUpdate` to emit an `ON DELETE
 
 **Why two columns?** The FK stores the actual value. The Reference column configures how the value is rendered in the UI (as a typeahead picker showing the target's `toString`). They must be kept in sync — column order in JSON doesn't matter but `orderNum` determines UI ordering.
 
+### How the picker behaves on a large target
+
+Opening the picker loads the **first 200 rows** of the target entity — enough to browse, cheap on a table of any size. Typing does *not* filter those 200 rows: the query goes to the server as a case-insensitive match over the columns named in the target's `toString`, so a target with 200 000 rows is as pickable as one with 20. Every whitespace-separated term must match at least one of those columns, which is what lets a `toString` of `"{first_name} {last_name}"` answer "John Smith".
+
+Two consequences for the entity you point at:
+
+- **Put the columns people search by in `toString`.** They are the only ones the picker searches. A target whose `toString` is `"{code}"` cannot be found by name, however prominent the name column is elsewhere.
+- **A `toString` built only from formula columns can't be searched server-side.** Neither formula nor set columns translate to a `WHERE` clause, so the picker falls back to narrowing the 200 rows it already loaded — rows past that point stay unreachable. Name at least one stored column in the template.
+
+`refFilter` and folder row filters still apply: they are AND-ed onto the search, so a filtered-out row does not surface just because the user typed its name.
+
 ## Set columns (`columnType: "S"`)
 
 Virtual 1:N backwards reference. Shows a grid of related records on the parent's detail view.

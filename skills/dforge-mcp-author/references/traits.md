@@ -42,6 +42,8 @@ Adds **two timestamp columns** (no user tracking):
 
 Both columns have `flags: "I"` (internal — not shown in UI by default, managed by the platform).
 
+To show one, name it in a data view's `dataSources[].columns` — an explicitly listed column renders (read-only) regardless of its flags. See [Showing audit columns](#showing-audit-columns) below.
+
 **Important**: `audit` does NOT add `created_by` / `updated_by` user columns. For user tracking, use `audit-full`.
 
 ### `audit-full`
@@ -58,6 +60,34 @@ Also adds FK constraints: `FK_{Entity}_CreatedBy` and `FK_{Entity}_LastUpdatedBy
 Use `audit-full` when you need to know **who** created/modified a record, not just **when**. All four user columns have `flags: "I"` (internal).
 
 **You don't need to declare both `audit` and `audit-full`** — `audit-full` inherits from `audit` automatically.
+
+### Showing audit columns
+
+Trait columns are internal by default, not off-limits. Two ways to surface them:
+
+1. **Per view (usual case)** — list the column in `ui/data_views.json`. A column named in `dataSources[].columns` renders whatever its flags say, so this is all it takes:
+
+   ```json
+   {
+     "entityCode": "trip",
+     "columns": ["trip_number", "status", "created_by_user", "last_updated_by_user"]
+   }
+   ```
+
+   It renders **read-only** (the trait flags carry no `'E'`) and shows up in the Fields popover so users can toggle it off. Use the Reference columns (`created_by_user`) for a readable name — `created_by` is the raw cuid FK.
+
+2. **Everywhere, or editable** — redeclare the field on the entity with your own flags. An explicit field definition wins over the trait's, as long as the type matches:
+
+   ```json
+   "created_by_user": {
+     "columnType": "R",
+     "fieldTypeCd": "lookup",
+     "flags": "V",
+     "orderNum": 9904,
+     "description": "Created By",
+     "link": { "entity": "user", "thisKey": "created_by", "otherKey": "user_id" }
+   }
+   ```
 
 > **⚠️ `audit-full` + seed data needs handling.** `created_by` and `last_updated_by` are
 > **required** (NOT NULL) cuid FKs to `user`, with **no default formula**. At runtime the platform

@@ -145,6 +145,13 @@ installer resolves those within this module only, so a dotted one silently grant
 }
 ```
 8. **Folder access** is granted separately — roles can reference folder codes, but folder definitions themselves live in `ui/folders.json`.
+9. **Don't grant a right on a reference's target just to make the name show up.** A reference column
+   resolves its display value for anyone who can read the record carrying it — a read-only driver role
+   with `S` on `trip` sees each trip's Vehicle name without any grant on `vehicle`. Grant `S` on the
+   target only when the role should genuinely *browse* that entity, open its records, or when a view
+   or formula navigates **through** the reference to another of its columns (`vehicle.plate_no`) —
+   that still requires the right. Granting it for the name alone unlocks the entity as a full catalog
+   everywhere, which is strictly more than intended.
 
 ## Folders (`ui/folders.json`)
 

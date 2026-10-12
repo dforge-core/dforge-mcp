@@ -129,8 +129,12 @@ The whole date family evaluates identically **client-side and SQL-time** (report
 ### Conversion and context functions
 
 - `TEXT(v)` — as text (null becomes `''`)
-- `NUMBER(v)` — as a number, or null when the value isn't numeric (including a blank string)
-- `BOOLEAN(v)` — null, `''` and `0` are false; everything else is true
+- `NUMBER(v)` — as a number, or null when the text isn't one. "Is a number" means an optional
+  sign, digits and an optional fraction/exponent — a blank string, `'0x10'` and `'Infinity'`
+  are all null, because SQL would reject them too
+- `BOOLEAN(v)` — null is false; a number is false only at **zero**; text is false only when
+  **empty**; anything else is true. Note that text and numbers differ: the string `'0'` is
+  true (it isn't empty) while the number `0` is false
 - `JSON_GET(json, 'key' [, type])` — read a key out of a JSON column. The optional type is a
   string literal: `'text'` (default), `'number'`/`'numeric'`, `'int'`/`'integer'`/`'bigint'`,
   `'bool'`/`'boolean'`, `'date'`, `'datetime'`/`'timestamp'`/`'timestamptz'`
@@ -143,21 +147,44 @@ report selects it, or when it is used in a filter or sort. **Every function list
 implemented in both**, so a column reads the same in a grid and in a report; a test executes
 each one against PostgreSQL and diffs the result against the client runtime.
 
-Two deliberate points of agreement, because the engines disagree by nature:
+Four deliberate points of agreement, because the engines disagree by nature:
 
-- **Out-of-domain math is null, not an error.** `SQRT(-1)`, `LOG(0)`, `ASIN(2)`, `EXP(1000)`,
-  `POW(0, -1)`, `MOD(x, 0)` — JavaScript would answer NaN or Infinity and PostgreSQL would
-  raise (failing the whole report). Both return null, so the cell renders blank.
+- **Comparison is null-safe and two-valued.** `null = null` is true and `[x] != null` is true
+  for any non-null `x` — there is no SQL "unknown" third answer that an enclosing `IF`/`AND`
+  would then read as false. `IF([completed_date] != null AND …, 100, 0)` therefore scores the
+  same in a grid and in a report. (At SQL time `=`/`!=` become `IS NOT DISTINCT FROM` /
+  `IS DISTINCT FROM`.) `ISNULL([x])` remains the clearer spelling of an explicit null check.
+
+- **Out-of-domain math is null, not an error.** `SQRT(-1)`, `LOG(0)`, `ASIN(2)`, `ATANH(1)`,
+  `EXP(1000)`, `POW(0, -1)`, `POW(-8, 0.5)`, `POW(10, 1000)`, `MOD(x, 0)` — JavaScript would
+  answer NaN or Infinity and PostgreSQL would raise (failing the whole report). Both return
+  null, so the cell renders blank. A result too *small* to represent is the one exception:
+  `POW(10, -1000)` is **0** on both sides, because zero is the answer, not "no answer".
 - **String indexing is JavaScript-flavoured, not SQL's.** `SUBSTRING(s, start, end)` and
   `MID(s, start, len)` take a **0-based** start, and `SUBSTRING`'s third argument is an **end
-  offset**, not a length. `INDEX_OF` / `LAST_INDEX_OF` return a 0-based index, or `-1`.
+  offset**, not a length. A negative offset clamps to 0, and reversed bounds **swap** —
+  `SUBSTRING(s, 4, 1)` is the same as `SUBSTRING(s, 1, 4)`. `INDEX_OF` / `LAST_INDEX_OF`
+  return a 0-based index, or `-1`.
+- **Comparison never invents a number.** `[a] = [b]` reads both sides as numbers only when
+  both genuinely are (a number, or text SQL would also accept as one). A blank string is not
+  zero, so `NULLIF([note], '')` leaves a note of `'0'` alone, and `[qty] = ''` is false. The
+  same comparator backs `=`, `!=`, `<`, `>`, `<=`, `>=` and `BETWEEN`, so they can't disagree
+  with each other.
 
-Known remaining difference: `CONCAT` on a numeric column renders PostgreSQL's declared scale
-(`-3.0`) where the client renders the JavaScript number (`-3`). Use `FORMAT`/`TEXT` when the
-exact rendering matters.
+Three known remaining differences:
 
-`CURRENT_USER_ID()` needs the requesting user, so it resolves in grids, reports, filters and
-`select()`, but not in a context with no user (an unattended job).
+- `CONCAT` on a numeric column renders PostgreSQL's declared scale (`-3.0`) where the client
+  renders the JavaScript number (`-3`). Use `FORMAT`/`TEXT` when the exact rendering matters.
+- `MIN`/`MAX` are **number** functions. Handed a non-numeric argument the client silently
+  drops it, while a report raises on the type mismatch. Wrap the argument in `NUMBER()` if a
+  column might not be numeric.
+- `NUMBER('1e309')` is null client-side — the magnitude exceeds what a JavaScript number can
+  hold, and every non-finite result in the client is null. PostgreSQL's `numeric` has a far
+  wider range, so a report keeps the value.
+
+`CURRENT_USER_ID()` needs the requesting user. It resolves in grids, cards, reports, filters,
+sorts and `select()` — anywhere a request has one — but not in a context with no user, such as
+a scheduled job.
 
 ### Unknown functions
 

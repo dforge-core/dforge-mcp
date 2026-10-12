@@ -60,25 +60,57 @@ Lives in: `ui/data_views.json`
 }
 ```
 
-## Critical rule — the entity needs a visible column
+## Critical rule — the view needs something to draw
 
-A grid-style view can only render an entity that has at least one **visible scalar column** — a field whose `flags` include `V` and whose `columnType` is **not** a set (`S`). Column visibility is entity-driven (the field's flags), **not** view-driven: the `columns` array inside `dataSources[]` is layout-only (reorder/pin/width among already-visible fields) — it can't make a non-`V` field appear.
+A grid-style view resolves its columns one of two ways, and **one of them has to produce a renderable scalar column** — anything that isn't a set (`columnType: "S"`, a 1:N collection with no per-row value):
 
-If none of an entity's fields are visible (or only its set/child-collection columns are), the view renders the runtime empty state *"No visible columns configured for this entity."* — a broken screen the user only hits when they open the menu item. `dforge_module_validate` and `dforge_module_pack` now **reject** this before install.
+1. **The source names its own columns.** `dataSources[].columns` wins outright — see [the section below](#the-columns-array-is-authoritative). Flags don't enter into it, so this route works even when every field on the entity is internal.
+2. **It doesn't, and the entity's `V` flags decide.** With no `columns` array the view falls back to the entity's **visible scalar columns** — fields whose `flags` include `V` and whose `columnType` isn't `S`.
+
+With neither, the view renders the runtime empty state *"No visible columns configured for this entity."* — a broken screen the user only hits when they open the menu item. `dforge_module_validate` / `dforge_module_pack` **reject** that before install.
 
 ```jsonc
-// WRONG — grid over an entity whose fields are all hidden (no "V")
+// WRONG — grid falls back to flags, and no field has "V"
 "fields": {
-    "code": { "fieldTypeCd": "text", "flags": "EM" },   // E=editable, M=required, but no V
-    "lines": { "columnType": "S", "flags": "VE" }        // visible, but a SET — doesn't count for a grid
+    "code": { "fieldTypeCd": "text", "flags": "EM" },   // E=editable, M=… but no V
+    "lines": { "columnType": "S", "flags": "VEM" }        // visible, but a SET — doesn't count for a grid
 }
-// RIGHT — at least one visible scalar field
+// RIGHT (route 2) — at least one visible scalar field
 "fields": {
     "code": { "fieldTypeCd": "text", "flags": "VEM" }     // V present, not a set → satisfies the grid
 }
+// ALSO RIGHT (route 1) — the entity's fields stay internal, the view says what it shows
+"dataSources": [
+    { "entityCode": "audit_log", "columns": ["created_date", "created_by_user"] }
+]
 ```
 
+Practical guidance: reach for route 2. Flags are what every other surface reads — the card, the Fields popover, quick-add — so an entity whose real business fields are invisible is usually a mistake, even when one view papers over it. Route 1 is for columns that are *deliberately* internal, audit columns above all.
+
 This applies to every column-rendering view type (grid, list, kanban, calendar, gallery, tree-grid, master-detail, and the default). The column-agnostic types — `diagram`, `matrix`, `library` — draw from `viewConfig`/relationships instead, so they're **exempt** from this rule.
+
+## The `columns` array is authoritative
+
+A column you name in `dataSources[].columns` renders **even if its flags omit `V`**. The list is your statement of what this view shows, so it wins over the entity's default visibility — that's how the internal (`flags: "I"`) columns the `audit` / `audit-full` traits contribute get onto a grid:
+
+```jsonc
+{
+    "entityCode": "trip",
+    "columns": ["trip_number", "status", "created_by_user"]   // renders Created By, read-only
+}
+```
+
+A promoted column stays **read-only** unless its flags also carry `E`, and it shows up in the Fields popover like any other column.
+
+What `columns` can't do — each fails `dforge_module_validate` / `dforge_module_pack`, instead of dropping silently:
+
+| Entry | Why it's rejected |
+|-------|-------------------|
+| A code the entity doesn't define | Nothing to render — usually a typo (`avatar` for `avatar_image`) |
+| A set column (`columnType: "S"`) | A 1:N collection has no per-row value for a column |
+| A nav path (`account.company_name`) | The list takes plain column codes — add a Reference (`R`) or Formula (`F`) column to the entity and list that |
+
+The `matrix` / `diagram` / `library` types are exempt here too: their `columns` entry feeds axes and config, not a header row.
 
 See [flags.md](flags.md) for the flag string, [column-types.md](column-types.md) for `columnType` (`R`/`S`/`F`).
 

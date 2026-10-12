@@ -4,6 +4,22 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.37 — 2026-10-12
+
+**Author references brought in line with the hand-authoring copy in dForge-core.** Content that
+had only reached one of the two now reaches both:
+
+- **Data views:** a grid view needs a renderable scalar column, from `dataSources[].columns` or
+  from the entity's `V` flags; the `columns` array is authoritative. The old text calling it
+  layout-only was wrong.
+- **Formulas:** the full `NUMBER()` / `BOOLEAN()` rules, where the client and server engines
+  agree, and multi-hop navigation at SQL time with its depth cap.
+- **Security:** don't grant a right on a reference's target just to make its name show up.
+- **Columns and traits:** how the reference picker behaves on a large target; how to show audit
+  columns from a trait; corrected params for the `code`, `tags` and `percent` field types.
+- **Jobs:** `paused` seeds the initial value only; an upgrade never overwrites it.
+- **Flags:** a view column's `notes` row in the example.
+
 ## 0.2.36 — 2026-10-12
 
 **`settings.json` gains `$constraints`**: check constraints across a module's settings, SQL over

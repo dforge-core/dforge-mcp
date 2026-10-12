@@ -37,7 +37,7 @@ Lives in: `logic/jobs.json` at the module root. Schema: [`docs/schemas/jobs.sche
 | `timeZone`       | No       | tenant tz    | IANA name. Falls back to `auth.tenant.time_zone`.                                                                                    |
 | `params`         | No       | `{}`         | Static parameters passed to the action as `__params`. Manifest-fixed — an admin cannot change them. For tenant-configurable values use module settings, resolved from the job's folder (below).       |
 | `enabled`        | No       | `true`       | `false` fully disables — no scheduler, no manual trigger.                                                                            |
-| `paused`         | No       | `false`      | Soft pause. Scheduler skips, but "Run now" still works.                                                                              |
+| `paused`         | No       | `false`      | Soft pause. Scheduler skips, but "Run now" still works. Seeds the initial value only — upgrades never overwrite it.                   |
 | `description`    | No       |              | Human-readable description.                                                                                                          |
 
 **Hard cap: 50 jobs per module.**
@@ -152,7 +152,7 @@ Full source: [`modules/chore/`](../../../modules/chore/).
 - **Sub-minute cron.** The scheduler ticks every 60 s. Anything finer is dishonest — declare a minute cron.
 - **Renaming `code` between versions.** Treats it as a new job and leaves the old `scheduled_job` row orphaned until uninstall (actually reaped on upgrade — but you lose `job_run` history). Keep `code` stable.
 - **"Schedule this 5 minutes from now" pattern.** There is no per-call `schedule()`. Use a cron-scan job that watches a queue table — see [memory: cron-scan pattern](../../../docs/business-logic/jobs.md#when-to-use-a-job-vs-a-trigger).
-- **Confusing `enabled` and `paused`.** `enabled: false` → "Run now" no-ops. `paused: true` → cron skips but "Run now" works. Use `paused` for incident response; use `enabled: false` when you mean "turn this off entirely".
+- **Confusing `enabled` and `paused`.** `enabled: false` → "Run now" no-ops. `paused: true` → cron skips but "Run now" works. Use `paused` for incident response; use `enabled: false` when you mean "turn this off entirely". Only `enabled` is rewritten on upgrade — `paused` is operator state, so shipping `paused: true` in a new version does nothing to tenants that already have the job.
 
 ## Reference
 

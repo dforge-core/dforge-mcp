@@ -18,12 +18,24 @@
 		},
 		"entities": {
 			"type": "object",
-			"description": "Consumed provider entities, keyed by entity code (e.g. 'party'). At least one, except against a system module (admin, metadata, workspace, sys-billing), where {} declares a pure platform-version gate for a feature that introduced no entity.",
+			"description": "Consumed provider entities, keyed by entity code (e.g. 'party'). At least one, except against a system module (admin, metadata, workspace, sys-billing), where {} declares a pure platform-version gate for a feature that introduced no entity, or when 'functions' imports at least one function.",
 			"additionalProperties": { "$ref": "#/definitions/entityContract" }
+		},
+		"functions": {
+			"type": "array",
+			"description": "The provider's DSL library functions (logic/functions/*.dsl) the consumer's actions call, as <provider code with '-' replaced by '_'>.<name>(...). Only listed names are reachable, and install checks the installed provider declares each. See docs/business-logic/dsl-functions.md.",
+			"items": { "type": "string", "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$" },
+			"uniqueItems": true,
+			"minItems": 1
 		}
 	},
 	"if": {
-		"not": { "properties": { "module": { "enum": ["admin", "metadata", "workspace", "sys-billing"] } }, "required": ["module"] }
+		"not": {
+			"anyOf": [
+				{ "properties": { "module": { "enum": ["admin", "metadata", "workspace", "sys-billing"] } }, "required": ["module"] },
+				{ "required": ["functions"] }
+			]
+		}
 	},
 	"then": {
 		"properties": { "entities": { "minProperties": 1 } }

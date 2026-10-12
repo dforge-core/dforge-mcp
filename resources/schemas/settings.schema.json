@@ -4,10 +4,41 @@
 	"title": "dForge Module Settings",
 	"description": "Module-level settings definitions: a flat map of setting code → setting definition. Settings are folder-scoped at runtime (values inherit through the folder tree) and surface in the Module Settings UI.",
 	"type": "object",
+	"propertyNames": {
+		"pattern": "^(\\$constraints|[^$].*)$",
+		"description": "A setting code cannot start with '$'; $constraints is the only reserved key."
+	},
+	"properties": {
+		"$constraints": {
+			"type": "object",
+			"description": "Checks across this module's settings, keyed by constraint name. The settings are the columns of one virtual row, so each is an entity check constraint: SQL over setting codes. settings.set and settings.setMany run every rule naming a written setting, at the folder written and at each folder below it that overrides a setting the rule names; install refuses defaults that fail one. NULL passes, as in a CHECK.",
+			"additionalProperties": {
+				"$ref": "#/$defs/constraint"
+			}
+		}
+	},
 	"additionalProperties": {
 		"$ref": "#/$defs/setting"
 	},
 	"$defs": {
+		"constraint": {
+			"type": "object",
+			"required": ["type", "expression"],
+			"additionalProperties": false,
+			"properties": {
+				"type": {
+					"const": "check"
+				},
+				"expression": {
+					"type": "string",
+					"description": "Boolean over this module's settings in SQL CHECK syntax, e.g. \"default_discount_pct <= max_discount_pct\": comparisons, IS [NOT] NULL, [NOT] IN, [NOT] BETWEEN, regex matches (~ ~* !~ !~*) against a string literal, AND/OR/NOT, + - * /, literals and setting codes (bare or \"quoted\"). No functions, casts or [field] brackets; IS NULL rather than = null. The settings it names are found in it: writing any of them re-checks the rule."
+				},
+				"message": {
+					"type": "string",
+					"description": "Violation message. Localizable via translations/<locale>.json under settings.$constraints.<name>.message."
+				}
+			}
+		},
 		"setting": {
 			"type": "object",
 			"properties": {

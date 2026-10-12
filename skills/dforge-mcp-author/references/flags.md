@@ -57,7 +57,8 @@ Because a view writes no DDL, the requiredness `M` produces there is runtime-onl
       "party_id": {},
       "party_name": { "flags": "V" },
       "vat_no":     { "flags": "VEM" },
-      "salary":     { "flags": "" }
+      "salary":     { "flags": "" },
+      "notes":      { "flags": "VE", "isNullable": true }
     }
   }
 }

@@ -24,10 +24,10 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `textarea` | `string` | Multi-line plain text. | `text` | `defaultLines`, `maxLines` |
 | `markdown` | `string` | Markdown editor (Write/Preview tabs), rendered sanitized. | `text` | — |
 | `richtext` | `string` | Rich text WYSIWYG editor, stores sanitized HTML. | `text` | — |
-| `code` | `string` | Code editor with syntax highlighting. | `text` | `language` |
+| `code` | `string` | Code editor (CodeMirror, dForge DSL grammar). | `text` | `defaultLines` |
 | `dropdown` | `string` | Fixed list of options. | `varchar` | `options: ["a","b",…]` or `[{value,label,icon,color}]` |
 | `flags` | `string` | Multiple checkboxes with letter flags. | `varchar` | `optionSets`, `style: "buttons"` |
-| `tags` | `string` | Free-form tag list. | `varchar` or `text` | — |
+| `tags` | `string` | Free-form comma-separated tag list. | `varchar` or `text` | `options` (optional suggestions) |
 | `color` | `string` | Color picker. | `varchar(20)` | — |
 | `hidden` | `string` | Internal, never shown in UI. | `varchar` | — |
 
@@ -37,7 +37,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 |---|---|---|---|---|
 | `number` | `number` | Numeric value. | `int`, `bigint`, `numeric` | `min`, `max`, `scale` |
 | `currency` | `number` | Monetary value. Precision 2. | `numeric(18,2)` | `currency: "USD"`, `min`, `max` |
-| `percent` | `number` | Percentage 0–100. Precision 2. | `numeric(5,2)` | `min`, `max` (default 0–100) |
+| `percent` | `number` | Percentage. Precision 2. | `numeric(5,2)` | `min`, `max` |
 
 ## Boolean-backed
 
@@ -72,7 +72,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `user` | `cuid` | `D` | User picker. Writes a user ID directly, no paired FK needed. |
 | `grid` | `set` | `S` | Detail grid of related records (1:N backwards reference). Used with `link` declaring the relation. |
 | `list` | `set` | `S` | Detail list — same 1:N set as `grid`, rendered as a card list instead of a table. |
-| `entitylink` | `json` | `D` | Polymorphic link to any entity — stores the **resolved entity id** plus the record's PK (as strings) and a display caption. Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in; pass a qualified entity code (see `action-dsl.md`). |
+| `entitylink` | `json` | `D` | Polymorphic link to any entity. Stores `{entityId, entity, pk: {col: "val"}, description?}` — `pk` is a per-column map (values as strings), there is no `id` key. Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in; pass a qualified entity code (see `action-dsl.md`). |
 
 ## JSON
 
