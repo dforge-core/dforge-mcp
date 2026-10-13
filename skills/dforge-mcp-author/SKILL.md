@@ -145,7 +145,7 @@ Load these by URI, one per step, at the step that needs them.
 **Per-element references** — `dforge://reference/<name>`:
 `field-types`, `flags`, `column-types`, `column-domains`, `formulas`, `traits`,
 `data-views`, `menus`, `action-dsl`, `filters`, `security`, `reports`,
-`settings`, `jobs`, `number-sequences`, `registers`, `document-extraction`,
+`settings`, `jobs`, `number-sequences`, `registers`, `reactions`, `document-extraction`,
 `print-templates`, `translations`, `queries`, `schema-import`, `excel-import`,
 `data-migration`, `manifest`, `validation-checklist`, `conventions`.
 

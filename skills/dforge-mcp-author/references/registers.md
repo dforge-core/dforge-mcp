@@ -230,6 +230,10 @@ Paths, expressions, `dateTrunc`, `headerMap`, `groupLinesBy` and `skipPostingWhe
 - `lineEntity` and `lineField` are required. `lockedLineFields` must cover every line column the posting copies, or be `["*"]`.
 - Every register dimension must be mapped, be a same-name line column, or be the `periodDimField` (a shared dimension).
 - `validation.balanced: ["amount"]` checks debits equal credits on classic. It is refused on compound, which balances by construction.
+- `validation.storno: true` posts a **red reversal**: the same correspondence on the **same** side with a negative amount, which is how 1C reverses a sale. Classic and compound both accept it. Turnovers stay on their side as negatives, and every read, the totals cache and the account-balances report sum them signed. The other per-line checks stay, read as non-zero: a classic line still carries one side per resource, and an all-zero line is refused. `balanced` is unchanged. Install refuses it on a column that is not an accounting `L` column.
+- `requirePositiveAmounts: false` is **deprecated**: it switches off every per-line check, not only the sign. `storno: true` wins when both are set.
+- An accounting register has no negative-balance control, so a quantity account can be driven below zero. The account-balances report drops an account whose opening is zero and whose in-period turnovers cancel out, such as an entry and its storno in the same period.
+- A binding over lines, or an `L` column, posted from a document with **no lines** records nothing and leaves its state flag off. It asks for no date or open period, and the document's other registers still post. The inline `registries` form of the `L` column still refuses an entry with no lines.
 
 ## Reads
 

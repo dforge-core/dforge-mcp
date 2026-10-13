@@ -33,6 +33,73 @@
 			"type": "boolean",
 			"description": "Records of this entity accept comments \u2014 the composer and thread appear on the record card, beside the audit history. Opt-in per entity; `comments` in the manifest sets a module-wide default that this overrides in both directions."
 		},
+		"reactions": {
+			"type": "array",
+			"description": "Field-change reactions: rules that suggest a stored, editable value when another field is edited (1C's ПриИзменении). Run in the UI only — a form, an editable grid, and bulk update per selected record; a write over the API, an import or a DSL update() runs none. A rule fires on the user's edit of an 'on' column and sets each 'set' column — from a formula evaluated on the client, or from what a server rule's 'call' function returns; a value it sets may fire further rules, each rule at most once per edit, and never over a column the user edited. A column the user may not edit is skipped. Pack and install check every column, formula and function. See docs/ideas/field-change-reactions.md.",
+			"items": {
+				"type": "object",
+				"required": ["code", "on", "set"],
+				"additionalProperties": false,
+				"properties": {
+					"code": {
+						"type": "string",
+						"pattern": "^[^.]+$",
+						"description": "Names the rule in errors; unique within the entity. No '.': a bridge module's rules are stored as <module>.<code>."
+					},
+					"on": {
+						"type": "array",
+						"minItems": 1,
+						"items": { "type": "string" },
+						"description": "The columns whose edit fires the rule — stored or reference columns, not computed ones."
+					},
+					"call": {
+						"type": "string",
+						"description": "Makes this a server rule: a top-level function of the module's libraries (logic/functions), or an imported one as namespace.name. It is called with the record as the user is editing it — function f(record) { … } — in a transaction that is always rolled back, and returns an object of suggested values by column. Its info() / warn() / error() reach the user."
+					},
+					"set": {
+						"description": "A formula rule: column → formula. A server rule: the columns its function may set, each a column or { column, ifEmpty } — what it returns beyond them is ignored, and a column it leaves out is unchanged. A target is a stored column, not the primary key, a reference (set its FK column instead) or a computed column. A formula uses the F-column syntax, [ref].[column] reads included.",
+						"oneOf": [
+							{
+								"type": "object",
+								"minProperties": 1,
+								"additionalProperties": {
+									"oneOf": [
+										{ "type": "string" },
+										{
+											"type": "object",
+											"required": ["formula"],
+											"additionalProperties": false,
+											"properties": {
+												"formula": { "type": "string" },
+												"ifEmpty": { "type": "boolean", "description": "Fill only an empty field." }
+											}
+										}
+									]
+								}
+							},
+							{
+								"type": "array",
+								"minItems": 1,
+								"items": {
+									"oneOf": [
+										{ "type": "string" },
+										{
+											"type": "object",
+											"required": ["column"],
+											"additionalProperties": false,
+											"properties": {
+												"column": { "type": "string" },
+												"ifEmpty": { "type": "boolean", "description": "Fill only an empty field." }
+											}
+										}
+									]
+								}
+							}
+						]
+					}
+				}
+			}
+		},
 		"auditHistory": {
 			"type": "string",
 			"enum": ["basic", "fields", "full"],
@@ -265,6 +332,17 @@
 				"dateField": { "type": "string", "description": "This document's date column, supplying the date the register stamps on each journal row. Required once the register declares a 'journalDate' — one writer that supplied none would make every balance read as of a date quietly short, across all writers. On an accumulation (A) column it may be a one-hop reference path, '<reference column>.<target column>', or an expression over the document ('=...', see 'map')." },
 				"dateTrunc": { "type": "string", "enum": ["day", "month", "year"], "description": "Takes the date 'dateField' supplies back to the start of its day, month or year before the register stamps it — for a document that carries a time while the register's records sit on whole days. The calendar is the value's as stored; no time zone is applied. Needs 'dateField'. Accumulation (A) columns only." },
 				"skipPostingWhenEmpty": { "type": "array", "items": { "type": "string" }, "description": "THE EXCEPTION, not the normal way to model this — read the guide before declaring it. Register dimensions (by the register's names) whose empty value means THIS POSTING records nothing: the line, or the document when the binding posts from the document. One posting is skipped, never the register and never the document. When that is all the document would have recorded it is left unposted to this register, and the flag is per binding, so its other registers post as usual. An empty dimension NOT listed refuses the posting, naming the row and the dimension. It leaves a document fully posted while some of its lines produced no movement, which usually means the document is modelling two kinds of line in one table: since 'lineEntity' is declared per BINDING, prefer giving each register its own line table (goods lines post to stock, service lines do not) so that every line of each table posts. Declare this only when the distinction is not structural but lives in the data — a batch or serial number filled on some rows and not others — so there is no second table to put those rows in. Accumulation (A) columns only. Formerly skipWhenNull: a package using the old name is refused at install, while a tenant's already-stored params keep being read under it." },
+				"validation": {
+					"type": "object",
+					"description": "Per-line and per-entry checks a ledger (L) column runs before it posts. Accounting (L) columns only.",
+					"properties": {
+						"balanced": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true, "description": "Register resources whose total debit must equal total credit across the entry's lines — a list because an entry may balance its amount but not its quantity. Exclusive with requireBalanced; refused on a compound register, which balances by construction." },
+						"requireBalanced": { "type": "boolean", "default": false, "description": "Every resource must balance across the entry's lines. Exclusive with balanced; refused on a compound register." },
+						"storno": { "type": "boolean", "default": false, "description": "Red reversal (storno): an amount may be negative, posted on the SAME side as the entry it reverses, so turnovers stay on their side as negatives. The other per-line checks stay, read as non-zero: a classic line still carries one side per resource, and a line must still move something. Wins over requirePositiveAmounts: false." },
+						"requirePositiveAmounts": { "type": "boolean", "default": true, "deprecated": true, "description": "Deprecated — use storno. false switches off EVERY per-line check (the sign, both sides on one classic line, a line that moves nothing), not only the sign." }
+					},
+					"additionalProperties": true
+				},
 				"periodEntity": { "type": "string", "description": "Period entity this registry closes against — one of this module's, or 'module.entity' from a dependency." },
 				"periodDateField": { "type": "string", "description": "Header date column that resolves the period." },
 				"periodKeyField": { "type": "string", "default": "period_key" },

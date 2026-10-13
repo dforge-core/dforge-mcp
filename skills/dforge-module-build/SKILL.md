@@ -33,6 +33,7 @@ flags, or column patterns.
 | Add a relation / Set column | `dforge://reference/column-types`, `dforge://example/entities/todo_item.json` | — |
 | Reuse a type/enum across columns (a `domain`) | `dforge://reference/column-domains` | `dforge://schema/domains` |
 | Add a formula column | `dforge://reference/formulas` | — |
+| Suggest a value when another field is edited (a reaction), incl. from a bridge module | `dforge://reference/reactions` | `dforge://schema/entity`, `dforge://schema/deps` |
 | Add a trait | `dforge://reference/traits` | — |
 | Add a number sequence | `dforge://reference/number-sequences` | — |
 | Add a grid / list view | `dforge://reference/data-views`, `dforge://example/ui/data_views.json` | — |

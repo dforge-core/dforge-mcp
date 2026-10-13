@@ -4,6 +4,27 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.39 — 2026-10-13
+
+**Field-change reactions are in the entity schema.** `dforge://schema/entity` describes `reactions`
+(rules that suggest a value when the user edits another field — from a formula, or from a
+`logic/functions` function), and `dforge://schema/deps` accepts the `reaction:<code>` and
+`function:<library>` provenance tokens (metadata 0.0.40). A bridge module may declare reactions in an
+extension file on its host's entity.
+
+**Storno is in the schema.** A register `L` column's `validation` describes `balanced`,
+`requireBalanced` and `storno` (a red reversal); `requirePositiveAmounts` is marked deprecated.
+
+**A reactions reference.** `dforge://reference/reactions` covers formula and server (`call`) rules, how a
+chain runs (each rule once per edit, the edited column never overwritten), a bridge module's reactions
+on its host's entity and the `reaction:<code>` dependency token, dependent references, and the common
+mistakes. The formulas and conventions references point to it.
+
+**Storno in the registers reference.** `validation.storno`, the deprecated `requirePositiveAmounts`, and
+that a document with no lines posts nothing to a lines binding and still posts its other registers.
+
+**Needs `@dforge-core/dforge-cli` 0.2.30**, which validates, packs and installs the above.
+
 ## 0.2.38 — 2026-10-12
 
 **A register column's `map` may name a debit and a credit column.** On an accounting (`L`) column,

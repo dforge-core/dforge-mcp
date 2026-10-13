@@ -84,6 +84,8 @@ When two core modules need to integrate (e.g. CRM and Finance), create a **bridg
 
 Extension entities in a bridge module have `"extends": "fin.invoice"` at the top. Physical columns in the extension go into a 1:1 ext table.
 
+An extension file may also declare `reactions` on its host's entity, calling the bridge's own `logic/functions` library: `crm-pricing` prices a quote line as it is edited. The host columns a rule names go in `deps/<host>.json` as `reaction:<code>`. See `dforge://reference/reactions`.
+
 ## Seed data ordering
 
 Seed files run in numeric prefix order. Put entities with FK dependencies **after** their targets:

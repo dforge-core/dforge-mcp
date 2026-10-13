@@ -374,6 +374,10 @@ deep — `[parent].[name]` reads the parent's plain name.
 }
 ```
 
+## A formula that suggests an editable value
+
+An `F` column is virtual: not stored, not editable. To fill a **stored, editable** column from other fields while the user edits, use a field-change reaction, whose formula rules take this same syntax. See `dforge://reference/reactions`.
+
 ## Common mistakes
 
 - Using `column_name` without brackets — **wrong**. Always `[column_name]`.

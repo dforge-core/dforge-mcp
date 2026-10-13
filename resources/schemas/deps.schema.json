@@ -94,8 +94,8 @@
 		},
 		"provenance": {
 			"type": "string",
-			"pattern": "^(extends:[^.]+\\.[^.]+|(ref|formula|action|view|report|print|role):.+)$",
-			"description": "A usage token of the form '<kind>:<symbol>'. Kinds: ref:<entity.column> (a link column joins to the dependency; the entity is qualified <module>.<entity> when it's an extension host), extends:<module.entity> (the consumer extends the provider entity — MUST be fully qualified, e.g. extends:parties.party, never bare extends:party), formula:<entity.column> (a formula nav path reads it), action:<action_cd> (DSL reads/writes it, incl. raw query() SQL), view:<view_cd> (a data view's dataSource targets it), report:<report_cd> (a report queries it), print:<template_cd> (a print template navigates into it), role:<role_cd> (a security role grants rights on the entity). Note: 'display' is intentionally NOT a kind — the label is the provider's concern."
+			"pattern": "^(extends:[^.]+\\.[^.]+|(ref|formula|action|function|reaction|view|report|print|role):.+)$",
+			"description": "A usage token of the form '<kind>:<symbol>'. Kinds: ref:<entity.column> (a link column joins to the dependency; the entity is qualified <module>.<entity> when it's an extension host), extends:<module.entity> (the consumer extends the provider entity — MUST be fully qualified, e.g. extends:parties.party, never bare extends:party), formula:<entity.column> (a formula nav path reads it), action:<action_cd> (DSL reads/writes it, incl. raw query() SQL), function:<library> (a function in logic/functions/<library>.dsl reads/writes it), reaction:<code> (a field-change reaction the consumer's extension declares on the dependency entity reads or sets it), view:<view_cd> (a data view's dataSource targets it), report:<report_cd> (a report queries it), print:<template_cd> (a print template navigates into it), role:<role_cd> (a security role grants rights on the entity). Note: 'display' is intentionally NOT a kind — the label is the provider's concern."
 		}
 	}
 }
