@@ -6,7 +6,8 @@
 	"type": "object",
 	"anyOf": [
 		{ "required": ["fields"] },
-		{ "required": ["traits"] }
+		{ "required": ["traits"] },
+		{ "required": ["extends", "reactions"] }
 	],
 	"properties": {
 		"extends": {
