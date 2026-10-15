@@ -192,11 +192,20 @@
 						"type": "array",
 						"minItems": 1,
 						"items": { "type": "string" },
-						"description": "Indexed columns, in order. Install refuses any key other than fields and using - \"columns\", which a unique constraint accepts, included."
+						"description": "Indexed columns, in order. Install refuses any key other than fields, using, unique and where - \"columns\", which a unique constraint accepts, included."
 					},
 					"using": {
 						"enum": ["btree", "hash", "gin", "gist", "brin"],
 						"description": "Index method. Omitted, btree."
+					},
+					"unique": {
+						"type": "boolean",
+						"description": "A unique index. With \"where\" it is unique among the rows the condition selects, which a unique constraint cannot be (unique among the rows that are not deleted)."
+					},
+					"where": {
+						"type": "string",
+						"minLength": 1,
+						"description": "A partial index: SQL condition over the table's columns, e.g. \"is_deleted = false\". Only the rows it selects are indexed, and a query uses the index only when its own filter implies the condition. One condition, without ';', '$' or comments. Changing it rebuilds the index on upgrade."
 					}
 				}
 			}
@@ -208,6 +217,26 @@
 		"period": {
 			"$ref": "#/$defs/periodConfig",
 			"description": "Period entity configuration. Requires 'period' trait."
+		},
+		"periodGuards": {
+			"type": "array",
+			"description": "Closed-period locks for a document that posts to no register. Each guard names a period entity, the date the document's period follows from, and the column that references the period. The platform fills that column from the date and makes it a foreign key, so a document is written only into a period that exists and is open, and a period documents refer to cannot be deleted. Not allowed on an extension.",
+			"items": {
+				"type": "object",
+				"required": ["periodEntity", "periodDateField", "periodField", "lockedFields"],
+				"properties": {
+					"periodEntity": { "type": "string", "description": "The period entity ('period' trait): this module's, or another module's as 'module.entity'." },
+					"periodDateField": { "type": "string", "description": "The document's date column the period is resolved from." },
+					"periodField": { "type": "string", "description": "The document's column referencing the period's key (varchar, like the key). Filled by the platform from the date; whatever a writer puts there is replaced." },
+					"periodKeyField": { "type": "string", "default": "period_key", "description": "The period entity's key column. Must be its primary key or unique." },
+					"periodClosedField": { "type": "string", "default": "closed", "description": "The period entity's closed flag." },
+					"lockedFields": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Fields a closed period freezes. Insert and delete are always refused there, and the date is always watched; [\"periodDateField\"] refuses just that, [\"*\"] freezes the whole row." },
+					"lineEntity": { "type": "string", "description": "The document's line entity, guarded through its header's date." },
+					"lineField": { "type": "string", "description": "The line's foreign key to the header." },
+					"lockedLineFields": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Line fields a closed period freezes; [\"*\"] for the whole row. Required with lineEntity." }
+				},
+				"additionalProperties": false
+			}
 		},
 		"accumulation": {
 			"$ref": "#/$defs/accumulationConfig",

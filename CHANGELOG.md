@@ -4,6 +4,24 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.41 — 2026-10-15
+
+**Schemas follow metadata 0.0.42.** `dforge://schema/entity` describes `periodGuards` (a closed-period
+lock for a document that posts to no register) and the `unique` / `where` keys of an index (a partial
+or unique index). `dforge://schema/roles` checks the shape of a `rights` key, so an action grant written
+without `action:` is flagged where it is typed.
+
+**DSL builtins.** `getAccountBalance` and `getAccountTurnover` show the new last `options` argument
+(`groupBy`, `exclude`, and `before` on a balance).
+
+**Needs `@dforge-core/dforge-cli` 0.2.31**, which validates, packs and installs the above. It also
+refuses a roles rights key that misses its prefix, which `dforge_module_validate` now reports.
+
+## 0.2.40 — 2026-10-13
+
+**An extension file that declares only `reactions` is valid** in `dforge://schema/entity` (metadata
+0.0.41), so a bridge module's extension carrying just field-change reactions no longer fails validation.
+
 ## 0.2.39 — 2026-10-13
 
 **Field-change reactions are in the entity schema.** `dforge://schema/entity` describes `reactions`

@@ -18,11 +18,14 @@
 				},
 				"rights": {
 					"type": "object",
-					"description": "Entity rights: entity code → rights string",
+					"description": "Security object → rights string. Keys are PREFIX-NAMESPACED so an action and an entity may share a code: a bare key is an entity code in this module ('invoice'), 'module.entity' is an entity owned by a module this one depends on ('parties.party'), 'action:<action_cd>' is an action from this module's ui/actions.json, and 'sp:<sp_cd>' is a stored procedure from logic/stored_procedures.json ('sp:module.sp_cd' for a dependency's), and 'report:<report_cd>' is a report from ui/reports.json ('report:module.report_cd' for a dependency's). A grant on an action written WITHOUT the 'action:' prefix is read as an entity code, resolves to nothing, and is silently dropped at install — action.execute then returns PERMISSION_DENIED.",
+					"propertyNames": {
+						"pattern": "^(action:[A-Za-z_][A-Za-z0-9_-]*|(sp|report):([A-Za-z_][A-Za-z0-9_-]*\\.)?[A-Za-z_][A-Za-z0-9_-]*|([A-Za-z_][A-Za-z0-9_-]*\\.)?[A-Za-z_][A-Za-z0-9_-]*)$"
+					},
 					"additionalProperties": {
 						"type": "string",
 						"pattern": "^[SIUDCE]*$",
-						"description": "Rights: S=Select, I=Insert, U=Update, D=Delete, C=Clone, E=Execute"
+						"description": "Rights: S=Select, I=Insert, U=Update, D=Delete, C=Clone, E=Execute. Entity objects take any of SIUDC; actions, stored procedures and reports take E."
 					}
 				}
 			},
