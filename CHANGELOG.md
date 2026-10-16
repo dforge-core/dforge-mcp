@@ -14,7 +14,7 @@ without `action:` is flagged where it is typed.
 **DSL builtins.** `getAccountBalance` and `getAccountTurnover` show the new last `options` argument
 (`groupBy`, `exclude`, and `before` on a balance).
 
-**Needs `@dforge-core/dforge-cli` 0.2.31**, which validates, packs and installs the above. It also
+**Needs `@dforge-core/dforge-cli` 0.2.32**, which validates, packs and installs the above. It also
 refuses a roles rights key that misses its prefix, which `dforge_module_validate` now reports.
 
 ## 0.2.40 — 2026-10-13
