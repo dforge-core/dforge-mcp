@@ -24,7 +24,7 @@
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
 						"debitAnalyticFields": false, "creditAnalyticFields": false,
-						"sideDimensions": false
+						"sideDimensions": false, "analyticTotals": false
 					},
 					"description": "A balance register keeps state, so it needs the entity that holds it. It dates its movements on the journal row under 'journalDate'; 'period' belongs to an information register, whose records ARE the dated thing. Its writer is recorded on the journal row, which is what 'recorder' names for an information register that has no journal."
 				}
@@ -41,7 +41,7 @@
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
 						"debitAnalyticFields": false, "creditAnalyticFields": false,
-						"sideDimensions": false,
+						"sideDimensions": false, "analyticTotals": false,
 						"allowNegative": false,
 						"autoCreate": false
 					},
@@ -60,7 +60,7 @@
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
 						"debitAnalyticFields": false, "creditAnalyticFields": false,
-						"sideDimensions": false,
+						"sideDimensions": false, "analyticTotals": false,
 						"totals": false,
 						"allowNegative": false,
 						"autoCreate": false
@@ -236,6 +236,63 @@
 									"pattern": "^[a-z_][a-z0-9_]*$",
 									"description": "Column caching the CREDIT side. Kept apart from the debit rather than netted, because which of the two increases an account depends on what kind of account it is: the reads return both sides and their difference rather than guessing which one the caller calls good."
 								}
+							}
+						}
+					}
+				}
+			},
+			"analyticTotals": {
+				"type": "object",
+				"description": "An 'accounting' register's per-period cache keyed by the analytics as well: a cached row is keyed by (account, cached dimensions, analytic slots, period), for the accounts the chart flags. It is what makes a balance READ BY AN ANALYTIC cheap - stock by item and warehouse, settlements by counterparty and contract - which 'totals' leaves to the postings because over a whole ledger the analytics are where the rows are. getAccountBalance / getAccountTurnover read whole periods from it and the part-period at the edge from the postings. Beside 'totals', never instead of it, and in an entity of its own. Like 'totals' it caches the turnover within each period, so a backdated posting touches one row; a write to the journal that was not a posting, or a change to an account's flag, marks it stale until it is rebuilt.",
+				"required": ["entity", "period", "periodField", "accountField", "accountFlag", "analyticFields", "resources"],
+				"additionalProperties": false,
+				"properties": {
+					"entity": {
+						"type": "string",
+						"description": "Entity holding the cached rows. Keyed by ONE surrogate column the platform mints (the 'identity' trait), because a slot or a dimension may be empty and a PRIMARY KEY holds no NULL; the platform keeps a unique index over the cache's own key, NULLS NOT DISTINCT, and merges on it. It carries the account column, a column per cached dimension, the jsonb slot columns, the period column and both columns of every resource."
+					},
+					"period": {
+						"type": "string",
+						"enum": ["day", "month", "quarter", "year"],
+						"description": "How much one cached row covers, as for 'totals'."
+					},
+					"periodField": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column holding the FIRST date of the period a row covers."
+					},
+					"accountField": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "Column holding the account a cached row belongs to. A compound posting folds into two rows, one per side, each with that side's analytics."
+					},
+					"accountFlag": {
+						"type": "string",
+						"pattern": "^[a-z_][a-z0-9_]*$",
+						"description": "A bool column of the register's chart: the accounts where it is true are cached, and no other. Changing it on an account marks the cache stale until it is rebuilt (install, or dforge register rebuild-totals --cache analytic)."
+					},
+					"dimensions": {
+						"type": "array",
+						"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+						"description": "Which of the register's dimensions the cache is grouped by; omitted, it is all of them. Unlike 'totals' a nullable one may be cached: an empty value is a key value of its own."
+					},
+					"analyticFields": {
+						"type": "array",
+						"minItems": 1,
+						"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+						"description": "The cache's jsonb columns holding the analytic slots, slot N in the Nth, one per slot a posting side carries (the wider side's count on a compound register). Each holds the analytic's entity and key, which is what a read filters and groups by."
+					},
+					"resources": {
+						"type": "object",
+						"description": "Every resource the register declares, each with its 'debitField' and 'creditField' columns, as for an accounting register's 'totals'.",
+						"minProperties": 1,
+						"additionalProperties": {
+							"type": "object",
+							"required": ["debitField", "creditField"],
+							"additionalProperties": false,
+							"properties": {
+								"debitField": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+								"creditField": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" }
 							}
 						}
 					}

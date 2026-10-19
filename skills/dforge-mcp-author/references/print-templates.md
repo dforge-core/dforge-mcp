@@ -62,10 +62,22 @@ Every column on the entity is a top-level variable. Display formatting is pre-ap
 | `{{ _color.<column> }}` | Option color hex for single-value dropdown/radio columns                                                |
 | `{{ _settings.<cd> }}`  | Folder-resolved module setting. Image/file settings come as base64 data URIs (drop into `<img src>`).   |
 | `{{ _today }}`          | Typed `DateTimeOffset` (UTC); `{{ _fmt._today }}` is the pre-formatted string                          |
-| `{{ <set_name> }}`      | Child set — array. Iterate with `{% for x in <set_name> %}`. Only loaded if the template iterates it.   |
+| `{{ <set_name> }}`      | Child set — array, in primary-key order. Loaded wherever the template's Liquid code names it (see below) |
 | `{{ _css }}`            | The CSS string attached to the template (rarely needed in template body)                                |
 
 Inside a child-set loop, the same shape applies per row: `line._fmt.<col>`, `line._raw.<col>`, `line._color.<col>`.
+
+Formula columns (`F`) are read in the same SQL as the record, as `data.get` does, so a formula that navigates references or calls a SQL function prints what the grid shows, and `TODAY()` / `NOW()` work. A formula the SQL translator cannot express prints empty and the response carries a warning naming the column.
+
+**Sets: loading and order.** A set is loaded when the template's Liquid code (`{% … %}` or `{{ … }}`) mentions its name anywhere: a `for`, a filter, a condition, `.size`, `.first`. Plain text, `{% comment %}` / `{% raw %}` blocks, string literals and the member of a path (`rec.lines`) do not count, and a snippet's code is not scanned (mention the set in the host template). Rows come in primary-key order; sort in the template:
+
+```liquid
+{% assign sorted = doc_lines | sort: 'doc_date' %}            {# ascending #}
+{% assign sorted = doc_lines | sort: 'doc_date' | reverse %}  {# descending #}
+{% assign s = doc_lines | sort: 'doc_num' | sort: 'doc_date' %} {# date, then number: sort is stable, last key first #}
+```
+
+`sort` takes a column code and sorts the value as the template sees it (a dropdown or reference sorts by its label). Text order follows the engine, not the database collation. `{# … #}` after an expression in examples is a note for the reader, not syntax: write a real comment as `{% comment %} … {% endcomment %}`.
 
 ## Custom filters
 
@@ -90,6 +102,21 @@ Module-scoped Liquid partials. Pull one in via `{% include 'module_cd.snippet_cd
 Declare a snippet with `"type": "snippet"`. No `entityCd`. The `template_cd` must not contain `.` (collides with the `module_cd.snippet_cd` separator).
 
 Full mechanics + an EPC SEPA QR worked example: [`docs/ui/print-qr-codes.md`](../../../docs/ui/print-qr-codes.md).
+
+### Amount in words
+
+The platform has no number-to-words filter. The `common-words` module (`modules/common-words`, a dependency to declare) ships snippets that write an amount or a plain quantity out in Ukrainian, English or German. Set the inputs, then include:
+
+```liquid
+{% assign words_amount = total %}
+{% assign words_currency = currency_cd %}
+{% assign words_lang = 'de' %}
+{% include 'common-words.money' %}
+```
+
+1234.56 EUR prints «eintausendzweihundertvierunddreißig Euro 56 Cent». `words_amount` must be a numeric field, not text. `words_currency` is an ISO 4217 code in any case; an unlisted currency prints its code. `words_lang` is `uk` (default), `en` or `de`; an unknown code prints `[common-words: unknown language xx]`. `words_cap = true` capitalises the first letter. `common-words.money` only picks the language; `money_uk` / `money_en` / `money_de` can be included directly, and `common-words.quantity` writes a count of things («двадцять одна штука», «twenty-one pieces»): `words_number` (numeric, a fraction rounds half up), optional `words_unit` (forms joined by `|`: three for Ukrainian, two for English and German) and `words_gender` (`m` / `f` / `n`), plus `words_lang` and `words_cap` as above. The text lives in the module, so a fix or a new currency is a module update; a new language is a new `money_xx.html` plus a line in `money.html`.
+
+Snippets run on Scriban (print) and LiquidJS (preview), so write them for both: no `floor` on big numbers, no number taken from `split` / `slice`, plain `{% comment %}` without trim dashes.
 
 ## Module package layout
 
@@ -142,10 +169,11 @@ my_module/
 - **Using `_fmt` in a predicate.** `{% if _fmt.amount_paid > 0 %}` compares strings. Use the bare reference: `{% if amount_paid > 0 %}`.
 - **Forgetting `_raw` for codes.** Direct `{{ status }}` is the label (`"Partially Paid"`). For CSS classes / wire-format payloads / predicates against codes, use `{{ _raw.status }}` (`"P"`).
 - **Manually formatting dates/currency.** Don't reach for `format_currency` when the column is already `fieldTypeCd: "currency"` — `_fmt.<col>` already matches the form. Use the filter only for derived values.
-- **Referencing a child set outside a `{% for %}`.** The platform only loads sets that appear in a `for` loop. `{{ lines.size }}` won't trigger the load.
+- **Expecting a set to load only from a `for`.** It loads wherever the template names it (`sort`, `.size`, `.first`). A set read only inside a snippet is not seen: mention it in the host template.
 - **Snippet `template_cd` with a dot.** `{% include 'my_module.foo.bar' %}` — the resolver splits on the last dot only, so `my_module.foo` becomes the module name and breaks. No dots in snippet codes.
 - **Dropping CSS in `<style>` blocks inline.** The renderer wires `<style>` for you; declare CSS in the separate `.css` file (or inline string via the `css` field).
-- **Trying to use `TODAY()` / `NOW()` in a formula column expecting it to render in print.** The print-time formula evaluator skips those. Pre-compute via a formula column at insert time, or use `{{ _today | format_date: '...' }}` directly in Liquid.
+- **Printing an unsorted set.** Rows come in primary-key order; use `| sort: 'col'` (and `| reverse`) in the template.
+- **Writing an amount in words by hand.** Include `common-words.money` instead of a custom filter or lookup table.
 - **Module-installed template renamed in editor.** The editor preserves the original `template_cd` so `{% include %}` references stay intact — don't try to work around it.
 
 Module-installed print-template rows can't be deleted from the editor — uninstall the owning module to remove them.
@@ -155,5 +183,6 @@ Module-installed print-template rows can't be deleted from the editor — uninst
 - Full developer guide: [`docs/ui/print-templates.md`](../../../docs/ui/print-templates.md)
 - QR codes + snippets guide: [`docs/ui/print-qr-codes.md`](../../../docs/ui/print-qr-codes.md)
 - JSON Schema: [`docs/schemas/print_templates.schema.json`](../../../docs/schemas/print_templates.schema.json)
+- Amount in words: [`modules/common-words/`](../../../modules/common-words/) (README lists the inputs)
 - Reference modules: [`modules/fin/`](../../../modules/fin/), [`modules/fin-ch/`](../../../modules/fin-ch/) (Swiss QR-bill), [`modules/crm/`](../../../modules/crm/), [`modules/wms/`](../../../modules/wms/), [`modules/hr/`](../../../modules/hr/)
 - Source: `server/src/dForge.Api/Services/PrintTemplateService.cs`, `server/src/dForge.Admin/Services/ModuleInstall/PrintTemplateRegistrar.cs`

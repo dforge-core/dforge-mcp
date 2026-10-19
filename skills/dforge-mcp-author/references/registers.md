@@ -183,6 +183,7 @@ A register column is a `bool` state column. `A` writes `balance`, `turnover` and
 | `lineEntity` + `lineField` | Post from lines: one movement per line. Declared per binding. Needs `lockedLineFields`. |
 | `headerMap` | On a line posting, register name to a **document** column. A resource may come from the document only on an `info` register. Every column must be in `lockedFields`. |
 | `groupLinesBy` | One movement per distinct value of these line columns. `map` is read over a group row; numeric resources are summed. |
+| `lineDateField` | On a line posting, a line column dating that line's movement instead of `dateField`; an empty one falls back to `dateField`. With `periodEntity` each line's period must be open, judged by the movement's stamped date (line's or document's, after `dateTrunc`); lines skipped by `skipPostingWhenEmpty` don't count. On a `recordChangesOnly` info register, one line per key (several dates on a key are refused). A `date` or zoneless `timestamp`, in `lockedLineFields` (and `groupLinesBy` when grouped), not with `periodDimField`. |
 | `skipPostingWhenEmpty` | Dimensions whose emptiness means "this row posts nothing". The exception, see below. |
 | `lockedFields` / `lockedLineFields` | Columns frozen while posted. `["*"]` freezes the whole row. |
 | `movementMapping` | Journal attribute column to document or line column. |
@@ -199,7 +200,7 @@ A register column is a `bool` state column. `A` writes `balance`, `turnover` and
 
 The per-side object shape was missing from the entity schema until metadata 0.0.39. Validate with metadata 0.0.39 or later.
 
-Paths, expressions, `dateTrunc`, `headerMap`, `groupLinesBy` and `skipPostingWhenEmpty` are `A`-only. An `L` column refuses them.
+Paths, expressions, `dateTrunc`, `headerMap`, `groupLinesBy`, `lineDateField` and `skipPostingWhenEmpty` are `A`-only. An `L` column refuses them.
 
 ### `L` column (`acc-registry.gl_corr`)
 
@@ -261,6 +262,8 @@ execute:
 ## Totals cache
 
 `totals` caches the turnover inside each `day`/`month`/`quarter`/`year`, never a closing balance, so a backdated posting touches one row. Declare an `entity` whose PRIMARY KEY is exactly (dimensions, `periodField`), with `inField`/`outField` per resource (`debitField`/`creditField` and an `accountField` on accounting). Posting maintains it; install rebuilds it when its shape changes. Not available on `info`. Details: registers.md section 8.4.
+
+An `accounting` register may also declare `analyticTotals`, a second cache keyed by the analytic slots as well: (account, cached dimensions, analytic slots, period). It covers the accounts whose chart flag `accountFlag` is true, lives in an entity of its own beside `totals` (a surrogate key, since a slot or dimension may be empty), and holds `analyticFields` (one jsonb column per slot), `accountField`, `periodField`, `period`, optional `dimensions` and `debitField`/`creditField` per resource. `getAccountBalance` / `getAccountTurnover` read it for a flagged account when every filter and grouping is a cached dimension or an analytic of the account, and take the rest from the postings. A write to the journal around posting, or a changed account flag, marks it stale until `dforge register rebuild-totals --cache analytic` (or a module install) rebuilds it. Not available on `balance`, `turnover` or `info`.
 
 ## Common mistakes
 

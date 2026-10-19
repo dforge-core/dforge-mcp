@@ -4,6 +4,27 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.43 — 2026-10-19
+
+**Schemas follow metadata 0.0.43.** `dforge://schema/registers` describes `analyticTotals` (an
+accounting register's cache keyed by analytics as well, for the accounts its chart flags), and
+`dforge://schema/entity` describes `lineDateField` (an `A` column dating each line's movement by a
+line column instead of `dateField`).
+
+**Print-forms reference.** `references/print-templates.md` now covers what the platform does:
+a child set loads wherever the template names it (`sort`, `.size`, `.first`), with the recipe for
+sorting by one or several columns; formula columns are read from SQL like `data.get`, so `TODAY()`
+works and a reference-navigating formula prints; and an amount or quantity written in words with the
+`common-words` module (`common-words.money` / `common-words.quantity`, languages `uk`, `en`, `de`, the
+inputs, the engine pitfalls). The two mistakes the old text taught (a set loads only from a `for`;
+`TODAY()` is skipped in print) are removed.
+
+**Registers reference.** `references/registers.md` describes `analyticTotals` and `lineDateField`.
+
+**Needs `@dforge-core/dforge-cli` 0.2.33**, which installs both, adds `register rebuild-totals --cache`
+and `module install --allow-rewrite` (a type change that rewrites a table over 1 GB is refused
+without it).
+
 ## 0.2.41 — 2026-10-15
 
 **Schemas follow metadata 0.0.42.** `dforge://schema/entity` describes `periodGuards` (a closed-period
