@@ -83,7 +83,8 @@ Translation files mirror the module's content structure. Each translatable objec
 | `views` | Data view labels and descriptions (`label`, `desc`) | View codes (keys from `ui/data_views.json`) → `{ label, desc }` |
 | `menus` | Menu node labels (root + nested items) | Menu root key → `{ label, items: { item_code: { label } } }` matching `ui/menus.json` structure |
 | `actions` | Action labels, descriptions, param labels **and param dropdown option labels** | Action codes (keys from `ui/actions.json`) → `{ label, desc, params: { param_cd: { label, options: { value: … } } } }` |
-| `reports` | Report dataset captions, param labels **and param dropdown option labels** | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label, options: { value: … } } } }` |
+| `reports` | Report `label`, `desc`, dataset captions, param labels **and param dropdown option labels** | Report codes → `{ datasets: { ds_cd: { caption } }, params: { param_cd: { label, options: { value: … } } } }` |
+| `storedProcedures` | Result-column headers of a stored procedure (`logic/stored_procedures.json`), shared by every report bound to it | Procedure codes → `{ columns: { column_cd: { label } } }` |
 | `entities.<e>.constraints` | Check/unique constraint violation messages (opt-in — warned, not enforced) | Constraint codes → `{ message }` under the owning entity |
 | `messages` | DSL `info` / `warn` / `error` / `exit` texts (opt-in — warned, not enforced) | Exact English text → translated text |
 | `entities.<e>.fields.<f>.options` | Dropdown/radio/flags **option labels** (opt-in) | Option `value` → localized label (string) or `{ label, icon, color }` |
@@ -268,6 +269,10 @@ Non-English locales are declared in `supportedLocales` (an array of `ll-CC` tags
 ```
 
 Every listed locale MUST have a matching `translations/<locale>.json` with a label for each translatable resource, or install fails completeness validation.
+
+### Stored-procedure column headers
+
+A result column's header belongs to the procedure, not to a report. `module pack` / `module validate` require one `storedProcedures.<sp_cd>.columns.<column_cd>.label` per declared column for each non-English supported locale; install only warns (also when a translation names a column the module lacks). A dataset's `columnsDef` label is a literal and overrides it, so leave the label out to keep the column translated.
 
 ## Rules
 

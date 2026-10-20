@@ -84,6 +84,23 @@
 				"$ref": "#/$defs/report"
 			}
 		},
+		"storedProcedures": {
+			"type": "object",
+			"description": "Stored-procedure code (logic/stored_procedures.json) → result-column headers. A header belongs to the procedure, not to a report: every dataset bound to the procedure shows the same translation. A dataset's columnsDef label overrides it with a literal, so leave the label out of columnsDef to keep the column translated. Required, per declared column, by `module pack` / `module validate` for each non-English supported locale; install only warns.",
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"columns": {
+						"type": "object",
+						"description": "Result column code → header.",
+						"additionalProperties": {
+							"$ref": "#/$defs/labelOnly"
+						}
+					}
+				}
+			}
+		},
 		"actions": {
 			"type": "object",
 			"description": "Action code (ui/actions.json) → label, tooltip and parameter labels.",
@@ -247,6 +264,10 @@
 			"properties": {
 				"label": {
 					"$ref": "#/$defs/label"
+				},
+				"desc": {
+					"type": "string",
+					"description": "Translated report description."
 				},
 				"datasets": {
 					"type": "object",

@@ -311,6 +311,7 @@ The user never sees a record unless it passes **all** layers. You don't need to 
 
 - **`null` filter** (or omitted) means no filtering — show everything the user has access to.
 - **Single condition** is valid without a group wrapper.
+- **An unknown operator is refused**, not dropped: a request filter (`data.get`, export, reports, a view's query, DSL `select()`) with an unknown operator, an unknown group combinator or an item that is neither condition nor group fails with `INVALID_REQUEST` naming the operator, its column and the valid set. `like` is not an operator: `mask` is SQL `LIKE`, `start` a case-insensitive prefix. A condition on a column the entity does not have is still dropped.
 - Use **short operators** (`=`, `!=`, `>`) or **enum keys** (`eq`, `notEq`, `gr`) — both work.
 - For folder `rowFilter` in module packages, prefer the short compact form: `{ "c": "...", "o": "eq", "v": ... }`.
 - Dates are ISO strings: `"2026-01-01"`.
@@ -320,6 +321,7 @@ The user never sees a record unless it passes **all** layers. You don't need to 
 
 - Using the JSON filter format inside `query()` in DSL actions — **wrong**. `query()` uses raw SQL.
 - Wrapping a single condition in a group unnecessarily — **valid but noisy**. A bare condition is fine.
+- Using `"o": "like"` — **wrong**, refused. Use `"o": "mask"` with `%`.
 - Using `"operator": "equals"` — **wrong**. Use `"o": "="` or `"o": "eq"`.
 - Using `"column": "status"` — **wrong**. Use `"c": "status"`.
 - Forgetting that `null` means "no filter" (not "filter by null") — to filter for null values, use `{ "c": "field", "o": "null" }`.

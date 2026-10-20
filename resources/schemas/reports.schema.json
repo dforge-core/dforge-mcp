@@ -401,9 +401,13 @@
 
 		"columnDef": {
 			"type": "object",
+			"description": "Override of one column the dataset already projects (from the entity, the stored procedure's result columns, or the register). Name only what differs: each key replaces the projected value. A label here is a literal and wins over a translated header.",
 			"properties": {
-				"label": { "type": "string" },
-				"visible": { "type": "boolean" },
+				"label": { "type": "string", "description": "Column header. Not translated: leave it out to keep the entity's or the procedure's translated header." },
+				"fieldTypeCd": { "type": "string", "description": "Control the value renders with, replacing the projected one." },
+				"format": { "type": "string", "description": "Display format, replacing the column's display format." },
+				"baseDatatypeCd": { "type": "string", "description": "Read only where the dataset projects no columns of its own (a stored procedure with no result columns), when columnsDef is the column list. Ignored as an override: the projected column's datatype stands." },
+				"visible": { "type": "boolean", "description": "Accepted, but neither report.run nor the client reads it: it has no effect." },
 				"width": { "type": "integer", "minimum": 1 }
 			},
 			"additionalProperties": false

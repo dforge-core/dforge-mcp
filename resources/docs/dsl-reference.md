@@ -503,8 +503,8 @@ Send a notification to a specific user's inbox.
 notify([approver_id], 'New purchase request from ' + [requester_name] + ' awaiting approval')
 ```
 
-#### `sendEmail(to, subjectOrTemplateCd, bodyOrData?)`
-Two modes:
+#### `sendEmail(to, subjectOrTemplateCd, bodyOrData?, attachments?)`
+Two modes (a second argument with no spaces that contains `.` or `_` is read as a template code, so give a raw subject spaces). The optional fourth argument attaches files: a `printPdf()` result, or an array of them (a single file as itself, not `[a]`). Max 5 files and 10 MB; only the user who generated a PDF, or a workspace admin, can attach it; not in a scheduled job.
 
 ```dsl
 // Raw mode: (to, subject, body)
@@ -567,8 +567,25 @@ if (info.fileSize > 5 * 1024 * 1024) { error('Receipt larger than 5 MB') }
 if (info.mimeType != 'application/pdf') { error('Receipt must be PDF') }
 ```
 
+#### `printPdf(entityCd, key, templateCd)`
+Render a print template to a PDF as the current user and return the archived file as `{ fileId, fileName, mimeType, size, checksum }`; attach it with `sendEmail()`. Pass a qualified entity code. Not in a scheduled job or a background action; max 10 per run.
+
+```dsl
+execute:
+    var pdf = printPdf('fin.invoice', { invoice_id: [invoice_id] }, 'invoice')
+    sendEmail([customer_id].[email], 'Your invoice ' + [number], '<p>Attached.</p>', pdf)
+```
+
+#### `downloadText(content, fileName, encoding?, mimeType?)` / `downloadBase64(base64, fileName, mimeType?)`
+Hand the user a file the script built. `encoding` defaults to `utf-8`; code pages such as `windows-1251` and `cp866` work; line endings are written as given, no BOM. Both return the signed download URL, which a background or scheduled run can pass on in `notify()`. One download per action (a later call replaces the earlier); max 10 MB per file, 10 files per run.
+
+```dsl
+execute:
+    downloadText(csv, 'payments.txt', 'windows-1251')
+```
+
 #### `download(url, fileName?)`
-Set HTTP download response. Only valid in UI-triggered actions; the user's browser receives the file.
+Set HTTP download response. Only valid in UI-triggered actions; the user's browser receives the file. It fetches nothing: the URL must already serve the bytes.
 
 ```dsl
 execute:
@@ -1180,7 +1197,8 @@ The `audit` trait auto-maintains `last_updated` on INSERT/UPDATE if the column e
 | Run SQL | `query('SELECT ... WHERE c = @v', { v: value })` |
 | Get setting | `getSetting('setting_cd')` |
 | Send toast | `info('msg')`, `warn('msg')` |
-| Send email | `sendEmail(to, subj, body)` or `sendEmail(to, templateCd, dataObj)` |
+| Send email | `sendEmail(to, subj, body)` or `sendEmail(to, templateCd, dataObj)`; add a `printPdf()` result as the 4th argument to attach |
+| Give the user a built file | `downloadText(content, 'f.txt', 'windows-1251')` |
 | Send inbox notification | `notify(userId, 'msg')` |
 | Call a shared helper | `round2([amount])` from `logic/functions/*.dsl` |
 | Call another module's helper | `cdy_accounting.roleOf(...)`, imported in `deps/<module>.json` |

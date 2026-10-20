@@ -1,3 +1,161 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.14.0
+        version: 12.14.0
+
+packages:
+
+  '@pnpm/exe.android-arm64@12.14.0':
+    resolution: {integrity: sha512-+iSh7x21C3A2hqc+Z0ZmbKTcn6YNlzrXM142PsnQH/dLj0DYxFzoBvc6XAnL/yfQ5nnH2ebBiRj/zVxr61fZbQ==}
+    cpu: [arm64]
+    os: [android]
+
+  '@pnpm/exe.android-x64@12.14.0':
+    resolution: {integrity: sha512-qT+0LqEr2wBVaxcG2T8cX/R8SSRz2Rvpp8nRR4fh8tnGUZRch87gFmsHUAoSQh7w6j1h0qTjrA384j4xi8frvw==}
+    cpu: [x64]
+    os: [android]
+
+  '@pnpm/exe.darwin-arm64@12.14.0':
+    resolution: {integrity: sha512-tnrdUB8ecJoehuKKqi1YHCBVl61xtJ9XVGcx5EviC6fWO4DeGI8GtXrjvJxDBM3nuVjJeWistgsUp/N142x4sw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pnpm/exe.darwin-x64@12.14.0':
+    resolution: {integrity: sha512-vlBfGkruqQRsEHTW43cPwpYd7QlbIJ//cvpAdb3bVXkI8SgTPoXhCnc05m+ZNiPrrEkBsX/t7KHw9aXpkzPm3Q==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@pnpm/exe.freebsd-x64@12.14.0':
+    resolution: {integrity: sha512-Qg5rxBrGYl6Tfso+EyygPf84fY1Fzy55E/0or+iuYKtnf0vc0MlHJfVIlT7pBukMRntQHRik7hUi0Z4s7AlJsw==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@pnpm/exe.linux-arm64-musl@12.14.0':
+    resolution: {integrity: sha512-DRIe4yQkXBGA/PhVJdzlbnllxBdAtnMMvTVLLcGpsK5FvJz9kxD2Hyxtn68ovmNkVX06f6p45cQwfm3wx2jn1A==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-arm64@12.14.0':
+    resolution: {integrity: sha512-7joGShZ44Nk3WpNU+60JoOPjCXlgxhJAq11S2UiVtwCUDgTer1yTPPfxGW8pxaD6046actYLIYDbZNlubHWs0A==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-ppc64@12.14.0':
+    resolution: {integrity: sha512-gSoryn7ySdXd//gjgf3MvvA8ZerJayaSbuMZMtAWq4vb2/wlVEgpl0Kvqt54y58TRj533Qjq2txKgnxd4JyoAQ==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-riscv64@12.14.0':
+    resolution: {integrity: sha512-EMjew1H9WqQ7pL+tYqCPwiuB+0PeCiJRV7fyWeuFw0wwYUajFBjcaPO3IGAVu9sdmJDU+e+HYv/Zey6aKae0Vw==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-s390x@12.14.0':
+    resolution: {integrity: sha512-shYOj/SFoXD35fHe0pWr2JofwSXulC0BnEIXLj2QokDi0EF//AfKsui35yKIkTEl+s2VJybc3PO4iJNhKIj5Qw==}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-x64-musl@12.14.0':
+    resolution: {integrity: sha512-btZiZ2Ot0llKK1ndSfA5i3IRX7/S0VrmzseNH/BJ4c+Cady+S81H6vvU1zByggHMyqQhC8OgxO5PiIY7D9bH0Q==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-x64@12.14.0':
+    resolution: {integrity: sha512-F6K8e/jWxiuEYJaQtRRUG9ynBSTEHa+t7Lf86MKuOO5UA7WVVMbi+oB8nY6iKW++ncWS2yG6T9faXZGxqNsfoQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.win32-arm64@12.14.0':
+    resolution: {integrity: sha512-DOjlkVB6TtTKeAAe0hNZXn5S7YqESmo1Z6SGbR4BZNQ4isRg31XVHjX2RFTbY8gnZq68IwzyLmPqlEjMmYxofg==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@pnpm/exe.win32-x64@12.14.0':
+    resolution: {integrity: sha512-/LSX6mew/sLf08XqcjemuklNKf1K/Ftpgj4//hK/HKzI2dKbmxDB27a/2OaQ5a0O3/3OFzlssXDziZsi+yVBwQ==}
+    cpu: [x64]
+    os: [win32]
+
+  pnpm@12.14.0:
+    resolution: {integrity: sha512-wYum2HmT09Fky16JSPMrLAbuhUSH4GzY2GeBNC+z5btGNDZwNHEehoArqpw3vqkGzhkprQjXCITJfYAd8TOJpg==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe.android-arm64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.android-x64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.darwin-arm64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.darwin-x64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.freebsd-x64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-arm64-musl@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-arm64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-ppc64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-riscv64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-s390x@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-x64-musl@12.14.0':
+    optional: true
+
+  '@pnpm/exe.linux-x64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.win32-arm64@12.14.0':
+    optional: true
+
+  '@pnpm/exe.win32-x64@12.14.0':
+    optional: true
+
+  pnpm@12.14.0:
+    optionalDependencies:
+      '@pnpm/exe.android-arm64': 12.14.0
+      '@pnpm/exe.android-x64': 12.14.0
+      '@pnpm/exe.darwin-arm64': 12.14.0
+      '@pnpm/exe.darwin-x64': 12.14.0
+      '@pnpm/exe.freebsd-x64': 12.14.0
+      '@pnpm/exe.linux-arm64': 12.14.0
+      '@pnpm/exe.linux-arm64-musl': 12.14.0
+      '@pnpm/exe.linux-ppc64': 12.14.0
+      '@pnpm/exe.linux-riscv64': 12.14.0
+      '@pnpm/exe.linux-s390x': 12.14.0
+      '@pnpm/exe.linux-x64': 12.14.0
+      '@pnpm/exe.linux-x64-musl': 12.14.0
+      '@pnpm/exe.win32-arm64': 12.14.0
+      '@pnpm/exe.win32-x64': 12.14.0
+
+---
 lockfileVersion: '9.0'
 
 settings:
@@ -9,11 +167,11 @@ importers:
   .:
     dependencies:
       '@dforge-core/dforge-cli':
-        specifier: ^0.2.33
-        version: 0.2.33
+        specifier: ^0.2.35
+        version: 0.2.35
       '@dforge-core/metadata':
-        specifier: ^0.0.43
-        version: 0.0.43
+        specifier: ^0.0.44
+        version: 0.0.44
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@4.4.3)
@@ -42,43 +200,43 @@ packages:
   '@clack/prompts@0.11.0':
     resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
 
-  '@dforge-core/dforge-cli-darwin-arm64@0.2.33':
-    resolution: {integrity: sha512-AywYwSKnsBIQRJ6ZqC4qDveG45Vi7i9vki5slssCVx9b36CdINbWWM4GpgLvEhOMrCoUxTUetjWpgtio3Ly0QA==}
+  '@dforge-core/dforge-cli-darwin-arm64@0.2.35':
+    resolution: {integrity: sha512-wbD9d1PVU51CtJIo/3WE2Yu8fJ4I/9SoXf4/Fo26bJLLX+w8jNY5FA8bVbnM9TJPUMizF20AWpwIUbsx+EPcXw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@dforge-core/dforge-cli-darwin-x64@0.2.33':
-    resolution: {integrity: sha512-H+HIBEC/5aZ+Zef60RXvg8+xtl5OB+zy6ZPR0ws8ucetkwjAtZnNsR2Cfn3wiby3sYO8Z4PBWXhjppAqbGKZ5Q==}
+  '@dforge-core/dforge-cli-darwin-x64@0.2.35':
+    resolution: {integrity: sha512-JZ3lR7sbMvX1l/d5m0iLk5At6RCItvXd99h11u0jC0ToZoFj5QZf72ALBKRKCEShh+pAPcT4+TIQz03oxcFOyQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@dforge-core/dforge-cli-linux-arm64@0.2.33':
-    resolution: {integrity: sha512-Lg3ribrM/GSQBlp6tohnXEN7MSsXBBMP1bHRW8Wb6dj9oeH/AlAS3r/Up2lH8I1zU7XAiLxnIMUNRxN7yPNA8A==}
+  '@dforge-core/dforge-cli-linux-arm64@0.2.35':
+    resolution: {integrity: sha512-/6iFH/dFhCIaIiEhLrqczw4RrMIWSxGWQLcZMLI36TA8FUmX6I55Y4oyivE1si3zMMY1CKlLYq5LgQN9jfGxtw==}
     cpu: [arm64]
     os: [linux]
 
-  '@dforge-core/dforge-cli-linux-x64@0.2.33':
-    resolution: {integrity: sha512-fMGqzId5fmjgPyyVWrTlTKDwNTVue/aUjo8uek6bTarTHrQdgcqhyWK5OZ3ke5ZWRZx7be6oZ/h8x2UCQmd1kw==}
+  '@dforge-core/dforge-cli-linux-x64@0.2.35':
+    resolution: {integrity: sha512-L1GTq3fyT4FRk+RYG+0kEZpUziY5zA+KWaYWK6fI7sWekcDceR5MyGA61I1gnMF2pjsEvYogvGWL9/g7nPhKpQ==}
     cpu: [x64]
     os: [linux]
 
-  '@dforge-core/dforge-cli-win32-arm64@0.2.33':
-    resolution: {integrity: sha512-hz0AWGwD3753rYwm8tNlx3nKSja2+lTJI7ebV6I1MYIyAEpICcPy9bjDNbYxSRiMupicy8TENMWr0/EZvLfW+g==}
+  '@dforge-core/dforge-cli-win32-arm64@0.2.35':
+    resolution: {integrity: sha512-ccgZdyaHVizb7kVw/ZdtOyu23z+6KcWJiIGUHgpOS8JjX6bZZokmzcyqjp+/pn9vVZfzhCtAOlY7xqwhgCSzZg==}
     cpu: [arm64]
     os: [win32]
 
-  '@dforge-core/dforge-cli-win32-x64@0.2.33':
-    resolution: {integrity: sha512-DnhRJUR+Gys7B2S/rDGrFP8mOA2VIIKxKcLN3efBTs1uOGSmOXUJVtZNbWYmh/6H2tHNN/pG/7CrVSRYGioHTA==}
+  '@dforge-core/dforge-cli-win32-x64@0.2.35':
+    resolution: {integrity: sha512-lWTxVAEqpk5WK9tW84s1sI2kbRKZqex7M2IlwF31ONeTF3N1FtlLTQVaqDIQ8j9A4/g/pthz83GZUzgmgSQysg==}
     cpu: [x64]
     os: [win32]
 
-  '@dforge-core/dforge-cli@0.2.33':
-    resolution: {integrity: sha512-5Oaz78X23CNbQiKXLPmJwEQgt9IbPkYS0H99DgpMn60Mu1dgda9acLgPguZfFvXsGKYRwqAeeaHdAuQJ49oMag==}
+  '@dforge-core/dforge-cli@0.2.35':
+    resolution: {integrity: sha512-zzIHOctQ/vZYBhfuPqKLZvS4PmQw53BbNePxZyIk6c9zpJ3+aN8xB6+wwHUrEuX+JdhREeftaTuaGjBz2/5pew==}
     engines: {node: '>=18'}
     hasBin: true
 
-  '@dforge-core/metadata@0.0.43':
-    resolution: {integrity: sha512-Z6KMgqe7UZ3PstrBpx5GxAERQf4jPJF4bHZJFS1Pt7bPwKKfP64uLPWH9fkwejJ5JXOlLGWcSKbYgWkVcMbb9A==}
+  '@dforge-core/metadata@0.0.44':
+    resolution: {integrity: sha512-EouNxErLQk1z2ho9z+DmVfSOz6IQCUP0grGw/eQpx34XBYGKoW3aYXJL/kmc2QXQN56/eTQS7rYz8HjHY9k4lg==}
 
   '@esbuild/aix-ppc64@0.27.7':
     resolution: {integrity: sha512-EKX3Qwmhz1eMdEJokhALr0YiD0lhQNwDqkPYyPhiSwKrh7/4KRjQc04sZ8db+5DVVnZ1LmbNDI1uAMPEUBnQPg==}
@@ -1316,36 +1474,36 @@ snapshots:
       picocolors: 1.1.1
       sisteransi: 1.0.5
 
-  '@dforge-core/dforge-cli-darwin-arm64@0.2.33':
+  '@dforge-core/dforge-cli-darwin-arm64@0.2.35':
     optional: true
 
-  '@dforge-core/dforge-cli-darwin-x64@0.2.33':
+  '@dforge-core/dforge-cli-darwin-x64@0.2.35':
     optional: true
 
-  '@dforge-core/dforge-cli-linux-arm64@0.2.33':
+  '@dforge-core/dforge-cli-linux-arm64@0.2.35':
     optional: true
 
-  '@dforge-core/dforge-cli-linux-x64@0.2.33':
+  '@dforge-core/dforge-cli-linux-x64@0.2.35':
     optional: true
 
-  '@dforge-core/dforge-cli-win32-arm64@0.2.33':
+  '@dforge-core/dforge-cli-win32-arm64@0.2.35':
     optional: true
 
-  '@dforge-core/dforge-cli-win32-x64@0.2.33':
+  '@dforge-core/dforge-cli-win32-x64@0.2.35':
     optional: true
 
-  '@dforge-core/dforge-cli@0.2.33':
+  '@dforge-core/dforge-cli@0.2.35':
     dependencies:
       '@clack/prompts': 0.11.0
     optionalDependencies:
-      '@dforge-core/dforge-cli-darwin-arm64': 0.2.33
-      '@dforge-core/dforge-cli-darwin-x64': 0.2.33
-      '@dforge-core/dforge-cli-linux-arm64': 0.2.33
-      '@dforge-core/dforge-cli-linux-x64': 0.2.33
-      '@dforge-core/dforge-cli-win32-arm64': 0.2.33
-      '@dforge-core/dforge-cli-win32-x64': 0.2.33
+      '@dforge-core/dforge-cli-darwin-arm64': 0.2.35
+      '@dforge-core/dforge-cli-darwin-x64': 0.2.35
+      '@dforge-core/dforge-cli-linux-arm64': 0.2.35
+      '@dforge-core/dforge-cli-linux-x64': 0.2.35
+      '@dforge-core/dforge-cli-win32-arm64': 0.2.35
+      '@dforge-core/dforge-cli-win32-x64': 0.2.35
 
-  '@dforge-core/metadata@0.0.43': {}
+  '@dforge-core/metadata@0.0.44': {}
 
   '@esbuild/aix-ppc64@0.27.7':
     optional: true

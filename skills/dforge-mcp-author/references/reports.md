@@ -78,7 +78,7 @@ A report has a `label`, a `description`, a `datasets` map, a `layout` object (`{
 - `query.columns` — column codes; supports dot navigation (`customer.name`).
 - `query.filter` — canonical filter (`{c,o,v}` or `{g,i:[...]}`); use `@param_code` to reference a parameter.
 - `query.sort` — `[{ c, d }]` where `d` ∈ `asc | desc`.
-- `columnsDef` — optional per-column display overrides (`{ label, visible, width }`).
+- `columnsDef` — optional per-column display overrides (`{ label, fieldTypeCd, format, width }`; each key replaces the projected value). `label` is a literal and wins over a translated header. `visible` is accepted but read by nothing. `baseDatatypeCd` is read only where the dataset projects no columns of its own.
 
 ### Stored procedure dataset (developer path)
 
@@ -110,6 +110,9 @@ Key differences from entity datasets:
   **override** — `report.run` projects `dForge.sp_column`, and `columnsDef` only restyles it.
   A function returning an unnamed `SETOF <composite>` or a bare scalar declares no column
   names, so that one needs an explicit `columns` block in `logic/stored_procedures.json`.
+  Leave `label` out of `columnsDef` to keep the column's translated header: result-column headers
+  translate under the procedure, `storedProcedures.<sp_cd>.columns.<column_cd>.label`
+  (see `references/translations.md`), and every dataset bound to the procedure shows it.
 - Params work exactly as they do for an entity dataset, and `datasetType` makes no difference: declare them at report level (`parameters`) or on the dataset (`params`). Report level wins on a code collision.
 - **The parameter code must match the procedure's declared `paramCd` exactly.** `report.run`
   resolves each argument by that code alone — no prefix is added or stripped — so a report

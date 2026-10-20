@@ -108,10 +108,20 @@
 		},
 		"traits": {
 			"type": "array",
-			"description": "Entity traits expanded during module install (authoring shortcut). Trait definitions loaded from DB (seeded by metadata module).",
+			"description": "Entity traits expanded during module install (authoring shortcut): a platform trait, or one the module declares in its own traits.json. Pack and install refuse a name that is neither; the schema cannot see traits.json, so it accepts any trait-shaped name and lists only the platform traits.",
 			"items": {
-				"type": "string",
-				"enum": ["identity", "audit", "audit-full", "soft-delete", "sorting", "postable", "accumulation", "ledger", "period", "file-library"]
+				"anyOf": [
+					{
+						"type": "string",
+						"enum": ["identity", "audit", "audit-full", "soft-delete", "sorting", "postable", "accumulation", "ledger", "period", "file-library"],
+						"description": "Platform trait."
+					},
+					{
+						"type": "string",
+						"pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+						"description": "A trait declared in the module's own traits.json."
+					}
+				]
 			},
 			"uniqueItems": true
 		},

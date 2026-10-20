@@ -4,6 +4,22 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.44 — 2026-10-21
+
+**Schemas follow metadata 0.0.44.** `dforge://schema/translations` describes `storedProcedures`
+(result-column headers of a stored procedure, shared by every report bound to it) and a report's
+`desc`. `dforge://schema/reports` accepts `fieldTypeCd`, `format` and `baseDatatypeCd` on a dataset's
+`columnsDef`. `dforge://schema/entity` accepts a trait declared in the module's own `traits.json`.
+
+**DSL builtins.** `printPdf(entityCd, key, templateCd)` renders a print template to a PDF as the current
+user; `sendEmail()` takes a fourth `attachments` argument (a `printPdf()` result or an array of them);
+`downloadText()` / `downloadBase64()` hand the user a file the script built, in any code page.
+
+**Needs `@dforge-core/dforge-cli` 0.2.35**, which compiles the above, requires a translation per
+stored-procedure column on `dforge_module_pack` / `dforge_module_validate`, refuses a request filter
+with an unknown operator instead of dropping it, and reads and generates every module file with LF
+line endings on every platform.
+
 ## 0.2.43 — 2026-10-19
 
 **Schemas follow metadata 0.0.43.** `dforge://schema/registers` describes `analyticTotals` (an

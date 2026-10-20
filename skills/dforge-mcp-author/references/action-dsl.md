@@ -249,6 +249,14 @@ var note = params[note]             // no quotes around param name in this DSL
 > `null` key **throws** (a `col = NULL` predicate can never match), and array keys are rejected —
 > loop and mutate per id instead.
 
+> **Posting state.** `update()` setting a register posting state (the `A` / `L` column) posts or unposts
+> the document through the register engine, in a trigger action and in a background run alike; a refused
+> posting rolls the caller's write back. A background run holds no transaction, so such a call opens its
+> own: atomic per call, not per run. A scheduled run cannot post with `update()`.
+
+> **Keys of any type.** A field saved with `[field] = value` binds the record key by the key column's own
+> type, so a `uuid` or a digits-only `varchar` key works.
+
 > **These writes raise no events.** `insert()`, `update()`, `delete()` and `query()` are the raw
 > write layer: by design they skip folder row-filters, closed-period checks and registry state, and
 > they raise no trigger or webhook events either. Only the **acted-on record's own**
@@ -339,7 +347,16 @@ error('Insufficient stock. Available: {available}, requested: {requested}',
 | Function | Description |
 |---|---|
 | `sendEmail(to, subject, htmlBody)` | Send a raw email. `to` is an email address string. |
-| `sendEmail(to, subject, htmlBody, templateCode)` | Send a templated email (if email templates are configured). |
+| `sendEmail(to, templateCode, dataObj)` | Send a templated email. The **second** argument picks the mode: one with no spaces that contains `.` or `_` is read as a template code, so give a raw subject spaces. |
+| `sendEmail(to, subjectOrTemplate, dataOrBody, attachments)` | The optional fourth argument attaches files: a `printPdf()` result, or an array of them (`[a, b]`; pass a single file as itself, because a one-name `[a]` reads as a field reference). Only a `printPdf()` result can be attached, and only by the user who generated it or a workspace admin. At most 5 files and 10 MB per email. A file the sender may not attach fails the action. A scheduled job's email with attachments fails and rolls back. |
+
+### PDF and file output
+
+| Function | Returns | Description |
+|---|---|---|
+| `printPdf('module.entity', key, templateCd)` | `{ fileId, fileName, mimeType, size, checksum }` | Render a print template to a PDF **as the current user** (the record is read under their rights and the folder's row filter) and archive it. A descriptor, never the bytes: attach it with `sendEmail()`. Always pass a qualified entity code. Not available in a scheduled job or a background action, refused in a computing-only run, max 10 per run; each render holds the action's transaction open. |
+| `downloadText(content, fileName, encoding?, mimeType?)` | URL string | Hand the user a text file the script built. `encoding` is `utf-8` by default; `windows-1251`, `cp866`, `koi8-u` and other code pages work, and a character the encoding cannot represent is an error. Line endings are written as given (join with `'\r\n'` for CR LF), no BOM. Returns the signed download URL (valid an hour). An action has one download: a later call replaces the earlier. In a background or scheduled run nobody receives it, so pass the URL on in `notify()`. Max 10 MB per file, 10 files per run. |
+| `downloadBase64(base64, fileName, mimeType?)` | URL string | `downloadText()` for bytes; `application/octet-stream` unless `mimeType` says otherwise. |
 
 ### External API Calls
 
@@ -350,7 +367,7 @@ error('Insufficient stock. Available: {available}, requested: {requested}',
 | `getFileUrl(fileFieldValue)` | String | Generate a temporary signed download URL (relative path) for a file field. Use in email templates or notifications — not for `callApi()`. |
 | `getSecret('secret_cd')` | String | Retrieve a decrypted secret value (API keys, tokens). Secrets are managed in the admin UI. |
 | `getFileInfo(fileFieldValue)` | Object \| null | File metadata for a file field. |
-| `download(url, fileName?)` | — | Fetch a URL into tenant storage. |
+| `download(url, fileName?)` | — | Set a download URL on the action result; the browser opens it when the action returns. It fetches and stores nothing: the URL must already serve the bytes. To hand over a file the script builds, use `downloadText()` / `downloadBase64()`. |
 | `callService('name', { args })` | Any | Invoke a registered host service. |
 
 ### Files, settings, document extraction

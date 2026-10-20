@@ -8,7 +8,7 @@ Lives in: `ui/print_templates.json` + HTML/CSS files under `print_templates/`. S
 
 | Path        | Engine          | Used by                                                  |
 | ----------- | --------------- | -------------------------------------------------------- |
-| **Server**  | Scriban (Liquid) | `print.render` RPC — final print / save-as-PDF           |
+| **Server**  | Scriban (Liquid) | `print.render` RPC; `print.renderPdf` (Generate PDF, headless Chromium); `printPdf()` in a DSL action |
 | **Client**  | LiquidJS         | Editor preview — fast iteration                          |
 
 Filters are mirrored on both sides so the preview matches the print.
@@ -66,6 +66,12 @@ Every column on the entity is a top-level variable. Display formatting is pre-ap
 | `{{ _css }}`            | The CSS string attached to the template (rarely needed in template body)                                |
 
 Inside a child-set loop, the same shape applies per row: `line._fmt.<col>`, `line._raw.<col>`, `line._color.<col>`.
+
+A loop over a document's set can read a set of the line's own entity off each line (`{% for l in lines %}{% for a in l.attributes %}`): detected by the template reading it, loaded for every line in one query under the same rights and row filter, one level deep. The editor preview does not fill it.
+
+A printed set, nested or not, needs **Select** on its entity in the folder, as `data.get` does; one the user cannot read prints empty. `print.render` and `print.renderPdf` check Select on the printed entity.
+
+A currency column prints its glyph for the common codes (`EUR` → `€`, `USD` → `$`, `GBP` → `£`, `UAH` → `₴`, `PLN` → `zł`); other codes print as the code. `format_currency` follows the same mapping.
 
 Formula columns (`F`) are read in the same SQL as the record, as `data.get` does, so a formula that navigates references or calls a SQL function prints what the grid shows, and `TODAY()` / `NOW()` work. A formula the SQL translator cannot express prints empty and the response carries a warning naming the column.
 
@@ -170,6 +176,8 @@ my_module/
 - **Forgetting `_raw` for codes.** Direct `{{ status }}` is the label (`"Partially Paid"`). For CSS classes / wire-format payloads / predicates against codes, use `{{ _raw.status }}` (`"P"`).
 - **Manually formatting dates/currency.** Don't reach for `format_currency` when the column is already `fieldTypeCd: "currency"` — `_fmt.<col>` already matches the form. Use the filter only for derived values.
 - **Expecting a set to load only from a `for`.** It loads wherever the template names it (`sort`, `.size`, `.first`). A set read only inside a snippet is not seen: mention it in the host template.
+- **Testing emptiness with `blank` / `empty`.** LiquidJS (preview) knows them, Scriban (print) does not, so the comparison is always false on the server for an unset field. Use `{% unless x %}`, `{% if x and x != '' %}` or `x != nil`.
+- **Dashed comment tags.** The server cuts every `{%- comment -%}` block before parsing, but keep snippets to plain `{% comment %}` so both engines agree.
 - **Snippet `template_cd` with a dot.** `{% include 'my_module.foo.bar' %}` — the resolver splits on the last dot only, so `my_module.foo` becomes the module name and breaks. No dots in snippet codes.
 - **Dropping CSS in `<style>` blocks inline.** The renderer wires `<style>` for you; declare CSS in the separate `.css` file (or inline string via the `css` field).
 - **Printing an unsorted set.** Rows come in primary-key order; use `| sort: 'col'` (and `| reverse`) in the template.
