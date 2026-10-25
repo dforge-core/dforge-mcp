@@ -4,7 +4,7 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
-## Unreleased
+## 0.2.45 — 2026-10-25
 
 **English is the base locale, and it lives in the definitions.** Install never reads
 `translations/en.json` / `en-*.json`, so the English file the tools wrote was dead weight: its labels
