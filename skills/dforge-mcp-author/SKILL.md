@@ -147,12 +147,13 @@ Load these by URI, one per step, at the step that needs them.
 `data-views`, `menus`, `action-dsl`, `filters`, `security`, `reports`,
 `settings`, `jobs`, `number-sequences`, `registers`, `reactions`, `document-extraction`,
 `print-templates`, `translations`, `queries`, `schema-import`, `excel-import`,
-`data-migration`, `manifest`, `validation-checklist`, `conventions`.
+`data-migration`, `manifest`, `conventions`, `validation-checklist`.
 
 **Schemas** (fallback, when a reference points at one) — `dforge://schema/<name>`:
 `manifest`, `entity`, `domains`, `data-views`, `folders`, `menus`, `roles`,
 `jobs`, `seed-data`, `traits`, `webhooks`, `triggers`, `print-templates`,
-`settings`, `reports`.
+`settings`, `reports`, `deps`, `registers`, `translations`, `diagram`,
+`stored-procedures`, `card-layouts`, `demo-vars`.
 
 **Docs**: `dforge://docs/dsl` (full DSL grammar + built-ins),
 `dforge://docs/conventions` (cross-module extension work — §1b only).

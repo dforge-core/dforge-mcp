@@ -340,6 +340,32 @@ describe("translation_sync", () => {
 		expect(Object.keys(r.files)).toEqual(["translations/de-DE.json"]);
 	});
 
+	it("skips English entries declared in supportedLocales, in sync and in validate", () => {
+		rmSync(dir, { recursive: true, force: true });
+		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-elements-"));
+		makeModule({ supportedLocales: ["en-US", "de-DE"] });
+		const r = translationSync({ moduleDir: dir, prune: false });
+		expect(Object.keys(r.files)).toEqual(["translations/de-DE.json"]);
+		apply(r);
+		expect(validate().errors).toEqual([]);
+	});
+
+	it("names only the locales that gained keys in the seeded warning", () => {
+		rmSync(dir, { recursive: true, force: true });
+		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-elements-"));
+		makeModule({ supportedLocales: ["de-DE", "uk-UA"] });
+		apply(translationSync({ moduleDir: dir, locales: ["uk-UA"], prune: false }));
+		writeFileSync(join(dir, "translations", "de-DE.json"), "{}");
+		const r = translationSync({ moduleDir: dir, locales: ["de-DE", "uk-UA"], prune: false });
+		expect(r.warning).toMatch(/Newly-added keys in de-DE are/);
+	});
+
+	it("mentions a leftover English file when an English-only module has nothing to sync", () => {
+		mkdirSync(join(dir, "translations"), { recursive: true });
+		writeFileSync(join(dir, "translations", "en-US.json"), "{}");
+		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(/translations\/en-US\.json is never read/);
+	});
+
 	it("fixes the validator's translation-completeness errors", () => {
 		rmSync(dir, { recursive: true, force: true });
 		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-elements-"));

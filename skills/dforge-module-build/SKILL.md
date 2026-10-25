@@ -36,6 +36,8 @@ flags, or column patterns.
 | Suggest a value when another field is edited (a reaction), incl. from a bridge module | `dforge://reference/reactions` | `dforge://schema/entity`, `dforge://schema/deps` |
 | Add a trait | `dforge://reference/traits` | — |
 | Add a number sequence | `dforge://reference/number-sequences` | — |
+| Add an accumulation register (`A` column, `registers.json`) | `dforge://reference/registers` | `dforge://schema/registers` |
+| Edit the manifest (version, `supportedLocales`, dependencies, `entities` map) | `dforge://reference/manifest` | `dforge://schema/manifest` |
 | Add a grid / list view | `dforge://reference/data-views`, `dforge://example/ui/data_views.json` | — |
 | Add a matrix (pivot) view | `dforge://reference/data-views` (§Matrix), `dforge://example/matrix-budget/ui/data_views.json`, `dforge://example/matrix-budget/entities/budget_line.json` | — |
 | Add kanban / calendar / tree-grid / master-detail | `dforge://reference/data-views` | `dforge://schema/data-views` |
@@ -114,12 +116,12 @@ Enough to author inline; load the linked reference for the full detail.
   are formula-only and undefined in `execute:`. → `action-dsl`
 - **SQL placeholders** are `@paramName`, not `:paramName`.
 - **Manifest:** non-English locales go in `supportedLocales` (`ll-CC`, never
-  `en`/`en-US`); there is no `translations` manifest key.
+  `en`/`en-US`); there is no `translations` manifest key. `security` has both
+  `roles` and `folders`. → `manifest`
 - **English is the definitions' text:** install skips `translations/en*.json`, so
   never create one. Give every entity, field, role and setting a short
   `description` and every view, menu, action and report a short `label` — that
-  is what the English UI shows. → `translations` `security` has both
-  `roles` and `folders`. → `manifest`
+  is what the English UI shows. → `translations`
 - **Seed data:** explicit numeric PKs under `{entity}_id`; parents before
   children via the `NN-` prefix. Use `dforge_seed_add`.
 
@@ -165,6 +167,7 @@ approval, then patch. Reach for the **composite tools first**:
 - roll-up total → `dforge_entity_rollup_add`
 - status column → `dforge_entity_status_add`
 - plain scalar → `dforge_entity_field_add`
+- change an existing field (label, flags, type, …) → `dforge_entity_field_modify`
 
 **Field batching rule** — the only Phase 1 exception to one-at-a-time. A field
 is batchable only if ALL of: scalar primitive (string/integer/decimal/boolean/

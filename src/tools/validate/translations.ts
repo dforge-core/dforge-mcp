@@ -133,7 +133,7 @@ export function checkTranslationCompleteness(ctx: ValidateContext): void {
 
 	for (const raw of supportedLocales) {
 		const locale = raw.trim();
-		if (!locale) continue;
+		if (!locale || isEnglishLocale(locale)) continue;
 		if (!resolveTranslationFile(paths.translationsDir, locale)) {
 			err(
 				"translations",

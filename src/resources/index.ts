@@ -254,7 +254,8 @@ export const resources: ResourceDef[] = [
 	reference("registers", "Registers: accumulation (balance / turnover / info) and accounting (classic / compound) registers, registers.json, binding a document from its A / L columns (map, per-side debit/credit objects), and the reads. Load before authoring registers.json or an A / L column."),
 	reference("reactions", "Field-change reactions: `reactions` on an entity (formula rules and server `call` rules) that suggest a stored, editable value when the user edits another field; a bridge module's reactions on its host's entity (`reaction:<code>` in deps); dependent references. Load before authoring any reaction."),
 	reference("data-migration", "Migrating data from a legacy database."),
-	reference("manifest", "manifest.json shape: moduleId UUID, semver, entities map, locale-keyed translations, security block."),
+	reference("manifest", "manifest.json shape: moduleId UUID, semver, entities map, supportedLocales (non-English only), security block."),
+	reference("conventions", "Cross-cutting module rules: naming, structure, translations, upgrade migrations."),
 	reference("validation-checklist", "Final pre-pack self-review checklist covering every file type."),
 
 	// ── Canonical example module (skills/.../examples/simple-todo) ────────

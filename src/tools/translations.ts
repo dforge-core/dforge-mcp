@@ -147,7 +147,7 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 	// ── views ──
 	const views = readJsonOrDefault<Record<string, Dict>>(paths.dataViews, {});
 	for (const [code, v] of Object.entries(views)) {
-		push("views", ["views", code, "label"], str(v, "label") ?? str(v, "description") ?? titleize(code));
+		push("views", ["views", code, "label"], str(v, "label") ?? titleize(code));
 	}
 
 	// ── menus (root + nested items, mirroring ui/menus.json) ──
@@ -159,12 +159,12 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 			{};
 		for (const [code, child] of Object.entries(children)) {
 			const next = [...trail, "items", code];
-			push("menus", [...next, "label"], str(child, "label") ?? str(child, "description") ?? titleize(code));
+			push("menus", [...next, "label"], str(child, "label") ?? titleize(code));
 			walkMenu(child, next);
 		}
 	};
 	for (const [code, m] of Object.entries(menus)) {
-		push("menus", ["menus", code, "label"], str(m, "label") ?? str(m, "description") ?? titleize(code));
+		push("menus", ["menus", code, "label"], str(m, "label") ?? titleize(code));
 		walkMenu(m, ["menus", code]);
 	}
 
@@ -182,7 +182,7 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 	// ── actions ──
 	const actions = readJsonOrDefault<Record<string, Dict>>(paths.actions, {});
 	for (const [code, a] of Object.entries(actions)) {
-		push("actions", ["actions", code, "label"], str(a, "label") ?? str(a, "description") ?? titleize(code));
+		push("actions", ["actions", code, "label"], str(a, "label") ?? titleize(code));
 	}
 
 	// ── folders (root + every nested sub-folder) ──
@@ -206,11 +206,11 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 		}
 		// The root folder has no code of its own — it IS the file — so it's keyed
 		// on the module code.
-		push("folders", ["folders", manifest.code, "label"], str(folders, "label") ?? str(folders, "description") ?? titleize(manifest.code));
+		push("folders", ["folders", manifest.code, "label"], str(folders, "label") ?? titleize(manifest.code));
 		for (const f of walkFolders(folders)) {
 			const flatCode = [manifest.code, ...f.path.split("/")].join("_");
 			// Earlier syncs keyed a sub-folder by its bare code, which install never applied.
-			push("folders", ["folders", flatCode, "label"], str(f.node, "label") ?? str(f.node, "description") ?? titleize(f.code), false, [
+			push("folders", ["folders", flatCode, "label"], str(f.node, "label") ?? titleize(f.code), false, [
 				"folders",
 				f.code,
 				"label",
@@ -277,11 +277,18 @@ export function translationSync(
 				"report's `label`, a role's or setting's `description`. Edit the text there.",
 		);
 	}
-	const locales = args.locales ?? declared;
+	// A manifest that still lists English (legacy shape) must not get an English file: skip it.
+	const ignored = fs.existsSync(paths.translationsDir)
+		? fs.readdirSync(paths.translationsDir).filter((f) => f.toLowerCase().endsWith(".json") && isEnglish(f.slice(0, -5)))
+		: [];
+	const staleEnglish = ignored.length > 0
+		? ` Leftover ${ignored.map((f) => `translations/${f}`).join(", ")} is never read by install — move any wording you want from it into the definitions, then delete it.`
+		: "";
+	const locales = args.locales ?? declared.filter((l) => !isEnglish(l));
 	if (locales.length === 0) {
 		throw new Error(
 			"No locales to sync. An English-only module needs no translation files: its English text lives in the " +
-				"definitions. To translate, declare the other locales in manifest.supportedLocales (e.g. [\"uk-UA\"]).",
+				"definitions. To translate, declare the other locales in manifest.supportedLocales (e.g. [\"uk-UA\"])." + staleEnglish,
 		);
 	}
 
@@ -297,6 +304,7 @@ export function translationSync(
 	const report: string[] = [];
 	let totalAdded = 0;
 	let missingRequired = 0;
+	const seeded: string[] = [];
 
 	for (const locale of locales) {
 		const abs = path.join(paths.translationsDir, `${locale}.json`);
@@ -323,19 +331,17 @@ export function translationSync(
 
 		files[rel(paths.root, abs)] = jsonText(next);
 		totalAdded += added;
+		if (added > 0) seeded.push(locale);
 		report.push(`${locale}: +${added} key(s)${added === 0 ? " (already complete)" : ""}`);
 	}
 
 	const warnings: string[] = [];
 	if (totalAdded > 0) {
 		warnings.push(
-			`Newly-added keys in ${locales.join(", ")} are seeded with the ENGLISH source text so the file is ` +
+			`Newly-added keys in ${seeded.join(", ")} are seeded with the ENGLISH source text so the file is ` +
 				"installable immediately — they still need real translation.",
 		);
 	}
-	const ignored = fs.existsSync(paths.translationsDir)
-		? fs.readdirSync(paths.translationsDir).filter((f) => f.toLowerCase().endsWith(".json") && isEnglish(f.slice(0, -5)))
-		: [];
 	if (ignored.length > 0) {
 		warnings.push(
 			`${ignored.map((f) => `translations/${f}`).join(", ")} is never read by install — the English UI shows the ` +
