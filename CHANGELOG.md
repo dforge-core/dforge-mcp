@@ -17,6 +17,10 @@ action from `label`, else `description` — what install shows. `references/tran
 table of where each object's English text lives, and the column-security example drops its
 `en-US.json` for short labels in the definitions.
 
+**File map keys use `/` on Windows too.** Every tool that builds a `files` key from a path (field,
+entity, view, menu, action, role-right, seed, diagram and translation tools, the refactors) returned
+`translations\de-DE.json`-style keys on Windows; they now return `translations/de-DE.json` on every OS.
+
 **DSL builtins.** `attachText(content, fileName, encoding?, mimeType?)` / `attachBase64(base64, fileName, mimeType?)` build a file for `sendEmail()`'s fourth argument, keeping its own type (an `.ics` as `text/calendar`); a scheduled job can attach them, unlike a `printPdf()` file. Follows metadata 0.0.45; `dforge_action_check` knows both. **Needs `@dforge-core/dforge-cli` with them** (0.2.36).
 
 **Schemas follow metadata 0.0.46.** `dforge://schema/registers` accepts `importedKeyField` on an accounting register; `dforge://schema/entity` accepts the `filesize` field type.
