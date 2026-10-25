@@ -14,7 +14,6 @@
 	"dependencies": {
 		"admin": ">=0.0.1"
 	},
-	"supportedLocales": ["en-US"],
 	"created": "2026-08-19",
 	"updated": "2026-08-19",
 	"entities": {

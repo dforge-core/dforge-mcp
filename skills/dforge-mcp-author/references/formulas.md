@@ -104,8 +104,10 @@ FORMAT([created_date], 'yyyy-MM-dd')
 
 ### Date functions
 
-- `TODAY()` — current date
+- `TODAY()` — current date, in the request's time zone
 - `NOW()` — current datetime with timezone
+
+The request's zone is the browser's (sent on every call), else the user's profile zone, else the workspace's, else UTC. Before platform 2026-10-25 both were always UTC, so `TODAY()` was a day off around midnight for a viewer far from UTC. Scheduled jobs still run on UTC.
 - `YEAR(d)`, `MONTH(d)`, `DAY(d)` — date parts (`MONTH` is 1-based)
 - `HOUR(dt)`, `MINUTE(dt)`, `SECOND(dt)` — time parts
 - `WEEKDAY(d)` — day of week, `0` = Sunday
@@ -379,6 +381,8 @@ deep — `[parent].[name]` reads the parent's plain name.
 An `F` column is virtual: not stored, not editable. To fill a **stored, editable** column from other fields while the user edits, use a field-change reaction, whose formula rules take this same syntax. See `dforge://reference/reactions`.
 
 ## Common mistakes
+
+- Dividing by a column that can be zero (`[a] / [b]`) — wherever the formula runs in SQL (a stored `G` column, a filter, a sort, a report) a zero divisor fails the statement with `division by zero`. Guard it (`CASE([b] = 0, 0, [a] / [b])`) or store the result from an action.
 
 - Using `column_name` without brackets — **wrong**. Always `[column_name]`.
 - Inventing functions like `HAS_PERMISSION()`, `IS_ADMIN()`, `GET_USER()` — **do not exist**. Do not use unless confirmed to exist in the actual dForge engine.

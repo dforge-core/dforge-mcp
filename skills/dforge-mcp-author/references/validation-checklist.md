@@ -162,8 +162,8 @@ For each action:
 
 ## Translations
 
-- [ ] `translations/en-US.json` exists
-- [ ] Has `entities` section with `label`, `desc`, and `fields` for every entity
+- [ ] **No** `translations/en.json` / `en-*.json` — install skips them. English is each definition's own short label (entity/field/role/setting `description`, view/menu/action/report `label`)
+- [ ] Each `translations/<locale>.json` (one per `supportedLocales` entry) has an `entities` section with `label`, `desc`, and `fields` for every entity
 - [ ] Every field (including trait-provided: `created_date`, `last_updated`, etc.) has a `label`
 - [ ] Has `views` section with labels for every data view
 - [ ] Has `menus` section matching the `ui/menus.json` structure
@@ -172,7 +172,6 @@ For each action:
 - [ ] (Optional) Constraint messages localized under `entities.<e>.constraints.<c>.message` — opt-in; a missing override for a declared `supportedLocales` entry warns (surfaced by `dforge_module_validate` and at install) but does not fail install
 - [ ] Has `settings` section with labels for every setting (if settings exist)
 - [ ] Has `folders` section with label for the root folder
-- [ ] Additional language files (if any) have the same structure as `en-US.json`
 - [ ] Manifest `supportedLocales` lists every non-English locale that has a `translations/<locale>.json` file (English is not listed)
 
 ## Versioning

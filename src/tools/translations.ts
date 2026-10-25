@@ -1,16 +1,19 @@
 // dforge_translation_sync — generate/refresh translations/<locale>.json from
 // what the module actually contains.
 //
-// Translation completeness is enforced at install: `roles.<code>.label` is
-// required for EVERY role in EVERY locale file (including the en-US base), and
-// every locale in manifest.supportedLocales must have a file. Hand-maintaining
+// English is the base locale and lives in the definitions themselves (an
+// entity's `description`, a menu's `label`, …): install never reads
+// translations/en*.json, so this tool writes no English file. Translation
+// completeness is enforced at install for the files it does read:
+// `roles.<code>.label` is required for EVERY role in EVERY non-English locale
+// file, and every locale in manifest.supportedLocales must have a file. Hand-maintaining
 // that across entity/view/menu churn is exactly the bookkeeping a tool should
 // do — and "missing translation key" was a documented install-failure mode with
 // no tool behind it.
 //
 // Non-destructive by contract: an existing translated value is NEVER
-// overwritten. Missing keys are seeded with the English source text, so the
-// file is immediately installable and the human/agent can translate in place.
+// overwritten. Missing keys are seeded with the English text install shows,
+// so the file is immediately installable and the human/agent can translate in place.
 
 import { z } from "zod";
 import * as fs from "node:fs";
@@ -54,7 +57,7 @@ export const translationSyncSchema = {
 		.array(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/))
 		.optional()
 		.describe(
-			"Locales to sync. Default: 'en-US' plus every entry in manifest.supportedLocales — i.e. exactly the set install requires.",
+			"Non-English locales to sync. Default: every entry in manifest.supportedLocales — exactly the set install requires. An English locale is refused: install never reads translations/en*.json, English text belongs in the definitions.",
 		),
 	prune: z
 		.boolean()
@@ -73,8 +76,6 @@ interface SkeletonEntry {
 	required: boolean;
 	/** Where older files held this text; a translation there is carried over. */
 	legacyParts?: string[];
-	/** Only for non-English files: an English DSL message is the .dsl text itself. */
-	nonEnglishOnly?: boolean;
 }
 
 /** Build the full set of translatable keys from the module's own files. */
@@ -98,9 +99,8 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 		english: string,
 		required = false,
 		legacyParts?: string[],
-		nonEnglishOnly = false,
 	) => {
-		entries.push({ pathParts, english, required, legacyParts, nonEnglishOnly });
+		entries.push({ pathParts, english, required, legacyParts });
 		counts[section] = (counts[section] ?? 0) + 1;
 	};
 
@@ -219,16 +219,16 @@ function buildSkeleton(moduleDir: string): { entries: SkeletonEntry[]; counts: R
 	}
 
 	// ── settings (completeness-checked for declared locales) ──
-	// Older settings name themselves in `description` (what install labels the
-	// setting with) or the short `desc`.
+	// Install labels a setting with its `description`; `label` and the short
+	// `desc` are fallbacks for older files.
 	const settings = readJsonOrDefault<Record<string, Dict>>(paths.settings, {});
 	for (const [code, s] of Object.entries(settings)) {
-		push("settings", ["settings", code, "label"], str(s, "label") ?? str(s, "description") ?? str(s, "desc") ?? titleize(code));
+		push("settings", ["settings", code, "label"], str(s, "description") ?? str(s, "label") ?? str(s, "desc") ?? titleize(code));
 	}
 
 	// ── DSL messages: info / warn / error / exit texts, keyed by the English text ──
 	for (const text of actionMessageTexts(paths.logicDir, actions).keys()) {
-		push("messages", ["messages", text], text, false, undefined, true);
+		push("messages", ["messages", text], text);
 	}
 
 	return { entries, counts };
@@ -268,11 +268,28 @@ export function translationSync(
 	const declared = Array.isArray(manifest.supportedLocales)
 		? (manifest.supportedLocales as unknown[]).filter((l): l is string => typeof l === "string")
 		: [];
-	// en-US is the base and is never listed in supportedLocales, but its file is
-	// still required — so it's always part of the default set.
-	const locales = args.locales ?? ["en-US", ...declared];
+	const isEnglish = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
+	const english = (args.locales ?? []).filter(isEnglish);
+	if (english.length > 0) {
+		throw new Error(
+			`Refusing to sync ${english.join(", ")}: install never reads translations/en*.json. English is the base ` +
+				"locale and lives in the definitions — an entity's or field's `description`, a menu's, action's or " +
+				"report's `label`, a role's or setting's `description`. Edit the text there.",
+		);
+	}
+	// A manifest that still lists English (legacy shape) must not get an English file: skip it.
+	const ignored = fs.existsSync(paths.translationsDir)
+		? fs.readdirSync(paths.translationsDir).filter((f) => f.toLowerCase().endsWith(".json") && isEnglish(f.slice(0, -5)))
+		: [];
+	const staleEnglish = ignored.length > 0
+		? ` Leftover ${ignored.map((f) => `translations/${f}`).join(", ")} is never read by install — move any wording you want from it into the definitions, then delete it.`
+		: "";
+	const locales = args.locales ?? declared.filter((l) => !isEnglish(l));
 	if (locales.length === 0) {
-		throw new Error("No locales to sync. Pass `locales`, or declare them in manifest.supportedLocales.");
+		throw new Error(
+			"No locales to sync. An English-only module needs no translation files: its English text lives in the " +
+				"definitions. To translate, declare the other locales in manifest.supportedLocales (e.g. [\"uk-UA\"])." + staleEnglish,
+		);
 	}
 
 	const { entries, counts } = buildSkeleton(args.moduleDir);
@@ -283,11 +300,11 @@ export function translationSync(
 	}
 	const keep = new Set(entries.map((e) => compositeKey(...e.pathParts)));
 
-	const isEnglish = (l: string) => l.toLowerCase() === "en" || l.toLowerCase().startsWith("en-");
 	const files: Record<string, string> = {};
 	const report: string[] = [];
 	let totalAdded = 0;
 	let missingRequired = 0;
+	const seeded: string[] = [];
 
 	for (const locale of locales) {
 		const abs = path.join(paths.translationsDir, `${locale}.json`);
@@ -303,7 +320,6 @@ export function translationSync(
 		const next: Dict = args.prune ? pruneTo(existing, keep) : JSON.parse(JSON.stringify(existing));
 		let added = 0;
 		for (const entry of entries) {
-			if (entry.nonEnglishOnly && isEnglish(locale)) continue;
 			const current = getIn(next, entry.pathParts);
 			// Never overwrite existing translated text.
 			if (typeof current === "string" && current.trim() !== "") continue;
@@ -315,16 +331,24 @@ export function translationSync(
 
 		files[rel(paths.root, abs)] = jsonText(next);
 		totalAdded += added;
+		if (added > 0) seeded.push(locale);
 		report.push(`${locale}: +${added} key(s)${added === 0 ? " (already complete)" : ""}`);
 	}
 
-	const nonEnglish = locales.filter((l) => !isEnglish(l));
-	const warning =
-		nonEnglish.length > 0 && totalAdded > 0
-			? `Newly-added keys in ${nonEnglish.join(", ")} are seeded with the ENGLISH source text so the file is ` +
-				"installable immediately — they still need real translation. (Untranslated values fall back to en-US " +
-				"at runtime, so this never breaks; it just shows English.)"
-			: undefined;
+	const warnings: string[] = [];
+	if (totalAdded > 0) {
+		warnings.push(
+			`Newly-added keys in ${seeded.join(", ")} are seeded with the ENGLISH source text so the file is ` +
+				"installable immediately — they still need real translation.",
+		);
+	}
+	if (ignored.length > 0) {
+		warnings.push(
+			`${ignored.map((f) => `translations/${f}`).join(", ")} is never read by install — the English UI shows the ` +
+				"definitions' own `description` / `label`. Move any wording you want from it into the definitions, then delete it.",
+		);
+	}
+	const warning = warnings.length > 0 ? warnings.join(" ") : undefined;
 
 	const sections = Object.entries(counts)
 		.map(([k, v]) => `${v} ${k}`)

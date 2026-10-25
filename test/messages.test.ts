@@ -44,13 +44,12 @@ const validateIssues = () => {
 };
 
 describe("translation_sync — messages", () => {
-	it("seeds the scripts' fixed texts into non-English files only", () => {
+	it("seeds the scripts' fixed texts into the declared locales, and writes no English file", () => {
 		write("translations/de-DE.json", { messages: { Shipped: "Versandt" } });
 		const r = translationSync({ moduleDir: dir, prune: false } as never);
 		const de = JSON.parse(r.files["translations/de-DE.json"]!);
-		const en = JSON.parse(r.files["translations/en-US.json"]!);
 		expect(de.messages).toEqual({ Shipped: "Versandt", "Only {n} left": "Only {n} left" });
-		expect(en.messages).toBeUndefined();
+		expect(Object.keys(r.files)).toEqual(["translations/de-DE.json"]);
 	});
 });
 

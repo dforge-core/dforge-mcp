@@ -251,6 +251,12 @@ describe("end-to-end module build", () => {
 				order: 1,
 			}),
 		);
+		// English lives in the definitions; only a declared locale gets a file.
+		const manifestPath = join(dir, "manifest.json");
+		writeFileSync(
+			manifestPath,
+			JSON.stringify({ ...JSON.parse(readFileSync(manifestPath, "utf8")), supportedLocales: ["de-DE"] }, null, "	"),
+		);
 		apply(translationSync({ moduleDir: dir, prune: false }));
 
 		// ── Phase 5: grant execute on the action ──
@@ -293,7 +299,7 @@ describe("end-to-end module build", () => {
 		expect(inspected.entities.find((e: { name: string }) => e.name === "order").toString).toBe(
 			"{name}",
 		);
-		expect(inspected.translations).toContain("en-US.json");
+		expect(inspected.translations).toEqual(["de-DE.json"]);
 	});
 
 	it("tracks build phases through the ledger and routes to the next skill", () => {

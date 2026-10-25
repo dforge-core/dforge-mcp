@@ -123,12 +123,12 @@ export const planModuleSchema = {
 	locales: z
 		.array(z.string())
 		.optional()
-		.describe("[write_identity] Locale codes, e.g. ['en-US', 'de-DE']. Default: ['en-US']."),
+		.describe("[write_identity] Locales besides English, e.g. ['uk-UA', 'de-DE'] — recorded in CLAUDE.md only; declare them in manifest.supportedLocales and run dforge_translation_sync to create the files. English is the base: its text lives in the definitions and needs no file. Default: [] (English only)."),
 	preset: z
 		.enum(["minimal", "minimal-plus", "full"])
 		.optional()
 		.describe(
-			"[write_identity] Scaffold depth: minimal = entities + views + role; full = + settings + translations + seed-data stubs.",
+			"[write_identity] Scaffold depth: minimal = entities + views + role; full = + settings + seed-data stubs.",
 		),
 	// ── write_requirements / write_design fields (Phase 0b / 0c) ────────
 	userConfirmed: z
@@ -479,8 +479,8 @@ function handleCheck(root: string): PlanResult {
 				'What\'s the module\'s display name? (e.g. "Purchase Orders", "HR Leave Requests")',
 				"What code should it use? (snake_case, letters + digits + underscores — becomes the DB schema name; suggest a default derived from the display name)",
 				"Does this module depend on any other dForge modules — e.g. needing entities from 'crm' or 'parties'? (admin and metadata are platform-implicit; list any others, or say None)",
-				"English only, or any other locales the module needs to ship with translations for?",
-				"How complete should the initial scaffold be? (minimal = entities + default views + single admin role; minimal-plus = + settings/translation stubs; full = + logic stubs + seed data structure)",
+				"English only, or which other locales should the module ship translations for (e.g. uk-UA)? English is the base and needs no translation file.",
+				"How complete should the initial scaffold be? (minimal = entities + default views + single admin role; minimal-plus = + settings stubs; full = + logic stubs + seed data structure)",
 			],
 			writeAction:
 				"Once all answers are collected and reflected back, call dforge_module_plan({ action: 'write_identity', moduleDir, displayName, code, dependencies, locales, preset }).",
@@ -575,13 +575,14 @@ function handleCheck(root: string): PlanResult {
 // ─── write_identity ───────────────────────────────────────────────────────────
 
 function handleWriteIdentity(root: string, args: Args): PlanResult {
-	const { displayName, code, dependencies = [], locales = ["en-US"], preset = "minimal" } = args;
+	const { displayName, code, dependencies = [], preset = "minimal" } = args;
+	const locales = (args.locales ?? []).filter((l) => !/^en(-|$)/i.test(l.trim()));
 
 	if (!displayName) throw new Error("displayName is required for write_identity.");
 	if (!code) throw new Error("code is required for write_identity.");
 
 	const depsText = dependencies.length > 0 ? dependencies.join(", ") : "None";
-	const localesText = locales.join(", ");
+	const localesText = ["English (base, in the definitions)", ...locales].join(", ");
 
 	const claudeMd = buildClaudeMd({ root, displayName, code, depsText, localesText, preset });
 

@@ -6,6 +6,21 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+**English is the base locale, and it lives in the definitions.** Install never reads
+`translations/en.json` / `en-*.json`, so the English file the tools wrote was dead weight: its labels
+were never applied, and the English UI kept showing whatever the definitions said. `dforge_module_create`
+(preset `full`) no longer writes `translations/en-US.json`; `dforge_translation_sync` defaults to the
+`supportedLocales` entries only, refuses an English locale, and warns about a leftover English file;
+`dforge_module_validate` warns about one instead of requiring role labels in it; `dforge_module_plan`
+defaults to no extra locales. The sync seeds a setting from its `description` and a view, menu, folder or
+action from `label`, else `description` — what install shows. `references/translations.md` gains the
+table of where each object's English text lives, and the column-security example drops its
+`en-US.json` for short labels in the definitions.
+
+**File map keys use `/` on Windows too.** Every tool that builds a `files` key from a path (field,
+entity, view, menu, action, role-right, seed, diagram and translation tools, the refactors) returned
+`translations\de-DE.json`-style keys on Windows; they now return `translations/de-DE.json` on every OS.
+
 **DSL builtins.** `attachText(content, fileName, encoding?, mimeType?)` / `attachBase64(base64, fileName, mimeType?)` build a file for `sendEmail()`'s fourth argument, keeping its own type (an `.ics` as `text/calendar`); a scheduled job can attach them, unlike a `printPdf()` file. Follows metadata 0.0.45; `dforge_action_check` knows both. **Needs `@dforge-core/dforge-cli` with them** (0.2.36).
 
 **Schemas follow metadata 0.0.46.** `dforge://schema/registers` accepts `importedKeyField` on an accounting register; `dforge://schema/entity` accepts the `filesize` field type.
@@ -13,6 +28,42 @@ the release workflow, so committed `package.json` versions are placeholders.
 **Registers and actions docs.** `getAccountBalance` / `getAccountTurnover` take `exclude` as one document or an array, and an accounting register's `importedKeyField` leaves out postings loaded beside a document. An action in `ui/actions.json` can ship `paramSets` (saved parameter values; a `=` formula or a template reads the record) and a `previewTemplate` (a PDF beside the run dialog's params). **Needs `@dforge-core/dforge-cli` 0.2.36.**
 
 **DSL docs.** `[owner_id].[email]` / `[owner_id].[full_name]` read the user behind a `user` column (platform #1499); `dforge://reference/dsl` says so.
+
+**Registers reference.** Which kind folds rows per dimension tuple (only `balance`); the account-read
+`options` in the reads table; the balance at a document's moment within one second (`before` plus
+`exclude`, the caller ordering what the platform does not); `importedKeyField` marked as being for a
+history loaded from another system; how long a cache rebuild at install can take. Common mistakes gain an
+empty dimension (no `allowEmpty` on any kind; `=COALESCE(...)` or `skipPostingWhenEmpty`), `headerMap`
+taking columns only and why each must be locked, one constant for two resources, a month missing from the
+period calendar counting as closed (`DF003`), and the `registers/column-not-numeric` warning. The engine
+writes an analytic slot's `entity` as `module.entity` (platform #1544), and a loader writes the same; a
+filter matches either spelling, `groupBy` splits old bare slots from new ones until a migration and
+`rebuild-totals`.
+
+**DSL entity codes.** A data built-in's `module.entity` is looked up by module code, hyphen included, and
+otherwise as a schema (platform #1543), so `insert('cdy-tax.x', …)` and `insert('cdy_tax.x', …)` both
+work. The conventions doc notes that install refuses a schema or code another module already holds.
+Roles and settings are translated (the conventions doc called roles ignored); a print template's name is
+its `description`.
+
+**DSL, formulas, fields.** An inline action stops after 10 seconds; an assignment inside a one-line block
+fails; indexing after a call or an index compiles since platform #1537. `TODAY()` / `NOW()` follow the
+request's time zone, a `datetime` column may pin `params.timeZone`, a number-literal formula becomes a
+column `DEFAULT`, and a bare `$[setting]` formula fills a column an insert leaves out. A zero divisor
+fails wherever a formula runs in SQL.
+
+**Reports and print.** A stored procedure's result-column `baseDatatypeCd` codes (`timestamp`, not
+`datetime`); `ROWS 1` on a one-row table function, since install's `SET search_path` stops inlining; every
+`logic/reports/*.sql` runs at every install (and "must be owner of function"); casting columns for
+`RETURN QUERY`. Print: `%B` prints English names, `format_date` returns a string, timestamps follow the
+column's or the request's zone, Scriban's `blank` on a date, stray spaces from an empty reference hop.
+
+**Seed, demo and ship.** Seed rows are re-applied on every install and ship in the package (fictional
+data only); `demo-data/` inserts but does not post, so an accounting demo runs the module's actions; a
+same-version install is skipped yet reports success. `dforge-module-ship` covers an install blocked by an
+open transaction (`pg_stat_activity`), a client timeout during a cache rebuild, and the local dev stack
+(restart `dforge-api`, the `<tenant>._.localhost` URL, an expired CLI token, a platform binary behind the
+tenant). Option labels: plain English in the definition, translated as strings.
 
 ## 0.2.44 — 2026-10-21
 

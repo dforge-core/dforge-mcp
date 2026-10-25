@@ -238,9 +238,12 @@ var note = params[note]             // no quotes around param name in this DSL
 | `preloadRef('fk_column')` | Row object | Load the referenced record for a FK column. Access its fields with `ref.get('field')`. |
 
 > **Entity codes: always qualify.** Every data built-in (`select`, `insert`, `update`, `delete`,
-> `getRecord`, `nextNumber`) accepts a qualified `module.entity` code — write `update('comm.message', …)`,
-> not `update('message', …)`, even inside the owning module. It reads unambiguously and keeps the
-> script correct if it's ever moved to a bridge module.
+> `getRecord`, `nextNumber`) takes `module.entity` — write `update('comm.message', …)`, not
+> `update('message', …)`, even inside the owning module. It reads unambiguously and keeps the script
+> correct if it's ever moved to a bridge module. The part before the dot is looked up first as a module
+> code, hyphen included (`insert('cdy-tax.invoice', …)`), and otherwise taken as a schema
+> (`insert('cdy_tax.invoice', …)`); both work, also for a hyphenated module with no `schemaName`
+> (platform #1543). Prefer the module code, as a `ref` param writes it.
 
 > **Keys: scalar or object.** In `update()` / `delete()` / `getRecord()` / `getRecordOrNull()`,
 > `key` is either a scalar PK value (`update('task', 42, {…})` — single-column PK only) or an
@@ -704,6 +707,8 @@ In `batch` mode, access individual records with `__records.get(i)`, the count wi
 
 ## Async actions
 
+An inline run stops after **10 seconds** (`Dsl:Limits:ScriptTimeoutSeconds`) with "The operation has timed out.", rolling its transaction back. Work that imports or posts many documents belongs in a background run; a caller that needs the outcome waits for the records' state (a posting flag) rather than for the call.
+
 For long-running actions, set `"isAsync": true` in `ui/actions.json`. That **permits** background execution: the call is queued as a `background_action` row and picked up by `BackgroundActionService` (a hosted `BackgroundService` polling every ~10s — there is no Hangfire in dForge), and the user gets a completion notification via SSE. The DSL syntax is the same.
 
 `isAsync` does not force it. `action.execute` carries its own `async` argument and the server branches on that, so a parameterless action is queued directly while one with parameters is offered to the user as both "Run" (inline) and "Run in Background". Note that a queued run has **no wrapping transaction** — see *Atomicity* below.
@@ -815,7 +820,7 @@ be either.
 > and `ON COMMIT DROP` on any temp table. Only `query()` can do any of this — the
 > structured built-ins emit plain DML — and nothing checks it statically.
 
-1. **Bare table names are qualified automatically** with the current module's schema after `FROM` / `JOIN` / `USING`, and as the target of `INSERT INTO`, `MERGE INTO` and `UPDATE`. A name already qualified (`wms.stock_movement`) is left as written, so qualify only another module's table. Left alone: words that name no table (`IS DISTINCT FROM`, `EXTRACT(year FROM d)`, `FOR UPDATE`, `DO UPDATE SET`, `SELECT ... INTO var`), built-in set functions (`generate_series`, `unnest`), literals and comments. A CTE name is a source only inside the query that declares its `WITH` (and in its own body only under `RECURSIVE`); a write target is always the real table, so `WITH t AS (...) UPDATE t ...` updates the module's `t`. `;`-separated statements are each qualified. (Module codes with a hyphen, e.g. `crm-fin`, cannot be schema-qualified by hand in raw SQL; use the structured built-ins, which accept `module.entity`.)
+1. **Bare table names are qualified automatically** with the current module's schema after `FROM` / `JOIN` / `USING`, and as the target of `INSERT INTO`, `MERGE INTO` and `UPDATE`. A name already qualified (`wms.stock_movement`) is left as written, so qualify only another module's table. Left alone: words that name no table (`IS DISTINCT FROM`, `EXTRACT(year FROM d)`, `FOR UPDATE`, `DO UPDATE SET`, `SELECT ... INTO var`), built-in set functions (`generate_series`, `unnest`), literals and comments. A CTE name is a source only inside the query that declares its `WITH` (and in its own body only under `RECURSIVE`); a write target is always the real table, so `WITH t AS (...) UPDATE t ...` updates the module's `t`. `;`-separated statements are each qualified. (A module whose code has a hyphen and that declares no `schemaName` lives in a hyphenated schema, which raw SQL cannot name as written — the structured built-ins reach it by module code; give such a module a `schemaName` with underscores if its tables are queried in SQL.)
 2. **Use `@param` placeholders** for values — NEVER concatenate user input into SQL strings. The engine auto-parameterizes.
 3. **SELECT, INSERT, UPDATE, DELETE all work** via `query()`. For reads, it returns row arrays. For writes, it executes the statement.
 4. **`insert()` is preferred over `query('INSERT ...')`**, `update()`/`delete()` over `query('UPDATE/DELETE ...')`, and `select()` over `query('SELECT ...')` for module entities — raw SQL skips auto-fill (PKs, audit, number sequences) and metadata validation.
@@ -831,6 +836,8 @@ be either.
 - Passing an **array of ids** as the `key` of `update()`/`delete()` — **rejected**. Loop over the ids and mutate one at a time.
 - Selecting or string-filtering a plain reference (`R`) column in `select()` — **throws**. Use the FK column or a nav path (`'customer.company_name'`).
 - Unqualified entity codes (`update('message', …)`) — works inside the owning module but **always prefer the qualified form** (`update('comm.message', …)`).
+- An assignment inside a one-line block, `if (x) { [field] = y }` -- fails at run time with "not a valid reference". Put `[field] = y` on a line of its own.
+- Indexing straight after a call or an index, `query(sql)[0]` or `rows[0][name]` -- read as a field reference `[0]` / `[name]` before platform #1537 (2026-10-24). On an older platform, assign the result to a variable first. `rows [name]`, with a space, is still a field read.
 - Forgetting `var` in loops — `for (i = 0; ...)` creates a global. Always `for (var i = 0; ...)`.
 - Using ES6 syntax (`const`, `let`, `=>`, template literals) — **may not work**. Jint supports ES5.1 primarily. Stick to `var`, `function`, string concatenation with `+`.
 - Calling `TODAY()` or `NOW()` (uppercase) inside `execute:` — **wrong**, they're undefined there and install fails with `'TODAY' is not defined`. Use lowercase **`now()`** in `execute:`; `TODAY()`/`NOW()` are formula-only (`canExecute:`, formula columns).

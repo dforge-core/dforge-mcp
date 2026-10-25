@@ -78,9 +78,9 @@ formula column shape; flags letters (`V I E M H` only); every entity has a
 default grid and `dataSources` at root with `"order"` as a string array; menu
 leaves use `dataViewCode` and bare icon names; every entity in at least one
 role's rights; action `script` values are bare filenames; seed PKs numeric with
-parents first; a `translations/<locale>.json` for every `supportedLocales` entry
-**plus** the `en-US` base, each carrying a label for every trait-provided field
-and every role.
+parents first; a `translations/<locale>.json` for every `supportedLocales` entry,
+each carrying a label for every trait-provided field and every role. No English
+file — install skips `en*.json`; English is the definitions' own short labels.
 
 If translations are thin, run **`dforge_translation_sync`** now rather than
 hand-patching — it fills exactly the keys install requires.
@@ -155,6 +155,34 @@ sign-off before the corrective patch. The server has already rejected the
 package — fix the referenced files, report what changed, and immediately re-run
 validate → pack → install. Keep sign-off for product/design choices or genuinely
 ambiguous fixes.
+
+**If install hangs, or fails with a bare HTTP 500 or 400 "deadlock":** look for
+a lock before touching the module. An install's `ALTER TABLE` waits behind any
+open transaction on the module's tables — an idle `psql` session, an ad hoc
+read left open, a script that never commits — and waits without a message,
+for an hour or more. Check `pg_stat_activity` for a blocked `ALTER` and the
+session holding it. Never install while scripts hold transactions on the
+module's tables; run ad hoc scripts in autocommit.
+
+**If install times out on the client while rebuilding a register cache:** the
+server goes on and finishes (an analytic cache over 1.5 million postings took
+about 18 minutes). Check the server log or the cache before installing again.
+
+**Same version installed "successfully" but nothing changed:** a re-install of
+the same `version` is skipped (`isEmpty: true`). Bump the version, or pass
+`--force` on a dev tenant.
+
+**Local dev stack pitfalls:**
+- After installing into a local docker setup, restart `dforge-api` if the UI
+  still shows the old metadata; its cache can stay stale.
+- The tenant URL is `http://<tenant>._.localhost:5179`. `<tenant>.localhost`
+  and `<tenant>_.localhost` sign into **another** tenant.
+- "no token for tenant X": the CLI session expired (a token lasts about an
+  hour). Run `dforge-cli auth login --url <tenant url>`.
+- "tenant at db_schema_version … is ahead of this binary" after rebuilding the
+  platform: install through the server with `--url`.
+- Don't keep scaffold copies of a module (same `code`, another `moduleId`)
+  anywhere a folder publish can pick them up.
 
 **If install fails on auth (401/403) or connectivity (refused):** that is
 credentials/connectivity, NOT a module defect. Tell the user to verify

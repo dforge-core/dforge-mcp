@@ -111,7 +111,7 @@ Using the converted entities, generate the full module package:
 4. **`ui/menus.json`** — grouped logically (group related entities under section nodes)
 5. **`ui/folders.json`** — root folder with all entities listed
 6. **`security/roles.json`** — at least `module.admin` (SIUDC on everything) and `module.user` (SIU on main entities)
-7. **`translations/en-US.json`** — labels for all entities, fields, views, menus, actions, roles, folders
+7. **English labels in the definitions** — a short `description` on every entity, field and role, a `label` on every view, menu and action. No `translations/en-US.json`: install skips it. Translation files only for the locales in `supportedLocales` (`dforge_translation_sync`)
 8. **`seed-data/`** — if the source had enum/lookup tables converted to entities, generate seed data for them
 
 ### Step 8: Generate IMPORT_NOTES.md

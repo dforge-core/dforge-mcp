@@ -114,6 +114,10 @@ Use explicit **numeric** PKs in seed data so cross-file references work. The `id
 
 **Common mistake**: using UUID strings like `"10000000-0000-0000-0000-000000000001"` — **wrong**. The `cuid` datatype is a numeric `int8`, not a UUID string. Seed data PKs must be numbers. Use a numbering scheme that avoids collisions (e.g. 1001-1099 for countries, 2001-2099 for regions, etc.).
 
+**Seed data is re-applied on every install.** Reinstalling writes the seed rows back over rows a user changed and brings back rows a user deleted. Seed only reference data the module owns outright; a table users or a migration fill must not be seeded, or each install undoes their work.
+
+**Seed data and settings ship in the package.** Both go into the `.dforge` file and the marketplace listing. Put only fictional or public reference data there — never a real company name, tax id, address or brand.
+
 ## Demo data
 
 Sample records live in `demo-data/`, not `seed-data/`. `seed-data/` holds reference tables every install needs; `demo-data/` is loaded only on request, so a workspace for real work does not start full of fake customers and invoices.
@@ -128,6 +132,8 @@ Sample records live in `demo-data/`, not `seed-data/`. `seed-data/` holds refere
 - **Not re-evaluated:** a formula runs at insert; an upgrade never recomputes it.
 
 Depth: the platform changelog entry "Demo data: its own folder, formulas, and a checkbox at install".
+
+**`demo-data/` inserts rows; it does not post them.** For an accounting or stock module the demo must show posted documents — balances, postings, a closed month — so a demo built only from files shows documents and empty registers. Load such a demo through the API instead: insert the documents, then run the module's own actions (post, import, close) on them, waiting for a background action by its record's state flag. Make it idempotent (fixed `DEMO-` codes, skip what exists) so it can run again.
 
 ## Translations
 
@@ -163,7 +169,7 @@ Both use **semver** (`MAJOR.MINOR.PATCH`).
 - If you changed translations only → bump `version` only.
 - The installer uses `dbSchemaVersion` to decide whether to apply schema changes. Wrong version = skipped DDL.
 - Data a new version reshapes (backfill, move rows, drop a table it no longer declares) goes in `migrations/<version>.sql`, named by `version`, run once on an upgrade from below it. See `manifest.md` § Upgrade migrations.
-- **Never ship a package without bumping at least `version`** from the previous release. The installer may reject or silently skip a re-install with the same version.
+- **Never ship a package without bumping at least `version`** from the previous release. A re-install of the same version is **skipped and reported as a success** (`isEmpty: true`; only the server log says so), so a smoke test then runs against the old code. Bump the version, or pass `--force` while developing.
 - For brand-new modules, start at `version: "0.1.0"` and `dbSchemaVersion: "0.0.1"`.
 
 ## `orderNum` — always set it

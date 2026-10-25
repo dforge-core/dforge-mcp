@@ -198,7 +198,7 @@ Queries are not in menu and not integrated into menu, they have separate section
 
 ## Translations
 
-Query names and descriptions are translated in `translations/en-US.json`:
+Query names and descriptions are translated in each non-English `translations/<locale>.json` (English is the query's own text — install skips an English file). For example `de-DE.json`:
 
 ```json
 {

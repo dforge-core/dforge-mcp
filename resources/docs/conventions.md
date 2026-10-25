@@ -66,8 +66,8 @@ Use the CRM sample module (`modules/crm/`) as a reference implementation.
 ├── /security/                 # Security definitions
 │   └── roles.json
 ├── /translations/             # Translations (optional)
-│   ├── en-US.json
-│   └── de-DE.json
+│   ├── de-DE.json         # one per supportedLocales entry — never en*.json
+│   └── uk-UA.json
 ├── /print_templates/          # HTML/CSS print templates (optional)
 │   ├── invoice.html
 │   └── invoice.css
@@ -106,6 +106,7 @@ Use the CRM sample module (`modules/crm/`) as a reference implementation.
 - `entities` maps entity codes to file paths (relative to module root)
 - Omit `"system": true` for regular modules (defaults to false)
 - Omit `schemaName` to use `code` as the schema name
+- The schema and the code must be free: a first install, or an upgrade that moves the module to another schema, is refused when another module already holds that schema or code (compared case-insensitively). Modules that already share a schema keep upgrading.
 
 ### 1b. Module Extensions
 
@@ -644,37 +645,39 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 
 **Reference:** `modules/chore/` — single-job smoke-test module.
 
-### 8. Translations (`translations/en-US.json`)
+### 8. Translations (`translations/de-DE.json`)
+
+One file per locale in `manifest.supportedLocales`. There is **no** English file: install skips `translations/en.json` and `en-*.json`, and the English UI shows the definitions' own text — an entity's or field's `description`, a view's, menu's, action's or report's `label`, a role's or setting's `description`. Keep those short labels.
 
 ```json
 {
 	"entities": {
 		"department": {
-			"label": "Department",
-			"desc": "Company departments",
+			"label": "Abteilung",
+			"desc": "Abteilungen des Unternehmens",
 			"fields": {
-				"department_id": { "label": "Department ID" },
-				"department_name": { "label": "Department Name" }
+				"department_id": { "label": "Abteilungs-ID" },
+				"department_name": { "label": "Abteilungsname" }
 			}
 		},
 		"employee": {
 			"constraints": {
-				"chk_salary_positive": { "message": "Salary must be positive" }
+				"chk_salary_positive": { "message": "Das Gehalt muss positiv sein" }
 			}
 		}
 	},
 	"folders": {
-		"hr": { "label": "Human Resources" }
+		"hr": { "label": "Personalwesen" }
 	},
 	"views": {
-		"departments": { "label": "Departments" },
-		"employees": { "label": "All Employees" }
+		"departments": { "label": "Abteilungen" },
+		"employees": { "label": "Alle Mitarbeiter" }
 	},
 	"menus": {
-		"hr_menu": { "label": "Human Resources" }
+		"hr_menu": { "label": "Personalwesen" }
 	},
 	"actions": {
-		"approve_leave": { "label": "Approve Leave", "desc": "Approve a leave request" }
+		"approve_leave": { "label": "Urlaub genehmigen", "desc": "Einen Urlaubsantrag genehmigen" }
 	}
 }
 ```
@@ -683,7 +686,7 @@ Cron-driven action fires. Each entry pairs an existing action (declared in `ui/a
 
 **Constraint violation messages are localizable (opt-in).** The `message` on a check/unique constraint in the entity JSON is the base (fallback) text. To localize it, add a per-locale override under `entities.<entityCd>.constraints.<constraintName>.message` in each `translations/<locale>.json`. The server resolves it with culture fallback (per-locale → base) and it surfaces identically on the client pre-save validator and the server DB-violation path. Unlike labels, constraint overrides are **not** completeness-enforced: a missing override for a declared `supportedLocales` entry emits a **non-fatal warning** (from `dforge_module_validate` pre-flight and at install) and the base message is used as the fallback.
 
-**Silently ignored at runtime:** `roles` and `print_templates` — the resource rows have no `res_id`, so translations are reserved for future use. `settings` is validated for completeness (when listed in `supportedLocales`) but the registrar does not display the translated labels, so don't expect localized output. Display names for these come from the source manifest (`description` for roles, `label` for print templates and settings).
+**Roles and settings are translated; print templates are not.** `roles.<code>.label` and `settings.<code>.label` are completeness-enforced for each declared locale, over the English `description` in `security/roles.json` and `settings.json` (the registrar reads no `label` there). A print template has no translatable resource: its name is its `description` in every language, and a `print_templates` section is ignored.
 
 ---
 

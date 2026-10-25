@@ -143,7 +143,7 @@ The field/entity tools validate against the `@dforge-core/metadata` registry: an
 | Tool | Behavior |
 |---|---|
 | `dforge_setting_add` | Configurable module-level setting |
-| `dforge_translation_sync` | Generate/refresh `translations/<locale>.json` from the module's own contents. Never overwrites existing translated text; fills the role labels that are **completeness-enforced at install**. Defaults to en-US + every `supportedLocales` entry |
+| `dforge_translation_sync` | Generate/refresh `translations/<locale>.json` from the module's own contents. Never overwrites existing translated text; fills the role labels that are **completeness-enforced at install**. Defaults to every `supportedLocales` entry; writes no English file (install skips `en*.json` — English lives in the definitions) |
 | `dforge_seed_add` | Write a seed file for one entity. Enforces numeric `{entity}_id` PKs, parent-before-child load order, `audit-full` System-user columns, and FKs that point at seeded parents |
 
 **Security (Phase 5)**

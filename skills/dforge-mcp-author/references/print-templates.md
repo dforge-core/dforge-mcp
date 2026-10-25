@@ -94,7 +94,9 @@ Formula columns (`F`) are read in the same SQL as the record, as `data.get` does
 | `format_date: <strftime>`                       | `{{ invoice_date | format_date: '%B %d, %Y' }}`        | `"May 22, 2026"`             |
 | `qr_code: <size?>, <ecc?>, <margin?>, <format?>`| `{{ payment_url | qr_code: 200, 'M' }}`                | `data:image/png;base64,…`    |
 
-`format_date` supports strftime: `%Y %m %d %B %b %H %M %S %I %p %A %a %e`.
+`format_date` supports strftime: `%Y %m %d %B %b %H %M %S %I %p %A %a %e`. `%B` / `%b` / `%A` / `%a` print **English** names whatever the user's language; for a month in another language keep a small snippet that maps `%m` to the name. `format_date` returns a **string**: arithmetic on its result fails ("Operator - not supported on string"), so compute on the raw value and format last.
+
+**Time zones.** A timestamp in `_fmt` and `format_date` on an instant render in the column's `params.timeZone`, else the request's zone (before platform 2026-10-25, always UTC). A bare date or a timestamp without a zone prints as written.
 
 ## Snippets
 
@@ -176,7 +178,8 @@ my_module/
 - **Forgetting `_raw` for codes.** Direct `{{ status }}` is the label (`"Partially Paid"`). For CSS classes / wire-format payloads / predicates against codes, use `{{ _raw.status }}` (`"P"`).
 - **Manually formatting dates/currency.** Don't reach for `format_currency` when the column is already `fieldTypeCd: "currency"` — `_fmt.<col>` already matches the form. Use the filter only for derived values.
 - **Expecting a set to load only from a `for`.** It loads wherever the template names it (`sort`, `.size`, `.first`). A set read only inside a snippet is not seen: mention it in the host template.
-- **Testing emptiness with `blank` / `empty`.** LiquidJS (preview) knows them, Scriban (print) does not, so the comparison is always false on the server for an unset field. Use `{% unless x %}`, `{% if x and x != '' %}` or `x != nil`.
+- **Testing emptiness with `blank` / `empty`.** LiquidJS (preview) knows them, Scriban (print) does not: on the server `x == blank` is false for nil and `''`, and true for a date. Use `{% unless x %}`, `{% if x and x != '' %}` or `x != nil`.
+- **Joining text across an empty reference.** A formula that glues several navigated parts (`[frp].[employee].[full_name]`) yields stray spaces when a hop is empty; `| strip` the result. Every role that prints needs Select on each entity of the path, or the value prints empty with a warning.
 - **Dashed comment tags.** The server cuts every `{%- comment -%}` block before parsing, but keep snippets to plain `{% comment %}` so both engines agree.
 - **Snippet `template_cd` with a dot.** `{% include 'my_module.foo.bar' %}` — the resolver splits on the last dot only, so `my_module.foo` becomes the module name and breaks. No dots in snippet codes.
 - **Dropping CSS in `<style>` blocks inline.** The renderer wires `<style>` for you; declare CSS in the separate `.css` file (or inline string via the `css` field).

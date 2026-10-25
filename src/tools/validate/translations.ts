@@ -106,35 +106,40 @@ export function checkConstraintTranslations(ctx: ValidateContext): void {
 
 // Translation completeness.
 // `TranslationCompletenessValidator` requires a `roles.<code>.label` for
-// EVERY role in security/roles.json, in EVERY translation file — including
-// the en-US base. A missing one fails install with `Label for role '<code>'.`
+// EVERY role in security/roles.json, in every translation file install reads.
+// A missing one fails install with `Label for role '<code>'.` Install skips
+// translations/en*.json (English lives in the definitions), so such a file is
+// flagged as dead weight rather than checked.
 // Also: every locale in supportedLocales must have a matching file.
 export function checkTranslationCompleteness(ctx: ValidateContext): void {
 	const { paths, err, warn, roles, supportedLocales } = ctx;
 	const roleCodes = Object.keys(roles);
-	const localeFiles = fs.existsSync(paths.translationsDir)
+	const allFiles = fs.existsSync(paths.translationsDir)
 		? fs
 				.readdirSync(paths.translationsDir)
 				.filter((f) => f.toLowerCase().endsWith(".json"))
 				.sort()
 		: [];
+	const localeFiles = allFiles.filter((f) => !isEnglishLocale(f.slice(0, -5)));
+
+	for (const file of allFiles.filter((f) => isEnglishLocale(f.slice(0, -5)))) {
+		warn(
+			`translations/${file}`,
+			"install never reads an English translation file — the English UI shows the definitions' own text " +
+				"(an entity's or field's `description`, a menu's, action's or report's `label`, a role's or setting's " +
+				"`description`). Move any wording you want from this file into the definitions, then delete it.",
+		);
+	}
 
 	for (const raw of supportedLocales) {
 		const locale = raw.trim();
-		if (!locale) continue;
+		if (!locale || isEnglishLocale(locale)) continue;
 		if (!resolveTranslationFile(paths.translationsDir, locale)) {
 			err(
 				"translations",
 				`manifest.supportedLocales lists '${locale}' but translations/${locale}.json does not exist — install fails translation completeness validation.`,
 			);
 		}
-	}
-
-	if (roleCodes.length > 0 && localeFiles.length === 0) {
-		warn(
-			"translations",
-			`no translations/ files — ship at least translations/en-US.json with a roles block (a 'label' for each of: ${roleCodes.join(", ")}); role labels are completeness-enforced at install.`,
-		);
 	}
 
 	for (const file of localeFiles) {
@@ -153,7 +158,7 @@ export function checkTranslationCompleteness(ctx: ValidateContext): void {
 		if (missing.length > 0) {
 			err(
 				`translations/${file}`,
-				`missing roles.<code>.label for: ${missing.join(", ")} — completeness is enforced in every locale (including en-US); install fails with "Label for role '<code>'."`,
+				`missing roles.<code>.label for: ${missing.join(", ")} — completeness is enforced in every non-English locale file; install fails with "Label for role '<code>'."`,
 			);
 		}
 	}

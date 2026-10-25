@@ -16,7 +16,7 @@ Lives in: `security/roles.json`
 
 Role codes use a `module.role` naming pattern (e.g. `crm.admin`, `crm.sales-rep`).
 
-> **Role display name & translations.** Each role has exactly two keys: `description` and `rights` (`roles.schema.json` is `additionalProperties: false` — **do not** add a `label` here). `description` is the English fallback display name. The **localized** display name lives in the translation files as `roles.<code>.label`, keyed by the module-qualified role code, and is **completeness-enforced**: every role must have a `roles.<code>.label` in every `translations/<locale>.json` (including the `en-US` base) or install fails. See `translations.md`.
+> **Role display name & translations.** Each role has exactly two keys: `description` and `rights` (`roles.schema.json` is `additionalProperties: false` — **do not** add a `label` here). `description` is the English display name — keep it a short label ("Storekeeper"), not an explanation, since it is what the English UI shows. The **localized** display name lives in the translation files as `roles.<code>.label`, keyed by the module-qualified role code, and is **completeness-enforced**: every role must have a `roles.<code>.label` in every non-English `translations/<locale>.json` or install fails. There is no English translation file. See `translations.md`.
 
 Example:
 

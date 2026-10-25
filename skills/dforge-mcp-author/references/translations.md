@@ -2,9 +2,33 @@
 
 dForge modules support multi-language translations for user-facing labels — entity names, field labels, view titles, folder names, menu items, action labels and params, and report params/dataset captions.
 
-Lives in: `translations/<locale>.json` (e.g. `translations/en-US.json`, `translations/de-DE.json`)
+Lives in: `translations/<locale>.json` for each **non-English** locale (e.g. `translations/de-DE.json`, `translations/uk-UA.json`)
 
-Locale codes use the `ll-CC` format (language-country): `en-US`, `de-DE`, `fr-FR`, `es-ES`, etc.
+Locale codes use the `ll-CC` format (language-country): `de-DE`, `uk-UA`, `fr-FR`, `es-ES`, etc.
+
+## English is the base — and it lives in the definitions
+
+Install **never reads** `translations/en.json` or `translations/en-*.json` (`ModulePackage.ReadTranslationFiles` skips them). The English UI shows the text written in the definitions themselves, so an English-only module ships **no** `translations/` folder, and a translated module ships one file per locale in `supportedLocales` and nothing for English. An `en-US.json` is dead weight: its labels are never applied, and the English UI keeps showing whatever the definitions say — which is how a module ends up displaying long service descriptions as labels. `dforge_module_validate` warns about such a file; `dforge_translation_sync` refuses to write one.
+
+Where each object's English text lives (what install shows, `label ?? description ?? code` where both exist):
+
+| Object | English text | Notes |
+|---|---|---|
+| Entity | `description` in `entities/<e>.json` | |
+| Field | `description` on the field | trait columns take theirs from the trait |
+| Data view | `label`, else `description` | with both, `description` is the tooltip |
+| Folder | `label`, else `description` | |
+| Menu / menu item | `label`, else `description` | |
+| Action | `label`, else `description` | an action param: its `description` |
+| Report | `label`, else `description` | |
+| Stored procedure | `description`; a result column: its `label` | |
+| Print template | `description` | `label` is rejected by the schema |
+| Setting | `description` | |
+| Role | `description` | `label` is rejected by the schema |
+| Column domain | `description` | |
+| Register | `label` | |
+
+Keep these short **labels** — "Product", "Storekeeper" — not explanations. Notes such as a legacy table name or "(in Ukrainian)" belong in docs or comments: whatever the field holds is the UI text.
 
 ## Structure
 
@@ -111,7 +135,7 @@ A check/unique constraint declares a user-facing `message` in the entity JSON (`
 
 ### Dropdown option labels ARE translatable (opt-in)
 
-The `options` on a `dropdown`/`radio`/`flags` column are the **base (fallback) labels**. To translate the labels a user actually sees, add an `options` map next to the field's `label`, keyed by the option's **value** (the stored code):
+The `options` on a `dropdown`/`radio`/`flags` column are the **base (fallback) labels**, and they are the English UI — write plain English there (`"Active"`), never a bilingual `"Active (Актив)"`. To translate the labels a user actually sees, add an `options` map next to the field's `label`, keyed by the option's **value** (the stored code). Prefer the **string** form (`"active": "Активний"`): the `{ label, … }` form is valid, but the VS Code extension's translation panel counts it as missing, and `module validate` does not check option translations at all. An option list several columns share belongs in a column domain, translated once under `domains.<code>.options`.
 
 ```json
 "entities": {
@@ -204,15 +228,14 @@ Role labels are **required and localized** (this changed — older docs said rol
 ```
 
 - **Keys are the role codes** from `security/roles.json` — already module-qualified (e.g. `crm.admin`, `crm.sales-rep`). They match `module_role.name`.
-- **Value is `{ "label": ... }`** — the localized display name. It supersedes the `description` from `roles.json` at runtime; `description` remains the English fallback if a role has no translation entry.
-- **Completeness is enforced.** `TranslationCompletenessValidator` requires `roles.<code>.label` for **every** role in `security/roles.json`, in **every** translation file — including the `en-US` base. A missing role label fails install with `Label for role '<code>'.` So ship a `roles` block with a label for each role in **each** `translations/<locale>.json` (en-US + every locale in `supportedLocales`).
+- **Value is `{ "label": ... }`** — the localized display name. It supersedes the `description` from `roles.json` in that locale; `description` is the English text.
+- **Completeness is enforced.** `TranslationCompletenessValidator` requires `roles.<code>.label` for **every** role in `security/roles.json`, in **every** translation file install reads — each locale in `supportedLocales`. A missing role label fails install with `Label for role '<code>'.` English needs nothing here: it is the role's `description`.
 
 ### Sections that are NOT translated (write-time only)
 
-- `settings` — completeness *is* checked by the validator when listed in `manifest.supportedLocales` (so you'll be forced to ship `settings.<cd>.label` for each declared locale), but the registrar doesn't display those translated labels at runtime. The English `label` in `settings.json` is what users see today.
-- `print_templates` — not currently consumed by the registrar. Template labels come from `ui/print_templates.json`.
+- `print_templates` — not consumed by the registrar: a template row has no translatable resource. Its name is the `description` in `ui/print_templates.json` in every language. If you include the section, install succeeds and ignores it.
 
-If you include these sections, the install succeeds (they're silently ignored) — but you won't see localized output for them, so don't expect it.
+`settings` **is** translated: completeness is checked for each declared locale (ship `settings.<cd>.label`), and the setting's English text is its `description` in `settings.json` — the registrar never reads a `label` there.
 
 ## German example (de-DE)
 
@@ -262,7 +285,7 @@ If you include these sections, the install succeeds (they're silently ignored) �
 
 ## Manifest declaration
 
-Non-English locales are declared in `supportedLocales` (an array of `ll-CC` tags) — **not** a `translations` object. The manifest schema has no `translations` key and rejects it (`additionalProperties: false`). Translation files are auto-discovered at `translations/<locale>.json`. Ship `translations/en-US.json` as the English base, but do **not** list `en`/`en-US` in `supportedLocales` — it covers the non-English locales only (the schema rejects `en`/`en-US` entries).
+Non-English locales are declared in `supportedLocales` (an array of `ll-CC` tags) — **not** a `translations` object. The manifest schema has no `translations` key and rejects it (`additionalProperties: false`). Translation files are auto-discovered at `translations/<locale>.json`. Do **not** list `en`/`en-US` in `supportedLocales` and do not ship an English file — English is the definitions' own text (see above); the schema rejects `en`/`en-US` entries.
 
 ```json
 "supportedLocales": ["de-DE", "fr-FR"]
@@ -276,18 +299,18 @@ A result column's header belongs to the procedure, not to a report. `module pack
 
 ## Rules
 
-1. **Always provide `en-US`** as the base language. Other languages fall back to it for missing keys.
-2. **Locale format is `ll-CC`** (e.g. `en-US`, `de-DE`, `fr-FR`) — language code + country code, hyphen-separated.
-3. **Translate everything user-visible**: entity labels, every field label (including trait-provided fields like `created_date`, `last_updated`), view names, menu items, action labels, **role labels (required — completeness-enforced, `roles.<code>.label` for every role in every locale incl. en-US)**, setting labels, folder names.
+1. **English is the definitions' text** — no `en-US.json`. Write a short English label into each definition (see the table above); other languages fall back to it for missing keys.
+2. **Locale format is `ll-CC`** (e.g. `de-DE`, `uk-UA`, `fr-FR`) — language code + country code, hyphen-separated.
+3. **Translate everything user-visible**: entity labels, every field label (including trait-provided fields like `created_date`, `last_updated`), view names, menu items, action labels, **role labels (required — completeness-enforced, `roles.<code>.label` for every role in every declared locale)**, setting labels, folder names.
 4. **Include virtual columns** (references, sets, formulas) in field translations — they appear in the UI just like physical columns.
 5. **Menu translations mirror the `ui/menus.json` structure** — root key → `items` → nested items.
-6. **Missing keys fall back** to the `en-US` value, then to the raw code name. So it's safe to ship partial translations — untranslated items show in English rather than breaking.
+6. **Missing keys fall back** to the definition's English text, then to the raw code name. So it's safe to ship partial translations — untranslated items show in English rather than breaking.
 7. **Don't translate column codes** — only the `label` values. Codes stay as-is in all languages.
 8. **File naming**: `translations/<locale>.json` (e.g. `de-DE.json`) — each non-English file must match a locale listed in `supportedLocales`.
 9. **Constraint messages are opt-in** — localize them under `entities.<e>.constraints.<c>.message` when you want a per-locale violation message; otherwise the base `message` from the entity JSON is used. Missing overrides warn (non-fatal), they don't fail install. See "Constraint violation messages ARE translatable" above.
 
 ## When to create translations
 
-- **Always** create `translations/en-US.json` — even for English-only modules. It ensures all labels are explicitly declared rather than derived from column codes.
-- **On request** create additional languages. The LLM can generate translations from the `en-US` file — the structure is identical, only `label` and `desc` values change.
+- **Never** create `translations/en-US.json` — install skips it. Give every definition a short English label instead, so nothing falls back to a column code.
+- **On request** create additional languages: declare them in `supportedLocales` and run `dforge_translation_sync`, which seeds each file from the definitions' English text for you to translate in place.
 - **Include all fields** in each language file, including trait-provided fields (`created_date`, `last_updated`, `created_by`, etc.) — users see these columns and they need labels.
