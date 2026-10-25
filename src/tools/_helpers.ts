@@ -195,9 +195,9 @@ export function jsonText(obj: unknown): string {
 	return JSON.stringify(obj, null, "\t") + "\n";
 }
 
-/** Compose a relative path that a FileMap entry should use. */
+/** Compose a relative path that a FileMap entry should use — always `/`-separated, whatever the OS. */
 export function rel(root: string, abs: string): string {
-	return path.relative(root, abs);
+	return path.relative(root, abs).split(path.sep).join("/");
 }
 
 /**

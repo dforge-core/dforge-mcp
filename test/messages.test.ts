@@ -47,9 +47,9 @@ describe("translation_sync — messages", () => {
 	it("seeds the scripts' fixed texts into the declared locales, and writes no English file", () => {
 		write("translations/de-DE.json", { messages: { Shipped: "Versandt" } });
 		const r = translationSync({ moduleDir: dir, prune: false } as never);
-		const de = JSON.parse(r.files[join("translations", "de-DE.json")]!);
+		const de = JSON.parse(r.files["translations/de-DE.json"]!);
 		expect(de.messages).toEqual({ Shipped: "Versandt", "Only {n} left": "Only {n} left" });
-		expect(Object.keys(r.files)).toEqual([join("translations", "de-DE.json")]);
+		expect(Object.keys(r.files)).toEqual(["translations/de-DE.json"]);
 	});
 });
 

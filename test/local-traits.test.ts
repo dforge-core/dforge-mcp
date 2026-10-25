@@ -126,7 +126,7 @@ describe("a module's own traits.json is overlaid on the platform traits", () => 
 
 	it("translation_sync labels a local trait's columns", () => {
 		const r = translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false });
-		const tx = JSON.parse(r.files[join("translations", "de-DE.json")]);
+		const tx = JSON.parse(r.files["translations/de-DE.json"]);
 		expect(tx.entities.product.fields.price.label).toBe("Price");
 		expect(tx.entities.product.fields.currency.label).toBe("Currency");
 	});

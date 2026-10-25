@@ -310,7 +310,7 @@ describe("translation_sync", () => {
 		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-elements-"));
 		makeModule({ supportedLocales: ["de-DE"] });
 		const r = translationSync({ moduleDir: dir, prune: false });
-		expect(Object.keys(r.files)).toEqual([join("translations", "de-DE.json")]);
+		expect(Object.keys(r.files)).toEqual(["translations/de-DE.json"]);
 		expect(r.warning).toMatch(/still need real translation/);
 	});
 
@@ -337,7 +337,7 @@ describe("translation_sync", () => {
 		writeFileSync(join(dir, "translations", "en-US.json"), "{}");
 		const r = translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false });
 		expect(r.warning).toMatch(/translations\/en-US\.json is never read by install/);
-		expect(Object.keys(r.files)).toEqual([join("translations", "de-DE.json")]);
+		expect(Object.keys(r.files)).toEqual(["translations/de-DE.json"]);
 	});
 
 	it("fixes the validator's translation-completeness errors", () => {
