@@ -233,10 +233,9 @@ Role labels are **required and localized** (this changed — older docs said rol
 
 ### Sections that are NOT translated (write-time only)
 
-- `settings` — completeness *is* checked by the validator when listed in `manifest.supportedLocales` (so you'll be forced to ship `settings.<cd>.label` for each declared locale), but the registrar doesn't display those translated labels at runtime. The English `description` in `settings.json` is what users see today.
-- `print_templates` — not currently consumed by the registrar. Template labels come from `ui/print_templates.json`.
+- `print_templates` — not consumed by the registrar: a template row has no translatable resource. Its name is the `description` in `ui/print_templates.json` in every language. If you include the section, install succeeds and ignores it.
 
-If you include these sections, the install succeeds (they're silently ignored) — but you won't see localized output for them, so don't expect it.
+`settings` **is** translated: completeness is checked for each declared locale (ship `settings.<cd>.label`), and the setting's English text is its `description` in `settings.json` — the registrar never reads a `label` there.
 
 ## German example (de-DE)
 

@@ -685,7 +685,7 @@ One file per locale in `manifest.supportedLocales`. There is **no** English file
 
 **Constraint violation messages are localizable (opt-in).** The `message` on a check/unique constraint in the entity JSON is the base (fallback) text. To localize it, add a per-locale override under `entities.<entityCd>.constraints.<constraintName>.message` in each `translations/<locale>.json`. The server resolves it with culture fallback (per-locale → base) and it surfaces identically on the client pre-save validator and the server DB-violation path. Unlike labels, constraint overrides are **not** completeness-enforced: a missing override for a declared `supportedLocales` entry emits a **non-fatal warning** (from `dforge_module_validate` pre-flight and at install) and the base message is used as the fallback.
 
-**Silently ignored at runtime:** `roles` and `print_templates` — the resource rows have no `res_id`, so translations are reserved for future use. `settings` is validated for completeness (when listed in `supportedLocales`) but the registrar does not display the translated labels, so don't expect localized output. Display names for these come from the source manifest (`description` for roles, `label` for print templates and settings).
+**Roles and settings are translated; print templates are not.** `roles.<code>.label` and `settings.<code>.label` are completeness-enforced for each declared locale, over the English `description` in `security/roles.json` and `settings.json` (the registrar reads no `label` there). A print template has no translatable resource: its name is its `description` in every language, and a `print_templates` section is ignored.
 
 ---
 

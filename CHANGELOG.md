@@ -31,7 +31,14 @@ table of where each object's English text lives, and the column-security example
 history loaded from another system; how long a cache rebuild at install can take. Common mistakes gain an
 empty dimension (no `allowEmpty` on any kind; `=COALESCE(...)` or `skipPostingWhenEmpty`), `headerMap`
 taking columns only and why each must be locked, one constant for two resources, a month missing from the
-period calendar counting as closed (`DF003`), and the `registers/column-not-numeric` warning.
+period calendar counting as closed (`DF003`), and the `registers/column-not-numeric` warning. A loader
+writing postings must spell an analytic slot's `entity` as the engine does, without the module prefix.
+
+**DSL entity codes are schema-qualified.** The data built-ins take `<schema>.<entity>`, not a module code:
+`insert('cdy-tax.x', …)` fails at run time with "Invalid schema name", and a hyphenated module needs a
+`schemaName` with underscores to be reachable at all. `references/action-dsl.md` said the opposite.
+Roles and settings are translated (the conventions doc called roles ignored); a print template's name is
+its `description`.
 
 **DSL, formulas, fields.** An inline action stops after 10 seconds; an assignment inside a one-line block
 fails; indexing after a call or an index compiles since platform #1537. `TODAY()` / `NOW()` follow the

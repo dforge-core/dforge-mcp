@@ -271,6 +271,8 @@ An `accounting` register may also declare `analyticTotals`, a second cache keyed
 
 For a history loaded from another system, an `accounting` register may declare `importedKeyField`: the posting column in which a posting **loaded** beside a document posted in another system (one with no `source` stamp) keeps that document's key. `getAccountBalance` / `getAccountTurnover` then leave such postings out when `exclude` names the document, matched on that key alone, as exact text and without telling entities apart — so declare it on a text column. A document with a key of several columns cannot be matched this way and is refused. A document of an entity that posts nothing to the register is accepted and matched by the key alone. Postings the engine wrote are still matched by their stamp only. Install refuses a name that is no posting column. New in metadata 0.0.46; no shipped module uses it yet.
 
+**Loading postings yourself.** The engine writes an analytic slot as `{ entityId, entity, entityLabel, description, pk, value }` with `entity` the **bare** entity code, no module prefix, and the caches copy it as is. A loader that writes `module.entity` into the slots leaves a journal of two spellings, and a `{ entity, value }` filter, which compares the text, then misses one of them. Write slots exactly as the engine does.
+
 **Rebuild time.** Install rebuilds a cache whose shape or account flags changed, in the install's transaction. On a large journal this takes minutes (about 18 minutes for an analytic cache over 1.5 million postings), and the CLI can give up waiting while the server goes on and finishes. Check the cache before installing again.
 
 
