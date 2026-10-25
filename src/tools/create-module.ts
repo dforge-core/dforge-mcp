@@ -11,7 +11,6 @@ import {
 	buildRoles,
 	buildActions,
 	buildSettings,
-	buildTranslations,
 	buildSeedData,
 	buildGitignore,
 	buildVscodeSettings,
@@ -62,7 +61,7 @@ export const createModuleSchema = {
 	preset: z
 		.enum(["minimal", "minimal-plus", "full"])
 		.default("minimal")
-		.describe("'minimal' = manifest+entity+UI+role only. 'full' = also settings/translations/seed-data/logic stubs. 'minimal-plus' behaves like 'minimal' here since MCP can't loop; pass all entities up-front."),
+		.describe("'minimal' = manifest+entity+UI+role only. 'full' = also settings/seed-data/logic stubs. No translation file: English lives in the definitions, other locales come from dforge_translation_sync. 'minimal-plus' behaves like 'minimal' here since MCP can't loop; pass all entities up-front."),
 	entities: z
 		.array(
 			z.object({
@@ -179,7 +178,6 @@ export function createModuleFiles(
 	// Full preset adds the optional-but-typical extras.
 	if (opts.preset === "full") {
 		write("settings.json", buildSettings());
-		write("translations/en-US.json", buildTranslations(opts));
 		for (const e of opts.entities) {
 			write(`seed-data/01-${e.name}.json`, buildSeedData());
 		}

@@ -125,8 +125,8 @@ describe("a module's own traits.json is overlaid on the platform traits", () => 
 	});
 
 	it("translation_sync labels a local trait's columns", () => {
-		const r = translationSync({ moduleDir: dir, prune: false });
-		const tx = JSON.parse(r.files[join("translations", "en-US.json")]);
+		const r = translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false });
+		const tx = JSON.parse(r.files[join("translations", "de-DE.json")]);
 		expect(tx.entities.product.fields.price.label).toBe("Price");
 		expect(tx.entities.product.fields.currency.label).toBe("Currency");
 	});
@@ -250,7 +250,7 @@ describe("a traits.json that does not parse", () => {
 		expect(() =>
 			seedAdd({ moduleDir: dir, entity: "product", records: [{ product_id: 1, name: "x" }] }),
 		).toThrow(/traits\.json — invalid JSON/);
-		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(
+		expect(() => translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false })).toThrow(
 			/traits\.json — invalid JSON/,
 		);
 	});

@@ -78,9 +78,9 @@ formula column shape; flags letters (`V I E M H` only); every entity has a
 default grid and `dataSources` at root with `"order"` as a string array; menu
 leaves use `dataViewCode` and bare icon names; every entity in at least one
 role's rights; action `script` values are bare filenames; seed PKs numeric with
-parents first; a `translations/<locale>.json` for every `supportedLocales` entry
-**plus** the `en-US` base, each carrying a label for every trait-provided field
-and every role.
+parents first; a `translations/<locale>.json` for every `supportedLocales` entry,
+each carrying a label for every trait-provided field and every role. No English
+file — install skips `en*.json`; English is the definitions' own short labels.
 
 If translations are thin, run **`dforge_translation_sync`** now rather than
 hand-patching — it fills exactly the keys install requires.

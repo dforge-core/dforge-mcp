@@ -490,7 +490,7 @@ server.registerTool(
 	{
 		title: "Sync translation files",
 		description:
-			"PHASE 4: Generate or refresh translations/<locale>.json from what the module actually contains — entity + field labels (including trait-provided columns), views, menus, roles, actions, folders, settings. Existing translated text is NEVER overwritten; missing keys are seeded with the English source so the file is immediately installable. Defaults to en-US plus every manifest.supportedLocales entry — exactly the set install requires. Run it after any entity/view/role change: role labels are completeness-enforced and a missing one FAILS install.",
+			"PHASE 4: Generate or refresh translations/<locale>.json from what the module actually contains — entity + field labels (including trait-provided columns), views, menus, roles, actions, folders, settings. Existing translated text is NEVER overwritten; missing keys are seeded with the English source so the file is immediately installable. Defaults to every manifest.supportedLocales entry — exactly the set install requires. Writes no English file: install never reads translations/en*.json, English text lives in the definitions (entity/field/role/setting `description`, menu/action/report `label`). Run it after any entity/view/role change: role labels are completeness-enforced and a missing one FAILS install.",
 		inputSchema: { ...translationSyncSchema, ...applyInput },
 	},
 	envelope(translationSync),

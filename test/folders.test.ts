@@ -127,7 +127,7 @@ describe("module_validate flags colliding folder codes", () => {
 describe("translation_sync and folder codes", () => {
 	it("refuses to generate keys that would overwrite each other", () => {
 		makeModule(COLLIDING_TREE);
-		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(
+		expect(() => translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false })).toThrow(
 			/reuses folder code\(s\) across branches/,
 		);
 	});
@@ -137,9 +137,9 @@ describe("translation_sync and folder codes", () => {
 			label: "Ops Root",
 			children: { north: { label: "North" }, south: { label: "South" } },
 		});
-		apply(translationSync({ moduleDir: dir, prune: false }));
+		apply(translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false }));
 		const tx = JSON.parse(
-			require("node:fs").readFileSync(join(dir, "translations", "en-US.json"), "utf8"),
+			require("node:fs").readFileSync(join(dir, "translations", "de-DE.json"), "utf8"),
 		);
 		// The module code and the folder's path, joined with `_` — what install resolves.
 		expect(tx.folders.ops.label).toBe("Ops Root");

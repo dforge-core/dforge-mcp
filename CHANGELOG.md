@@ -6,6 +6,17 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+**English is the base locale, and it lives in the definitions.** Install never reads
+`translations/en.json` / `en-*.json`, so the English file the tools wrote was dead weight: its labels
+were never applied, and the English UI kept showing whatever the definitions said. `dforge_module_create`
+(preset `full`) no longer writes `translations/en-US.json`; `dforge_translation_sync` defaults to the
+`supportedLocales` entries only, refuses an English locale, and warns about a leftover English file;
+`dforge_module_validate` warns about one instead of requiring role labels in it; `dforge_module_plan`
+defaults to no extra locales. The sync seeds a setting from its `description` and a view, menu, folder or
+action from `label`, else `description` — what install shows. `references/translations.md` gains the
+table of where each object's English text lives, and the column-security example drops its
+`en-US.json` for short labels in the definitions.
+
 **DSL builtins.** `attachText(content, fileName, encoding?, mimeType?)` / `attachBase64(base64, fileName, mimeType?)` build a file for `sendEmail()`'s fourth argument, keeping its own type (an `.ics` as `text/calendar`); a scheduled job can attach them, unlike a `printPdf()` file. Follows metadata 0.0.45; `dforge_action_check` knows both. **Needs `@dforge-core/dforge-cli` with them** (0.2.36).
 
 **Schemas follow metadata 0.0.46.** `dforge://schema/registers` accepts `importedKeyField` on an accounting register; `dforge://schema/entity` accepts the `filesize` field type.

@@ -283,8 +283,8 @@ describe("seed_add", () => {
 
 describe("translation_sync", () => {
 	it("generates every install-required key, including role labels", () => {
-		apply(translationSync({ moduleDir: dir, prune: false }));
-		const tx = readJson("translations/en-US.json");
+		apply(translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false }));
+		const tx = readJson("translations/de-DE.json");
 		expect(tx.roles["shop.admin"].label).toBe("Shop Administrator");
 		expect(tx.entities.product.label).toBe("Product");
 		expect(tx.entities.product.fields.name.label).toBe("Name");
@@ -305,16 +305,39 @@ describe("translation_sync", () => {
 		expect(tx.roles["shop.admin"].label).toBe("Shop Administrator"); // seeded
 	});
 
-	it("defaults to en-US plus every declared locale", () => {
+	it("defaults to the declared locales and writes no English file", () => {
 		rmSync(dir, { recursive: true, force: true });
 		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-elements-"));
 		makeModule({ supportedLocales: ["de-DE"] });
 		const r = translationSync({ moduleDir: dir, prune: false });
-		expect(Object.keys(r.files).sort()).toEqual([
-			join("translations", "de-DE.json"),
-			join("translations", "en-US.json"),
-		]);
+		expect(Object.keys(r.files)).toEqual([join("translations", "de-DE.json")]);
 		expect(r.warning).toMatch(/still need real translation/);
+	});
+
+	it("refuses an English locale, which install never reads", () => {
+		expect(() => translationSync({ moduleDir: dir, locales: ["en-US"], prune: false })).toThrow(
+			/install never reads translations\/en\*\.json/,
+		);
+	});
+
+	it("validate warns that an English file is never read, and checks no role labels in it", () => {
+		mkdirSync(join(dir, "translations"), { recursive: true });
+		writeFileSync(join(dir, "translations", "en-US.json"), "{}");
+		const report = validate();
+		expect(report.errors).toEqual([]);
+		expect(JSON.stringify(report.warnings)).toMatch(/install never reads an English translation file/);
+	});
+
+	it("tells an English-only module it needs no translation files", () => {
+		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(/English-only module needs no translation files/);
+	});
+
+	it("flags a leftover English file as never read", () => {
+		mkdirSync(join(dir, "translations"), { recursive: true });
+		writeFileSync(join(dir, "translations", "en-US.json"), "{}");
+		const r = translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false });
+		expect(r.warning).toMatch(/translations\/en-US\.json is never read by install/);
+		expect(Object.keys(r.files)).toEqual([join("translations", "de-DE.json")]);
 	});
 
 	it("fixes the validator's translation-completeness errors", () => {
@@ -330,14 +353,14 @@ describe("translation_sync", () => {
 		// Skipping it would produce a 'successful' but incomplete skeleton, and
 		// the gap would only surface as a missing-label install failure.
 		rmSync(join(dir, "entities", "product.json"));
-		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(
+		expect(() => translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false })).toThrow(
 			/points at '\.\/entities\/product\.json', which does not exist/,
 		);
 	});
 
 	it("fails fast on invalid entity JSON, naming the file", () => {
 		writeFileSync(join(dir, "entities", "product.json"), "{ not json");
-		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(
+		expect(() => translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false })).toThrow(
 			/entities\/product\.json is not valid JSON/,
 		);
 	});
@@ -348,7 +371,7 @@ describe("translation_sync", () => {
 		rmSync(dir, { recursive: true, force: true });
 		dir = mkdtempSync(join(tmpdir(), "dforge-mcp-elements-"));
 		makeModule({ traits: ["identity", "not_a_real_trait"] });
-		expect(() => translationSync({ moduleDir: dir, prune: false })).toThrow(
+		expect(() => translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false })).toThrow(
 			/declares unknown trait\(s\): not_a_real_trait/,
 		);
 	});
@@ -356,14 +379,14 @@ describe("translation_sync", () => {
 	it("prunes stale keys only when asked", () => {
 		mkdirSync(join(dir, "translations"), { recursive: true });
 		writeFileSync(
-			join(dir, "translations", "en-US.json"),
-			JSON.stringify({ entities: { deleted_entity: { label: "Gone" } } }),
+			join(dir, "translations", "de-DE.json"),
+			JSON.stringify({ entities: { deleted_entity: { label: "Weg" } } }),
 		);
-		apply(translationSync({ moduleDir: dir, prune: false }));
-		expect(readJson("translations/en-US.json").entities.deleted_entity).toBeDefined();
+		apply(translationSync({ moduleDir: dir, locales: ["de-DE"], prune: false }));
+		expect(readJson("translations/de-DE.json").entities.deleted_entity).toBeDefined();
 
-		apply(translationSync({ moduleDir: dir, prune: true }));
-		expect(readJson("translations/en-US.json").entities.deleted_entity).toBeUndefined();
+		apply(translationSync({ moduleDir: dir, locales: ["de-DE"], prune: true }));
+		expect(readJson("translations/de-DE.json").entities.deleted_entity).toBeUndefined();
 	});
 });
 

@@ -1,5 +1,5 @@
 {
-	"description": "Products, with stock and pricing on one record",
+	"description": "Product",
 	"dbObject": "product",
 	"toString": "{name}",
 	"traits": ["identity", "audit"],

@@ -114,7 +114,11 @@ Enough to author inline; load the linked reference for the full detail.
   are formula-only and undefined in `execute:`. → `action-dsl`
 - **SQL placeholders** are `@paramName`, not `:paramName`.
 - **Manifest:** non-English locales go in `supportedLocales` (`ll-CC`, never
-  `en`/`en-US`); there is no `translations` manifest key. `security` has both
+  `en`/`en-US`); there is no `translations` manifest key.
+- **English is the definitions' text:** install skips `translations/en*.json`, so
+  never create one. Give every entity, field, role and setting a short
+  `description` and every view, menu, action and report a short `label` — that
+  is what the English UI shows. → `translations` `security` has both
   `roles` and `folders`. → `manifest`
 - **Seed data:** explicit numeric PKs under `{entity}_id`; parents before
   children via the `NN-` prefix. Use `dforge_seed_add`.
@@ -286,7 +290,8 @@ stated trigger; every report's params sit on a dataset.
 ## Phase 4 — Polish (mostly optional)
 
 - **Settings** — `dforge_setting_add` per configurable value the user asked for.
-- **Translations** — run **`dforge_translation_sync`**. It generates every
+- **Translations** — only for the locales in `supportedLocales`; English needs
+  no file. Run **`dforge_translation_sync`**. It generates every
   required key from the module's own contents, never overwrites existing
   translated text, and fills the **role labels that are completeness-enforced at
   install**. Run it after any entity/view/role change, and always before Phase 6.
