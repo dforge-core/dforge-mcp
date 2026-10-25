@@ -145,6 +145,7 @@ A param declared with a text field type (`text`, `textarea`, ...) stays a string
 
 - `[fieldName]` — read or write a field on the current record
 - `[refField].[targetField]` — navigate via a Reference (FK) column to a field on the linked entity. `[refField].targetField` (bare target) is accepted as an equivalent spelling. **Single-hop only** — `[a].[b].[c]` is a compile error; use `getRecord()` / `select()` to reach past one reference
+- `[userField].[email]` — a column of `fieldTypeCd: "user"` (an `owner_id`, an approver) is not a Reference column but navigates the same way, to the platform user: `[owner_id].[email]`, `[owner_id].[full_name]`. This is the only way to read a user's name or e-mail — `getRecord()`, `select()` and `query()` cannot reach the user table. Needs a platform with #1499 (v1.28.8+)
 - `old[fieldName]` — the field's value *before* the change, in an action invoked by an event trigger. Read-only; reads `null` on `insert` events and outside triggers
 
 ```dsl
@@ -504,7 +505,7 @@ notify([approver_id], 'New purchase request from ' + [requester_name] + ' awaiti
 ```
 
 #### `sendEmail(to, subjectOrTemplateCd, bodyOrData?, attachments?)`
-Two modes (a second argument with no spaces that contains `.` or `_` is read as a template code, so give a raw subject spaces). The optional fourth argument attaches files: a `printPdf()` result, or an array of them (a single file as itself, not `[a]`). Max 5 files and 10 MB; only the user who generated a PDF, or a workspace admin, can attach it; not in a scheduled job.
+Two modes (a second argument with no spaces that contains `.` or `_` is read as a template code, so give a raw subject spaces). The optional fourth argument attaches files: a `printPdf()`, `attachText()` or `attachBase64()` result, or an array of them (a single file as itself, not `[a]`). Max 5 files and 10 MB. Only the user who generated a `printPdf()` file, or a workspace admin, can attach it, and a scheduled job cannot; a file built with `attachText()` / `attachBase64()` has no owner and works in a scheduled job too.
 
 ```dsl
 // Raw mode: (to, subject, body)
@@ -577,11 +578,20 @@ execute:
 ```
 
 #### `downloadText(content, fileName, encoding?, mimeType?)` / `downloadBase64(base64, fileName, mimeType?)`
-Hand the user a file the script built. `encoding` defaults to `utf-8`; code pages such as `windows-1251` and `cp866` work; line endings are written as given, no BOM. Both return the signed download URL, which a background or scheduled run can pass on in `notify()`. One download per action (a later call replaces the earlier); max 10 MB per file, 10 files per run.
+Hand the user a file the script built. `encoding` defaults to `utf-8`; code pages such as `windows-1251` and `cp866` work; line endings are written as given, no BOM. Both return the signed download URL, which a background or scheduled run can pass on in `notify()`. One download per action (a later call replaces the earlier); max 10 MB per file, 10 files per run (shared with `attachText()` / `attachBase64()`).
 
 ```dsl
 execute:
     downloadText(csv, 'payments.txt', 'windows-1251')
+```
+
+#### `attachText(content, fileName, encoding?, mimeType?)` / `attachBase64(base64, fileName, mimeType?)`
+Build a file to attach to an email: pass the result as `sendEmail()`'s fourth argument. Encodings as `downloadText()`; the file keeps its `mimeType` (`text/plain` for `attachText()` by default, `application/octet-stream` for `attachBase64()`). Returns a descriptor, not a URL, and only the emails of the same run can name it. Works in a scheduled job. Max 10 MB per file; the 10-files-per-run limit is shared with the download functions.
+
+```dsl
+execute:
+    sendEmail([candidate_email], 'Interview for ' + [job_title], '<p>See you.</p>',
+        attachText(ics, 'invite.ics', 'utf-8', 'text/calendar'))
 ```
 
 #### `download(url, fileName?)`
@@ -739,8 +749,8 @@ The first argument names a **register** (`module_cd.register_cd`, as declared in
 | `getBalance('module.register', dims?, asOf?)` | Object, per resource | Balance of an accumulation register. A dimension left out of `dims` is summed over. |
 | `getTurnover('module.register', dims, from, to)` | Object, `{in, out, net}` per resource | Movement over an interval. `dims` may be `null`; `from` and `to` are required. |
 | `getSlice('module.register', dims, onDate?, mode?)` | Object or `null` | One record of an information register, the latest on or before `onDate`, plus `_period`. No dimension may be omitted. |
-| `getAccountBalance('module.register', account, filter?, asOf?)` | Object, `{debit, credit, net}` per resource | Balance of one account of an accounting register. |
-| `getAccountTurnover('module.register', account, filter, from, to)` | Object, `{debit, credit, net}` per resource | Movement of one account over an interval. |
+| `getAccountBalance('module.register', account, filter?, asOf?, options?)` | Object, `{debit, credit, net}` per resource; an array of rows with `groupBy` | Balance of one account of an accounting register. `options`: `groupBy` (a name or array — a row per combination, zero balances left out), `exclude: { entity: 'module.document', key }` (one, or an array of them; not that document's postings), `before` (a moment, exclusive, in place of `asOf`). |
+| `getAccountTurnover('module.register', account, filter, from, to, options?)` | Object, `{debit, credit, net}` per resource; an array of rows with `groupBy` | Movement of one account over an interval. `options` takes `groupBy` and `exclude`. |
 | `getCorrespondence('module.register', debitAccount, creditAccount, filter, from, to)` | Object, per resource | Movement between two accounts. Needs `lineMode: "compound"`; refuses an analytic filter. |
 
 An analytic filter is the key alone (`{ cost_center: 42 }`) or `{ entity, value }` to name one entity of a union kind.
@@ -1197,7 +1207,7 @@ The `audit` trait auto-maintains `last_updated` on INSERT/UPDATE if the column e
 | Run SQL | `query('SELECT ... WHERE c = @v', { v: value })` |
 | Get setting | `getSetting('setting_cd')` |
 | Send toast | `info('msg')`, `warn('msg')` |
-| Send email | `sendEmail(to, subj, body)` or `sendEmail(to, templateCd, dataObj)`; add a `printPdf()` result as the 4th argument to attach |
+| Send email | `sendEmail(to, subj, body)` or `sendEmail(to, templateCd, dataObj)`; add a `printPdf()`, `attachText()` or `attachBase64()` result as the 4th argument to attach |
 | Give the user a built file | `downloadText(content, 'f.txt', 'windows-1251')` |
 | Send inbox notification | `notify(userId, 'msg')` |
 | Call a shared helper | `round2([amount])` from `logic/functions/*.dsl` |

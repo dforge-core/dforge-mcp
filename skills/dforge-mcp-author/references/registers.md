@@ -265,6 +265,8 @@ execute:
 
 An `accounting` register may also declare `analyticTotals`, a second cache keyed by the analytic slots as well: (account, cached dimensions, analytic slots, period). It covers the accounts whose chart flag `accountFlag` is true, lives in an entity of its own beside `totals` (a surrogate key, since a slot or dimension may be empty), and holds `analyticFields` (one jsonb column per slot), `accountField`, `periodField`, `period`, optional `dimensions` and `debitField`/`creditField` per resource. `getAccountBalance` / `getAccountTurnover` read it for a flagged account when every filter and grouping is a cached dimension or an analytic of the account, and take the rest from the postings. A write to the journal around posting, or a changed account flag, marks it stale until `dforge register rebuild-totals --cache analytic` (or a module install) rebuilds it. Not available on `balance`, `turnover` or `info`.
 
+An `accounting` register may declare `importedKeyField`: the posting column in which a posting **loaded** beside a document posted in another system (one with no `source` stamp) keeps that document's key. `getAccountBalance` / `getAccountTurnover` then leave such postings out when `exclude` names the document, matched on that key alone, as exact text and without telling entities apart — so declare it on a text column. A document with a key of several columns cannot be matched this way and is refused. Install refuses a name that is no posting column.
+
 ## Common mistakes
 
 - **Undeclared or unqualified register.** `params.register` must be `module_cd.register_cd` and exist. Install fails, not the first posting.

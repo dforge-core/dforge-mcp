@@ -428,7 +428,7 @@
 				"fieldTypeCd": {
 					"type": "string",
 					"enum": [
-						"text", "avatar", "email", "phone", "url", "textarea", "number", "currency", "percent",
+						"text", "avatar", "email", "phone", "url", "textarea", "number", "currency", "percent", "filesize",
 						"checkbox", "date", "datetime", "time",
 						"dropdown", "flags", "tags", "json", "hidden", "color", "image", "file",
 						"markdown", "richtext", "lookup", "user", "grid", "list", "entitylink", "code"

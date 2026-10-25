@@ -24,7 +24,7 @@
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
 						"debitAnalyticFields": false, "creditAnalyticFields": false,
-						"sideDimensions": false, "analyticTotals": false
+						"sideDimensions": false, "analyticTotals": false, "importedKeyField": false
 					},
 					"description": "A balance register keeps state, so it needs the entity that holds it. It dates its movements on the journal row under 'journalDate'; 'period' belongs to an information register, whose records ARE the dated thing. Its writer is recorded on the journal row, which is what 'recorder' names for an information register that has no journal."
 				}
@@ -41,7 +41,7 @@
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
 						"debitAnalyticFields": false, "creditAnalyticFields": false,
-						"sideDimensions": false, "analyticTotals": false,
+						"sideDimensions": false, "analyticTotals": false, "importedKeyField": false,
 						"allowNegative": false,
 						"autoCreate": false
 					},
@@ -60,7 +60,7 @@
 						"account": false,
 						"debitAccount": false, "creditAccount": false,
 						"debitAnalyticFields": false, "creditAnalyticFields": false,
-						"sideDimensions": false, "analyticTotals": false,
+						"sideDimensions": false, "analyticTotals": false, "importedKeyField": false,
 						"totals": false,
 						"allowNegative": false,
 						"autoCreate": false
@@ -374,6 +374,11 @@
 				"uniqueItems": true,
 				"items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
 				"description": "Analytic slot columns for the CREDITED account, in slot order and capped independently of the debit side. Only valid on a compound register."
+			},
+			"importedKeyField": {
+				"type": "string",
+				"pattern": "^[a-z_][a-z0-9_]*$",
+				"description": "Accounting only. The posting column holding the document's key on a posting LOADED beside a document posted in another system — one with no 'source' stamp. getAccountBalance / getAccountTurnover 'exclude' then leaves such postings out by that key as well as the stamped ones. Matches documents with a one-column key."
 			},
 			"sideDimensions": {
 				"type": "object",

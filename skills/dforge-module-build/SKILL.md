@@ -42,6 +42,7 @@ flags, or column patterns.
 | Hide columns from a user type (column-level security) | `dforge://reference/security` (§Column-level security), `dforge://example/column-security/entities/product.json`, `dforge://example/column-security/ui/folders.json` | — |
 | Add a menu | `dforge://reference/menus`, `dforge://example/ui/menus.json` | — |
 | Add an action | `dforge://reference/action-dsl`, `dforge://example/logic/actions/mark_done.dsl`, `dforge://example/ui/actions.json` | `dforge://docs/dsl` |
+| Email a file the script builds, or ship saved values / a PDF preview for an action's dialog | `dforge://reference/action-dsl` (§Email and §PDF and file output: `sendEmail` attachments, `attachText`, `attachBase64`; §Registering the action: `paramSets`, `previewTemplate`) | `dforge://docs/dsl` |
 | Share helpers between actions, or call another module's functions | `dforge://reference/action-dsl` (§Function libraries): `logic/functions/*.dsl`, imports in `deps/<module>.json` | `dforge://schema/deps` |
 | Add a trigger | — | `dforge://schema/triggers`; condition syntax in `dforge://docs/dsl` |
 | Add a scheduled job | `dforge://reference/jobs` | `dforge://schema/jobs` |

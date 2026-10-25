@@ -4,6 +4,16 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## Unreleased
+
+**DSL builtins.** `attachText(content, fileName, encoding?, mimeType?)` / `attachBase64(base64, fileName, mimeType?)` build a file for `sendEmail()`'s fourth argument, keeping its own type (an `.ics` as `text/calendar`); a scheduled job can attach them, unlike a `printPdf()` file. Follows metadata 0.0.45; `dforge_action_check` knows both. **Needs `@dforge-core/dforge-cli` with them** (0.2.36).
+
+**Schemas follow metadata 0.0.46.** `dforge://schema/registers` accepts `importedKeyField` on an accounting register; `dforge://schema/entity` accepts the `filesize` field type.
+
+**Registers and actions docs.** `getAccountBalance` / `getAccountTurnover` take `exclude` as one document or an array, and an accounting register's `importedKeyField` leaves out postings loaded beside a document. An action in `ui/actions.json` can ship `paramSets` (saved parameter values; a `=` formula or a template reads the record) and a `previewTemplate` (a PDF beside the run dialog's params). **Needs `@dforge-core/dforge-cli` 0.2.36.**
+
+**DSL docs.** `[owner_id].[email]` / `[owner_id].[full_name]` read the user behind a `user` column (platform #1499); `dforge://reference/dsl` says so.
+
 ## 0.2.44 — 2026-10-21
 
 **Schemas follow metadata 0.0.44.** `dforge://schema/translations` describes `storedProcedures`

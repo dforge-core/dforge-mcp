@@ -319,11 +319,13 @@ The first argument names a **register** (`module_cd.register_cd`, as declared in
 | `getBalance('module.register', dims?, asOf?)` | Object, per resource | Balance of an accumulation register. A dimension left out of `dims` is summed over. |
 | `getTurnover('module.register', dims, from, to)` | Object, `{in, out, net}` per resource | Movement over an interval. `dims` may be `null`; `from` and `to` are required. |
 | `getSlice('module.register', dims, onDate?, mode?)` | Object or `null` | One record of an information register, the latest on or before `onDate`, plus `_period`. No dimension may be omitted. |
-| `getAccountBalance('module.register', account, filter?, asOf?)` | Object, `{debit, credit, net}` per resource | Balance of one account of an accounting register. |
-| `getAccountTurnover('module.register', account, filter, from, to)` | Object, `{debit, credit, net}` per resource | Movement of one account over an interval. |
+| `getAccountBalance('module.register', account, filter?, asOf?, options?)` | Object, `{debit, credit, net}` per resource; an array of rows with `groupBy` | Balance of one account of an accounting register. `options`: `groupBy` (a name or array — a row per combination, zero balances left out), `exclude: { entity: 'module.document', key }` (not that document's postings), `before` (a moment, exclusive, in place of `asOf`). |
+| `getAccountTurnover('module.register', account, filter, from, to, options?)` | Object, `{debit, credit, net}` per resource; an array of rows with `groupBy` | Movement of one account over an interval. `options` takes `groupBy` and `exclude`. |
 | `getCorrespondence('module.register', debitAccount, creditAccount, filter, from, to)` | Object, per resource | Movement between two accounts. Needs `lineMode: "compound"`; refuses an analytic filter. |
 
 An analytic filter is the key alone (`{ cost_center: 42 }`) or `{ entity, value }` to name one entity of a union kind.
+
+`getAccountBalance` / `getAccountTurnover` take `exclude` as one `{ entity, key }` or an array of them, of any entities. A register that declares `importedKeyField` (see the registers reference) also leaves out postings *loaded* beside a document, matched by that document's key.
 
 ### Messaging
 
@@ -348,7 +350,7 @@ error('Insufficient stock. Available: {available}, requested: {requested}',
 |---|---|
 | `sendEmail(to, subject, htmlBody)` | Send a raw email. `to` is an email address string. |
 | `sendEmail(to, templateCode, dataObj)` | Send a templated email. The **second** argument picks the mode: one with no spaces that contains `.` or `_` is read as a template code, so give a raw subject spaces. |
-| `sendEmail(to, subjectOrTemplate, dataOrBody, attachments)` | The optional fourth argument attaches files: a `printPdf()` result, or an array of them (`[a, b]`; pass a single file as itself, because a one-name `[a]` reads as a field reference). Only a `printPdf()` result can be attached, and only by the user who generated it or a workspace admin. At most 5 files and 10 MB per email. A file the sender may not attach fails the action. A scheduled job's email with attachments fails and rolls back. |
+| `sendEmail(to, subjectOrTemplate, dataOrBody, attachments)` | The optional fourth argument attaches files: a `printPdf()`, `attachText()` or `attachBase64()` result, or an array of them (`[a, b]`; pass a single file as itself, because a one-name `[a]` reads as a field reference). A `printPdf()` file can be attached only by the user who generated it or a workspace admin, and a scheduled job's email carrying one fails and rolls back; a file built with `attachText()` / `attachBase64()` has no owner and works in a scheduled job too. At most 5 files and 10 MB per email. A file the sender may not attach fails the action. |
 
 ### PDF and file output
 
@@ -356,6 +358,8 @@ error('Insufficient stock. Available: {available}, requested: {requested}',
 |---|---|---|
 | `printPdf('module.entity', key, templateCd)` | `{ fileId, fileName, mimeType, size, checksum }` | Render a print template to a PDF **as the current user** (the record is read under their rights and the folder's row filter) and archive it. A descriptor, never the bytes: attach it with `sendEmail()`. Always pass a qualified entity code. Not available in a scheduled job or a background action, refused in a computing-only run, max 10 per run; each render holds the action's transaction open. |
 | `downloadText(content, fileName, encoding?, mimeType?)` | URL string | Hand the user a text file the script built. `encoding` is `utf-8` by default; `windows-1251`, `cp866`, `koi8-u` and other code pages work, and a character the encoding cannot represent is an error. Line endings are written as given (join with `'\r\n'` for CR LF), no BOM. Returns the signed download URL (valid an hour). An action has one download: a later call replaces the earlier. In a background or scheduled run nobody receives it, so pass the URL on in `notify()`. Max 10 MB per file, 10 files per run. |
+| `attachText(content, fileName, encoding?, mimeType?)` | descriptor | Build a text file for `sendEmail()`'s fourth argument, keeping its `mimeType` (e.g. an `.ics` as `text/calendar`). Same encodings as `downloadText()`; max 10 MB per file, 10 files per run shared with the download functions. Works in a scheduled job. |
+| `attachBase64(base64, fileName, mimeType?)` | descriptor | `attachText()` for bytes. |
 | `downloadBase64(base64, fileName, mimeType?)` | URL string | `downloadText()` for bytes; `application/octet-stream` unless `mimeType` says otherwise. |
 
 ### External API Calls
@@ -746,6 +750,8 @@ In `ui/actions.json`:
 | `isTransacted` | Recommended | `true` = the whole run is **one transaction**: the first failure aborts it *and* rolls back everything already written. `false` = no transaction, and what happens next depends on the mode — `single`/`each` report the failure and carry on with the next record, keeping what succeeded; a `batch` script is one invocation, so a failure just ends the run there with its earlier writes committed and its `[field]` assignments never flushed. **Defaults to `true`** when omitted — see *Atomicity* below |
 | `orderNum` | Recommended | Display order in the action menu |
 | `isAsync` | Optional | `true` **permits** background execution — it does not force it. A parameterless action is queued directly; one with params is offered to the user as both "Run" and "Run in Background". Queued runs get a completion notification |
+| `previewTemplate` | Optional | Code of a print template of the action's entity (`ui/print_templates.json`). The run dialog opened on one record renders it as a PDF beside the params, so the user reads what the action sends before running it. Each preview renders and archives a PDF |
+| `paramSets` | Optional | Saved parameter sets the module ships, keyed by set name: `{ "default": { "description": "…", "values": { "subject": "…" } } }`. Read-only for users and refreshed on every install; a `values` key the action does not declare fails the install. A set named `default` is applied when the dialog opens. A value starting with `=` is a formula over the record (`=[customer].[email]`) and one containing `{{ }}` is a print-style template, both evaluated when the dialog opens on one record. A user's own set of the same name overrides it for that user, and a set an admin saved under a shipped name is left alone with a warning |
 
 **Definitions are cached.** The server reads an action's definition through a per-tenant cache (5 minutes), cleared on module install, uninstall and Studio publish. A CLI install is noticed only through a connected browser, so without one a changed action can run stale for up to 5 minutes.
 
