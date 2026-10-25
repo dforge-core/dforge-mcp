@@ -106,6 +106,7 @@ Use the CRM sample module (`modules/crm/`) as a reference implementation.
 - `entities` maps entity codes to file paths (relative to module root)
 - Omit `"system": true` for regular modules (defaults to false)
 - Omit `schemaName` to use `code` as the schema name
+- The schema and the code must be free: a first install, or an upgrade that moves the module to another schema, is refused when another module already holds that schema or code (compared case-insensitively). Modules that already share a schema keep upgrading.
 
 ### 1b. Module Extensions
 

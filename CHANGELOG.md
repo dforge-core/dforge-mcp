@@ -31,12 +31,14 @@ table of where each object's English text lives, and the column-security example
 history loaded from another system; how long a cache rebuild at install can take. Common mistakes gain an
 empty dimension (no `allowEmpty` on any kind; `=COALESCE(...)` or `skipPostingWhenEmpty`), `headerMap`
 taking columns only and why each must be locked, one constant for two resources, a month missing from the
-period calendar counting as closed (`DF003`), and the `registers/column-not-numeric` warning. A loader
-writing postings must spell an analytic slot's `entity` as the engine does, without the module prefix.
+period calendar counting as closed (`DF003`), and the `registers/column-not-numeric` warning. The engine
+writes an analytic slot's `entity` as `module.entity` (platform #1544), and a loader writes the same; a
+filter matches either spelling, `groupBy` splits old bare slots from new ones until a migration and
+`rebuild-totals`.
 
-**DSL entity codes are schema-qualified.** The data built-ins take `<schema>.<entity>`, not a module code:
-`insert('cdy-tax.x', …)` fails at run time with "Invalid schema name", and a hyphenated module needs a
-`schemaName` with underscores to be reachable at all. `references/action-dsl.md` said the opposite.
+**DSL entity codes.** A data built-in's `module.entity` is looked up by module code, hyphen included, and
+otherwise as a schema (platform #1543), so `insert('cdy-tax.x', …)` and `insert('cdy_tax.x', …)` both
+work. The conventions doc notes that install refuses a schema or code another module already holds.
 Roles and settings are translated (the conventions doc called roles ignored); a print template's name is
 its `description`.
 

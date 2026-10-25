@@ -237,16 +237,13 @@ var note = params[note]             // no quotes around param name in this DSL
 | `getRecordOrNull('entity', key)` | Row object or `null` | Like `getRecord`, but returns `null` instead of throwing when the row is absent — use for an expected-absence lookup, guarded with `if (rec == null)`. |
 | `preloadRef('fk_column')` | Row object | Load the referenced record for a FK column. Access its fields with `ref.get('field')`. |
 
-> **Entity codes: always qualify — by schema.** Every data built-in (`select`, `insert`, `update`,
-> `delete`, `getRecord`, `nextNumber`) takes `<schema>.<entity>`, where the first part is the owning
-> module's **schema** (its manifest `schemaName`, else its `code`), not a module code looked up by name —
-> write `update('comm.message', …)`, not `update('message', …)`, even inside the owning module. It reads
-> unambiguously and keeps the script correct if it's ever moved to a bridge module. Each part must be
-> letters, digits and `_`, so `insert('cdy-tax.invoice', …)` fails at run time with
-> `Invalid schema name: cdy-tax`, which validate does not catch. A module with a hyphenated code must
-> declare a `schemaName` with underscores (`"schemaName": "cdy_tax"`) for any script to reach its
-> entities; then write `insert('cdy_tax.invoice', …)`. (A `ref` param is different: it takes the module
-> code, hyphen included — see *params:*.)
+> **Entity codes: always qualify.** Every data built-in (`select`, `insert`, `update`, `delete`,
+> `getRecord`, `nextNumber`) takes `module.entity` — write `update('comm.message', …)`, not
+> `update('message', …)`, even inside the owning module. It reads unambiguously and keeps the script
+> correct if it's ever moved to a bridge module. The part before the dot is looked up first as a module
+> code, hyphen included (`insert('cdy-tax.invoice', …)`), and otherwise taken as a schema
+> (`insert('cdy_tax.invoice', …)`); both work, also for a hyphenated module with no `schemaName`
+> (platform #1543). Prefer the module code, as a `ref` param writes it.
 
 > **Keys: scalar or object.** In `update()` / `delete()` / `getRecord()` / `getRecordOrNull()`,
 > `key` is either a scalar PK value (`update('task', 42, {…})` — single-column PK only) or an
@@ -823,7 +820,7 @@ be either.
 > and `ON COMMIT DROP` on any temp table. Only `query()` can do any of this — the
 > structured built-ins emit plain DML — and nothing checks it statically.
 
-1. **Bare table names are qualified automatically** with the current module's schema after `FROM` / `JOIN` / `USING`, and as the target of `INSERT INTO`, `MERGE INTO` and `UPDATE`. A name already qualified (`wms.stock_movement`) is left as written, so qualify only another module's table. Left alone: words that name no table (`IS DISTINCT FROM`, `EXTRACT(year FROM d)`, `FOR UPDATE`, `DO UPDATE SET`, `SELECT ... INTO var`), built-in set functions (`generate_series`, `unnest`), literals and comments. A CTE name is a source only inside the query that declares its `WITH` (and in its own body only under `RECURSIVE`); a write target is always the real table, so `WITH t AS (...) UPDATE t ...` updates the module's `t`. `;`-separated statements are each qualified. (A module whose code has a hyphen and that declares no `schemaName` lives in a hyphenated schema, which neither raw SQL nor the structured built-ins can name; give such a module a `schemaName` with underscores.)
+1. **Bare table names are qualified automatically** with the current module's schema after `FROM` / `JOIN` / `USING`, and as the target of `INSERT INTO`, `MERGE INTO` and `UPDATE`. A name already qualified (`wms.stock_movement`) is left as written, so qualify only another module's table. Left alone: words that name no table (`IS DISTINCT FROM`, `EXTRACT(year FROM d)`, `FOR UPDATE`, `DO UPDATE SET`, `SELECT ... INTO var`), built-in set functions (`generate_series`, `unnest`), literals and comments. A CTE name is a source only inside the query that declares its `WITH` (and in its own body only under `RECURSIVE`); a write target is always the real table, so `WITH t AS (...) UPDATE t ...` updates the module's `t`. `;`-separated statements are each qualified. (A module whose code has a hyphen and that declares no `schemaName` lives in a hyphenated schema, which raw SQL cannot name as written — the structured built-ins reach it by module code; give such a module a `schemaName` with underscores if its tables are queried in SQL.)
 2. **Use `@param` placeholders** for values — NEVER concatenate user input into SQL strings. The engine auto-parameterizes.
 3. **SELECT, INSERT, UPDATE, DELETE all work** via `query()`. For reads, it returns row arrays. For writes, it executes the statement.
 4. **`insert()` is preferred over `query('INSERT ...')`**, `update()`/`delete()` over `query('UPDATE/DELETE ...')`, and `select()` over `query('SELECT ...')` for module entities — raw SQL skips auto-fill (PKs, audit, number sequences) and metadata validation.
@@ -839,7 +836,6 @@ be either.
 - Passing an **array of ids** as the `key` of `update()`/`delete()` — **rejected**. Loop over the ids and mutate one at a time.
 - Selecting or string-filtering a plain reference (`R`) column in `select()` — **throws**. Use the FK column or a nav path (`'customer.company_name'`).
 - Unqualified entity codes (`update('message', …)`) — works inside the owning module but **always prefer the qualified form** (`update('comm.message', …)`).
-- Qualifying a data built-in by a hyphenated module code (`insert('cdy-tax.invoice', …)`) — fails at run time with "Invalid schema name". The first part is the schema: `cdy_tax.invoice`, with `"schemaName": "cdy_tax"` in that module's manifest.
 - An assignment inside a one-line block, `if (x) { [field] = y }` -- fails at run time with "not a valid reference". Put `[field] = y` on a line of its own.
 - Indexing straight after a call or an index, `query(sql)[0]` or `rows[0][name]` -- read as a field reference `[0]` / `[name]` before platform #1537 (2026-10-24). On an older platform, assign the result to a variable first. `rows [name]`, with a space, is still a field read.
 - Forgetting `var` in loops — `for (i = 0; ...)` creates a global. Always `for (var i = 0; ...)`.
