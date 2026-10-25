@@ -17,6 +17,8 @@ Lives in: `registers.json` at the module root (a keyed dictionary, like `logic/j
 
 A register earns its place when something must be guarded or cached by its key: a negative-stock check, a unique slice, a period lock. Posting and unposting are then the platform's job, not a DSL's.
 
+Only a `balance` register folds movements into **one row per dimension tuple** (its state entity). A `turnover` register keeps every movement as a journal row and sums at read time; an `info` register keeps one record per key and `period`. So "how much is there now, per key" is `balance`; "how much moved" is `turnover`; "what was the value on a date" is `info`.
+
 ## The kinds
 
 | `kind` | Keeps | Written by | Read by | Key rules |
@@ -243,8 +245,8 @@ Paths, expressions, `dateTrunc`, `headerMap`, `groupLinesBy`, `lineDateField` an
 | `getBalance(register, dims?, asOf?)` | `balance` | `{ resource: value }`, zeros when empty |
 | `getTurnover(register, dims, from, to)` | `balance`, `turnover` | `{ resource: { in, out, net } }` |
 | `getSlice(register, dims, onDate?, mode?)` | `info` | Record plus `_period`, or `null`. `mode` is `last` (default) or `first`. |
-| `getAccountBalance(register, account, filter?, asOf?)` | `accounting` | `{ resource: { debit, credit, net } }` |
-| `getAccountTurnover(register, account, filter, from, to)` | `accounting` | Same shape |
+| `getAccountBalance(register, account, filter?, asOf?, options?)` | `accounting` | `{ resource: { debit, credit, net } }`; with `options.groupBy`, an array of rows |
+| `getAccountTurnover(register, account, filter, from, to, options?)` | `accounting` | Same shape |
 | `getCorrespondence(register, debitAccount, creditAccount, filter, from, to)` | compound | Same shape |
 
 ```
@@ -257,6 +259,8 @@ execute:
 - As-of reads and `getTurnover` need a journal with both stamps.
 - A read of the wrong kind is refused, naming the right one.
 - DSL reads are gated by the action's Execute right, not Select on the register tables.
+- **Account read options:** `groupBy` (a name or array; a row per combination, zero balances left out), `exclude` (one `{ entity, key }` or an array of them, of any entities, left out together; an empty array leaves nothing out; a refusal names the entry, `exclude[1]`), and on a balance `before` (up to that moment, exclusive and to the precision of the journal's date column, in place of `asOf`'s end of day; giving both is refused).
+- **Balance at a document's moment.** The platform keeps no order between movements stamped in the same second, so "the balance just before this document" is the caller's decision: read `before` the end of that second and `exclude` the document itself plus every document of that second the caller orders after it (1C's МоментВремени orders by date, then reference). `exclude` matches the postings each document wrote by its `source` stamp; postings loaded from another system carry no stamp and are kept unless the register declares `importedKeyField` (below).
 - **Reports:** a dataset with `"datasetType": "R"` reads an accounting register over an interval. It returns one row per chart account with `opening_*`, `turnover_*` and `closing_*` debit and credit for one resource. See [`reports.md`](reports.md) and [`docs/business-logic/gl-ledger-to-declared-register.md`](../../../docs/business-logic/gl-ledger-to-declared-register.md).
 
 ## Totals cache
@@ -265,13 +269,20 @@ execute:
 
 An `accounting` register may also declare `analyticTotals`, a second cache keyed by the analytic slots as well: (account, cached dimensions, analytic slots, period). It covers the accounts whose chart flag `accountFlag` is true, lives in an entity of its own beside `totals` (a surrogate key, since a slot or dimension may be empty), and holds `analyticFields` (one jsonb column per slot), `accountField`, `periodField`, `period`, optional `dimensions` and `debitField`/`creditField` per resource. `getAccountBalance` / `getAccountTurnover` read it for a flagged account when every filter and grouping is a cached dimension or an analytic of the account, and take the rest from the postings. A write to the journal around posting, or a changed account flag, marks it stale until `dforge register rebuild-totals --cache analytic` (or a module install) rebuilds it. Not available on `balance`, `turnover` or `info`.
 
-An `accounting` register may declare `importedKeyField`: the posting column in which a posting **loaded** beside a document posted in another system (one with no `source` stamp) keeps that document's key. `getAccountBalance` / `getAccountTurnover` then leave such postings out when `exclude` names the document, matched on that key alone, as exact text and without telling entities apart — so declare it on a text column. A document with a key of several columns cannot be matched this way and is refused. Install refuses a name that is no posting column.
+For a history loaded from another system, an `accounting` register may declare `importedKeyField`: the posting column in which a posting **loaded** beside a document posted in another system (one with no `source` stamp) keeps that document's key. `getAccountBalance` / `getAccountTurnover` then leave such postings out when `exclude` names the document, matched on that key alone, as exact text and without telling entities apart — so declare it on a text column. A document with a key of several columns cannot be matched this way and is refused. A document of an entity that posts nothing to the register is accepted and matched by the key alone. Postings the engine wrote are still matched by their stamp only. Install refuses a name that is no posting column. New in metadata 0.0.46; no shipped module uses it yet.
+
+**Rebuild time.** Install rebuilds a cache whose shape or account flags changed, in the install's transaction. On a large journal this takes minutes (about 18 minutes for an analytic cache over 1.5 million postings), and the CLI can give up waiting while the server goes on and finishes. Check the cache before installing again.
+
 
 ## Common mistakes
 
 - **Undeclared or unqualified register.** `params.register` must be `module_cd.register_cd` and exist. Install fails, not the first posting.
 - **Unmapped required resource.** Map it, or mark the resource `"required": false` when only some writers supply it.
-- **Empty dimension.** An empty dimension refuses the posting. `skipPostingWhenEmpty` is the exception: it leaves a document posted while some lines moved nothing. Prefer one line table per binding. Use it only when the distinction lives in the data, such as a serial number filled on some rows.
+- **Empty dimension.** An empty (NULL) dimension refuses the posting; there is no `allowEmpty`, on any kind. Two ways out: map the dimension through an expression with a placeholder, `"=COALESCE([frp_id], 0)"` (`A` column only), or list it in `skipPostingWhenEmpty`, which leaves the document posted while those rows move nothing. Prefer one line table per binding. Use `skipPostingWhenEmpty` only when the distinction lives in the data, such as a serial number filled on some rows. Data loaded from another system often has such rows (a movement with no warehouse), so decide this before the load.
+- **`headerMap` takes columns only.** It maps a register name to a **document** column; it does not take a constant or an expression. Every column it names must be in `lockedFields`: a line movement copies the header value at posting, and unposting takes back exactly what was posted, so a header value edited while posted would leave the register out of step. For a constant on every line, use a quoted constant in `map`.
+- **One constant for two resources.** Two resources mapped to the same constant read as two resources storing into one column and are refused.
+- **Period missing from the calendar.** With `periodEntity`, a month that has no row in the period entity counts as **closed**, and posting into it fails (`DF003: Period 1999-04 does not exist`). Seed or load the periods before the documents that post into them.
+- **A summed column that isn't a number.** A resource of a `balance`, `turnover` or `accounting` register, and a `totals` cache's columns, must be a scalar number. The editor and language server warn (`registers/column-not-numeric`, metadata 0.0.46) on `varchar`, `integer[]` and the like. An `info` register's resources are returned, not summed, and may be any type.
 - **Missing or unlocked `dateField`.** Required once the register has `journalDate` or `period`, and it must be in `lockedFields`.
 - **Key over dimensions.** The journal, a subordinate `info` register's records and an `autoCreate` state table are written by the platform. Each needs **one** surrogate primary key of type `bigint` (`identity`/`cuid`) or `uuid`. A key over dimensions, a multi-column key, a text key and `int4` are refused.
 - **State column narrower than the journal column.** It must hold the journal's value exactly, or unposting cannot take back what posting added.

@@ -135,7 +135,7 @@ A check/unique constraint declares a user-facing `message` in the entity JSON (`
 
 ### Dropdown option labels ARE translatable (opt-in)
 
-The `options` on a `dropdown`/`radio`/`flags` column are the **base (fallback) labels**. To translate the labels a user actually sees, add an `options` map next to the field's `label`, keyed by the option's **value** (the stored code):
+The `options` on a `dropdown`/`radio`/`flags` column are the **base (fallback) labels**, and they are the English UI — write plain English there (`"Active"`), never a bilingual `"Active (Актив)"`. To translate the labels a user actually sees, add an `options` map next to the field's `label`, keyed by the option's **value** (the stored code). Prefer the **string** form (`"active": "Активний"`): the `{ label, … }` form is valid, but the VS Code extension's translation panel counts it as missing, and `module validate` does not check option translations at all. An option list several columns share belongs in a column domain, translated once under `domains.<code>.options`.
 
 ```json
 "entities": {

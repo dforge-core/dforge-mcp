@@ -704,6 +704,8 @@ In `batch` mode, access individual records with `__records.get(i)`, the count wi
 
 ## Async actions
 
+An inline run stops after **10 seconds** (`Dsl:Limits:ScriptTimeoutSeconds`) with "The operation has timed out.", rolling its transaction back. Work that imports or posts many documents belongs in a background run; a caller that needs the outcome waits for the records' state (a posting flag) rather than for the call.
+
 For long-running actions, set `"isAsync": true` in `ui/actions.json`. That **permits** background execution: the call is queued as a `background_action` row and picked up by `BackgroundActionService` (a hosted `BackgroundService` polling every ~10s — there is no Hangfire in dForge), and the user gets a completion notification via SSE. The DSL syntax is the same.
 
 `isAsync` does not force it. `action.execute` carries its own `async` argument and the server branches on that, so a parameterless action is queued directly while one with parameters is offered to the user as both "Run" (inline) and "Run in Background". Note that a queued run has **no wrapping transaction** — see *Atomicity* below.
@@ -831,6 +833,8 @@ be either.
 - Passing an **array of ids** as the `key` of `update()`/`delete()` — **rejected**. Loop over the ids and mutate one at a time.
 - Selecting or string-filtering a plain reference (`R`) column in `select()` — **throws**. Use the FK column or a nav path (`'customer.company_name'`).
 - Unqualified entity codes (`update('message', …)`) — works inside the owning module but **always prefer the qualified form** (`update('comm.message', …)`).
+- An assignment inside a one-line block, `if (x) { [field] = y }` -- fails at run time with "not a valid reference". Put `[field] = y` on a line of its own.
+- Indexing straight after a call or an index, `query(sql)[0]` or `rows[0][name]` -- read as a field reference `[0]` / `[name]` before platform #1537 (2026-10-24). On an older platform, assign the result to a variable first. `rows [name]`, with a space, is still a field read.
 - Forgetting `var` in loops — `for (i = 0; ...)` creates a global. Always `for (var i = 0; ...)`.
 - Using ES6 syntax (`const`, `let`, `=>`, template literals) — **may not work**. Jint supports ES5.1 primarily. Stick to `var`, `function`, string concatenation with `+`.
 - Calling `TODAY()` or `NOW()` (uppercase) inside `execute:` — **wrong**, they're undefined there and install fails with `'TODAY' is not defined`. Use lowercase **`now()`** in `execute:`; `TODAY()`/`NOW()` are formula-only (`canExecute:`, formula columns).

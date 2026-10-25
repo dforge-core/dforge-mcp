@@ -162,8 +162,10 @@ $$;
 - `paramCd` is capped at 50 characters, and a declared `fieldTypeCd` must be a real one —
   both are checked at install, because binding the SP in the report editor copies them
   into report params.
-- `RETURNS TABLE (...)`.
+- `RETURNS TABLE (...)`. In `LANGUAGE plpgsql` with `RETURN QUERY`, each selected column must match its declared type exactly: a `varchar` column returned as `text` fails with "structure of query does not match function result type". Cast in the select (`c.account_name::text`).
 - Use the module's schema prefix (`crm.rpt_*`) and `STABLE` volatility.
+- **A function that returns one row: declare `ROWS 1`.** Install adds `SET search_path` to the function, which stops Postgres from inlining it, so the planner falls back to its default estimate of 1000 rows and a join on the function can turn a 5-second report into a 20-minute one. `ROWS 1` (or a realistic estimate) on each table function the report calls restores the plan.
+- **Every `logic/reports/*.sql` runs at every install**, as the install's database user. Don't create or replace the function by hand under another user while experimenting: the next install fails with "must be owner of function". Try SQL in a transaction you roll back, and let install own the functions.
 - **Security is your responsibility, and the function has no context to work from**: it is not
   told the folder or the user, so an SP dataset cannot be row-level scoped the way a `"Q"`
   dataset is. Use `"Q"` for anything that must be filtered per user, and keep `"S"` for
@@ -197,6 +199,7 @@ granted on. Keyed by stored-procedure code, which may not contain a dot.
 - **`params`** is the call signature, in order — omit it for a zero-argument function.
 - **`columns`** is optional; without it install derives the result columns from the
   function's `RETURNS TABLE (…)`.
+- A result column's `baseDatatypeCd` is a platform base type code: `string`, `number`, `bool`, `date`, `timestamp`, `time`, `guid`, `json`, `link`, `set`, `binary`, `xml`, `culture`. Not `datetime`, `boolean`, `integer` or `text`: an unknown code fails install with a bare foreign-key error on `sp_column`, which validate does not catch yet.
 - A result column may name a **`domain`** (`domain_cd` or `module_cd.domain_cd`) instead of
   `fieldTypeCd` / `baseDatatypeCd` / `params`: a status the function returns then shows its
   labels without restating the entity's option list. Naming a domain and restating any of

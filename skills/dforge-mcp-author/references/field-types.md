@@ -52,7 +52,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |
 |---|---|---|---|---|
 | `date` | `date` | Calendar date only. | `date` | `min`, `max` (ISO strings or `TODAY()`) |
-| `datetime` | `timestamp` | Date + time with timezone. | `timestamptz` | `min`, `max` |
+| `datetime` | `timestamp` | Date + time with timezone. Shown in the viewer's zone, unless `timeZone` pins one. | `timestamptz` | `min`, `max`, `timeZone` (an IANA name or `"UTC"`: show and edit on that zone's wall clock — a meeting, a check-in at a place; the stored value stays the UTC instant; an unknown zone is ignored) |
 | `time` | `time` | Time of day. | `time` | — |
 
 ## Binary / file
@@ -89,7 +89,8 @@ validation (`entity.schema.json` is `additionalProperties: false`). To give a co
 
 | Need | Do this |
 |---|---|
-| Literal / computed default (`'draft'`, `TODAY()`) | Carry a `formula` on the column (formula context — uppercase `TODAY()`/`NOW()`), e.g. `"formula": "'draft'"` or `"formula": "TODAY()"`. |
+| Literal / computed default (`'draft'`, `TODAY()`) | Carry a `formula` on the column (formula context — uppercase `TODAY()`/`NOW()`), e.g. `"formula": "'draft'"` or `"formula": "TODAY()"`. A number literal (`"0.25"`, an FK id `"50002"`) becomes the column's database `DEFAULT` when the column can hold it (never on a primary key or identity column). |
+| A module setting's value (`$[default_vat]`) | `"formula": "$[default_vat]"` — exactly the reference, nothing around it. An insert or import that leaves the column out takes the setting's value (folder overrides first, then the module's), and an upgrade backfills a new required column from it. No trigger needed. |
 | Document number (PO-2026-0001) | Declare a `numberSequence` on the entity — auto-fills on insert. |
 | Anything set at create time | Set it in an action/trigger DSL (`execute:` uses lowercase `now()`). |
 

@@ -25,6 +25,33 @@ table of where each object's English text lives, and the column-security example
 
 **DSL docs.** `[owner_id].[email]` / `[owner_id].[full_name]` read the user behind a `user` column (platform #1499); `dforge://reference/dsl` says so.
 
+**Registers reference.** Which kind folds rows per dimension tuple (only `balance`); the account-read
+`options` in the reads table; the balance at a document's moment within one second (`before` plus
+`exclude`, the caller ordering what the platform does not); `importedKeyField` marked as being for a
+history loaded from another system; how long a cache rebuild at install can take. Common mistakes gain an
+empty dimension (no `allowEmpty` on any kind; `=COALESCE(...)` or `skipPostingWhenEmpty`), `headerMap`
+taking columns only and why each must be locked, one constant for two resources, a month missing from the
+period calendar counting as closed (`DF003`), and the `registers/column-not-numeric` warning.
+
+**DSL, formulas, fields.** An inline action stops after 10 seconds; an assignment inside a one-line block
+fails; indexing after a call or an index compiles since platform #1537. `TODAY()` / `NOW()` follow the
+request's time zone, a `datetime` column may pin `params.timeZone`, a number-literal formula becomes a
+column `DEFAULT`, and a bare `$[setting]` formula fills a column an insert leaves out. A zero divisor
+fails wherever a formula runs in SQL.
+
+**Reports and print.** A stored procedure's result-column `baseDatatypeCd` codes (`timestamp`, not
+`datetime`); `ROWS 1` on a one-row table function, since install's `SET search_path` stops inlining; every
+`logic/reports/*.sql` runs at every install (and "must be owner of function"); casting columns for
+`RETURN QUERY`. Print: `%B` prints English names, `format_date` returns a string, timestamps follow the
+column's or the request's zone, Scriban's `blank` on a date, stray spaces from an empty reference hop.
+
+**Seed, demo and ship.** Seed rows are re-applied on every install and ship in the package (fictional
+data only); `demo-data/` inserts but does not post, so an accounting demo runs the module's actions; a
+same-version install is skipped yet reports success. `dforge-module-ship` covers an install blocked by an
+open transaction (`pg_stat_activity`), a client timeout during a cache rebuild, and the local dev stack
+(restart `dforge-api`, the `<tenant>._.localhost` URL, an expired CLI token, a platform binary behind the
+tenant). Option labels: plain English in the definition, translated as strings.
+
 ## 0.2.44 — 2026-10-21
 
 **Schemas follow metadata 0.0.44.** `dforge://schema/translations` describes `storedProcedures`
