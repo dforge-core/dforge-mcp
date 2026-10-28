@@ -91,7 +91,7 @@ Formula columns (`F`) are read in the same SQL as the record, as `data.get` does
 | --- | --- |
 | A value of the record or of a record it references (the organization's requisites as one block) | An `F` column on the entity: references and built-in functions |
 | A value per line (places, weight through the product's units) | An `F` column on the line entity, printed as `line.<col>` |
-| One total over a set | A `G` column on the document (`SUM([lines].[amount])`), or a `plus` accumulator in the loop: `{% assign s = 0 %}{% for l in lines %}{% assign s = s \| plus: l.amount %}{% endfor %}` |
+| One total over a set | Over a stored line column (`D`, or a `G` on the line): a `G` column on the document (`SUM([lines].[amount])`). Over a line `F` column: a `plus` accumulator in the loop, `{% assign s = 0 %}{% for l in lines %}{% assign s = s \| plus: l.places %}{% endfor %}`, since a `G` cannot sum an `F` child (install fails with `column old.<field> does not exist`) |
 | Lines grouped by a column, totals per group (by product and series, by VAT rate, a packing list by pallet) | **Not available in the print context yet.** It prints the record and its sets as stored |
 
 For the last row, do not work around it:
