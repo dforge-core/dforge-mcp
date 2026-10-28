@@ -17,7 +17,7 @@ the one document table whose keys its recorders match.
     python tools/1c.py recorded            # writes out/recorded.json
     python tools/1c.py recorded --compare  # and scores out/callgraph.json against it
 
-Read-only, and `NOLOCK`: a count does not need to wait for anyone.
+Read off the export (`store.py`), so it asks nothing of the running infobase.
 """
 from __future__ import print_function
 
@@ -31,6 +31,7 @@ import sys
 import meta
 import migrate
 import paths
+import store
 
 TARGET = os.path.join(paths.OUT, "recorded.json")
 
@@ -65,20 +66,19 @@ def documents():
 	return found
 
 
-def columns(cur, table):
-	cur.execute("SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(?)", "dbo." + table)
-	return set(row[0] for row in cur.fetchall())
+def columns(table):
+	return migrate.source_schema()[table]["columns"]
 
 
 def single_recorder(cur, table, docs):
 	"""The one document type a TRef-less register's recorders belong to."""
-	cur.execute("SELECT DISTINCT TOP (20) _RecorderRRef FROM dbo.[%s] WITH (NOLOCK)" % table)
+	cur.execute("SELECT DISTINCT _RecorderRRef FROM %s LIMIT 20" % store.quote(table))
 	refs = [bytes(r[0]) for r in cur.fetchall()]
 	if not refs:
 		return None
 	marks = ",".join("?" * len(refs))
 	for number, (name, physical) in sorted(docs.items()):
-		cur.execute("SELECT COUNT(*) FROM dbo.[%s] WHERE _IDRRef IN (%s)" % (physical, marks),
+		cur.execute("SELECT COUNT(*) FROM %s WHERE _IDRRef IN (%s)" % (store.quote(physical), marks),
 		            *refs)
 		if cur.fetchone()[0]:
 			return number
@@ -87,17 +87,17 @@ def single_recorder(cur, table, docs):
 
 def measure():
 	migrate.load_env()
-	cur = migrate.mssql_connect().cursor()
+	cur = migrate.source_connect().cursor()
 	docs = documents()
 	result = collections.defaultdict(dict)       # document -> register -> rows
 	unmatched = []
 	for family, name, table in registers():
-		cols = columns(cur, table)
+		cols = columns(table)
 		if "_RecorderRRef" not in cols:
 			continue                             # not subordinate to a recorder
 		if "_RecorderTRef" in cols:
-			cur.execute("SELECT _RecorderTRef, COUNT_BIG(*) FROM dbo.[%s] WITH (NOLOCK)"
-			            " GROUP BY _RecorderTRef" % table)
+			cur.execute("SELECT _RecorderTRef, COUNT(*) FROM %s"
+			            " GROUP BY _RecorderTRef" % store.quote(table))
 			for tref, rows in cur.fetchall():
 				number = int.from_bytes(bytes(tref), "big") & 0xFFFF
 				if number in docs:
@@ -105,7 +105,7 @@ def measure():
 				else:
 					unmatched.append((name, number, int(rows)))
 		else:
-			cur.execute("SELECT COUNT_BIG(*) FROM dbo.[%s] WITH (NOLOCK)" % table)
+			cur.execute("SELECT COUNT(*) FROM %s" % store.quote(table))
 			rows = int(cur.fetchone()[0])
 			if not rows:
 				continue

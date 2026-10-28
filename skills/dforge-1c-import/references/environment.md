@@ -41,7 +41,8 @@ runs, and every number downstream is confidently wrong.
 
 1C shifts stored dates by the infobase's `_YearOffset` — commonly 2000, so `4012` in the
 column is 2012, and the empty date `0001-01-01` lands on `2001-01-01` and should become
-NULL.
+NULL. That is a server infobase. A file infobase stores real dates (offset 0). The export
+records which applies in `export.json`, and `store.year_offset()` reads it from there.
 
 It applies to **stored datetime columns only**. A date the configuration formatted into a
 string (`НачалоДня(Дата)` assigned to a `Строка(10)` dimension) carries the real year, and

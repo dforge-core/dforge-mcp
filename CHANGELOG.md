@@ -12,9 +12,23 @@ DBNames, vendor against client. It adds `references/loading.md` (copying the row
 and the empty date as values in register keys and periods, the year offset, enums by `_EnumOrder`, composite references,
 register state, triggers, dangling references, verification) and `references/print-forms.md` (MXL templates, the print
 procedure, `Строка`/`Формат` in SQL, reproducing 1C's slips, datasets as queries). `scripts/` ships the Python toolkit
-from a real port: it reads the configuration and DBNames from MS SQL without 1C, generates and validates modules, copies and
+from a real port: it exports the infobase without 1C, generates and validates modules, copies and
 reconciles the rows, checks postings and reads print templates, pointed at a port by `DF1C_ROOT` / `DF1C_PROJECT` and
 started from `scripts/project-template/`. `install-skills` installs it with the other four.
+
+The toolkit has two layers. `dump1c` is the only part that reads 1C. It reads either a server infobase on MS SQL or a
+file infobase (`1Cv8.1CD`, formats 8.2.14 and 8.3.8, through a pure-Python reader), and writes one export to `out/`:
+the configuration, DBNames, the schema, every table's rows as Parquet, and a manifest with the year offset and the
+horizons. Everything else reads that export, with DuckDB for the rows (`store.py`). The export is the same whichever
+kind of infobase it came from, so a project's `sources.QUERIES` are DuckDB SQL. **Breaking for an existing port:** a
+query written in T-SQL (`[_Fld12]`, `TOP`, `0x01`, `CONVERT`) fails until it is rewritten (`"_Fld12"`, `LIMIT`,
+`from_hex('01')`, `CAST`). `dump1c data --changes [--since <day>]` brings an MS SQL export up to date by reading
+only what 1C changed. It rebuilds each table's file in place, so `delta` follows a cutover in minutes rather than
+after a full export. It also catches accounting entries switched on or off without the document being written.
+Register totals and document journals are left out of the export by default; name one, or pass `--derived`, to
+export it. `delta` needs an MS SQL export: a file
+infobase has no database-wide rowversion. `meta` now finds the configuration's root from `root` instead of a GUID
+fixed to one configuration.
 
 ## 0.2.45 — 2026-10-25
 

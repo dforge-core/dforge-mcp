@@ -224,8 +224,8 @@ def main():
 	if sys.argv[1] == "--model":
 		out_path, names = sys.argv[2], sys.argv[3:]
 		lines = ["# Transport & shipping contour - extracted model", "",
-		         "Generated from the `%s` MS SQL infobase without 1C software."
-	         % os.environ.get("DF1C_DB", "source"), ""]
+		         "Generated from the `%s` infobase without 1C software."
+	         % (os.environ.get("DF1C_DB") or os.path.basename(os.environ.get("DF1C_FILE") or "source")), ""]
 		for name in names:
 			guid, fields = fields_of(name, objects, types)
 			row = report.get(name, {})

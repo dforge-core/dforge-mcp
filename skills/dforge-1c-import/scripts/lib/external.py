@@ -40,6 +40,7 @@ import attrs
 import meta
 import migrate
 import paths
+import store
 import unpack
 
 CONTAINER = b"\xff\xff\xff\x7f"
@@ -171,10 +172,10 @@ def main():
 	enum_table = index[enum_guid]["physical"]
 	kinds = attrs.enum_values(meta.parse(meta.load(enum_guid)), u"ВидыДополнительныхВнешнихОбработок")
 
-	cur = migrate.mssql_connect().cursor()
+	cur = migrate.source_connect().cursor()
 	cur.execute("SELECT t._Code, t._Description, t._Marked, e._EnumOrder, t.%s FROM %s t "
-	            "LEFT JOIN %s e ON e._IDRRef = t.%sRRef WHERE t._Folder = 0x01"
-	            % (storage, table, enum_table, kind))
+	            "LEFT JOIN %s e ON e._IDRRef = t.%sRRef WHERE t._Folder = %s"
+	            % (storage, table, enum_table, kind, store.literal(store.TRUE)))
 	root = os.path.join(paths.OUT, "external")
 	index_rows, skipped = [], []
 	for code, name, marked, order, blob in cur.fetchall():

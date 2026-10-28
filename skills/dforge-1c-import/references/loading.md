@@ -47,7 +47,7 @@ Everything else is column-level and mechanical. Write each conversion once, in t
 |---|---|---|---|
 | 1 | `_IDRRef binary(16)` | `uuid` | 1C stores the two 8-byte halves swapped relative to the printed GUID. In SQL: `substr(h,17)\|\|substr(h,1,16)` over the hex. Check it once by joining a line to its catalog and seeing the expected name. |
 | 2 | sixteen zero bytes | `NULL` in a link | Left as-is, it is a uuid pointing at nothing, and the FK rejects the load. **In a register dimension it is a value, not an absence:** keep it as the nil uuid in a key column, because NULL ≠ NULL in a balance, a GROUP BY or a unique key. |
-| 3 | `datetime` | date/timestamp minus `_YearOffset` | The offset is commonly 2000. The empty date `0001-01-01` lands on `2001-01-01` and becomes NULL. **On an information register's period it is a value:** "in force since the beginning". Load it as NULL and the slice (`period <= @date`) never finds the row. |
+| 3 | `datetime` | date/timestamp minus `_YearOffset` | The offset is commonly 2000 on MS SQL, and 0 in a file infobase (`export.json` says which). The empty date `0001-01-01` lands on `2001-01-01` and becomes NULL. **On an information register's period it is a value:** "in force since the beginning". Load it as NULL and the slice (`period <= @date`) never finds the row. |
 | 4 | a date 1C formatted into a string (`13.01.2016` in `nvarchar`) | `date` | No offset: nothing stored a datetime there. |
 | 5 | a number in a string column | numeric | Decimal comma, nbsp or space as the thousands separator. |
 | 6 | `binary(1)` flags | `bool` | `_Marked`, `_Posted`, `_Folder`. Check `_Folder`'s polarity against a known group and a known item. Do not trust the name. |
@@ -158,4 +158,7 @@ and alter the pairs that disagree. Never narrow one that holds something longer.
 ## Incremental re-runs
 
 1C's `_Version` (rowversion) gives a cheap delta. Take the high-water mark **before** the
-read, so a row 1C changes during the read is picked up next time rather than lost.
+read, so a row 1C changes during the read is picked up next time rather than lost. The
+export takes it before each table and records it in `export.json`. Only a server infobase
+has one. In a file infobase `_Version` is a counter per table, so a file infobase is
+reloaded whole, which its size allows.

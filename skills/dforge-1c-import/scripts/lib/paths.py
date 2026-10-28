@@ -11,6 +11,7 @@ holding `tools/` is used, which is what a project laid out like this one gets fo
 """
 from __future__ import print_function
 
+import io
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +28,26 @@ def _default_root():
 
 
 ROOT = os.path.abspath(os.environ.get("DF1C_ROOT") or _default_root())
+
+
+def load_env(path=os.path.join(ROOT, ".env")):
+	"""Read `<root>/.env` into the environment without overriding what is already set.
+
+	Here, before anything below is worked out, so that every tool sees it - the export
+	included - and a `DF1C_OUT` written there moves `out/` as one exported in the shell does.
+	"""
+	if not os.path.isfile(path):
+		return
+	with io.open(path, encoding="utf-8") as f:
+		for line in f:
+			line = line.strip()
+			if not line or line.startswith("#") or "=" not in line:
+				continue
+			key, value = line.split("=", 1)
+			os.environ.setdefault(key.strip(), value.strip())
+
+
+load_env()
 
 # What the extraction writes and everything downstream reads. Kept separate from ROOT
 # because a second infobase dumped beside the first only differs here.

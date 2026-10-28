@@ -22,7 +22,7 @@ import paths
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import dump1c
+import store
 
 OUT = paths.OUT
 
@@ -35,7 +35,7 @@ def load_report():
 def probe_single(cur, table):
 	"""Without a TRef the recorder's type is implicit, so find the one document table
 	whose PK matches the recorders we sampled."""
-	cur.execute("SELECT DISTINCT TOP (20) _RecorderRRef FROM [%s]" % table)
+	cur.execute("SELECT DISTINCT _RecorderRRef FROM %s LIMIT 20" % store.quote(table))
 	refs = [bytes(r[0]) for r in cur.fetchall()]
 	if not refs:
 		print("   (register is empty)")
@@ -46,8 +46,8 @@ def probe_single(cur, table):
 		suffix = physical[len("_Document"):] if physical.startswith("_Document") else ""
 		if not suffix.isdigit() or not row.get("rows"):
 			continue
-		cur.execute("SELECT COUNT(*) FROM [%s] WHERE _IDRRef IN (%s)"
-		            % (physical, placeholders), *refs)
+		cur.execute("SELECT COUNT(*) FROM %s WHERE _IDRRef IN (%s)"
+		            % (store.quote(physical), placeholders), *refs)
 		hits = cur.fetchone()[0]
 		if hits:
 			print("   %s - %s  (%d/%d sampled recorders matched)"
@@ -58,19 +58,16 @@ def probe_single(cur, table):
 
 def main():
 	table = sys.argv[1]
-	cur = dump1c.connect(paths.required("DF1C_SERVER", "which MS SQL server holds it"),
-	                     paths.required("DF1C_DB",
-	                                    "which MS SQL infobase to read")).cursor()
-	cur.execute("""SELECT COUNT(*) FROM sys.columns
-	               WHERE object_id = OBJECT_ID(?) AND name = '_RecorderTRef'""", table)
-	if not cur.fetchone()[0]:
+	cur = store.connect().cursor()
+	cur.execute("SELECT * FROM %s LIMIT 0" % store.quote(table))
+	if "_RecorderTRef" not in [d[0] for d in cur.description]:
 		print("%s has no _RecorderTRef - one document type writes it; probing for it"
 		      % table)
 		probe_single(cur, table)
 		return
 
-	cur.execute("SELECT _RecorderTRef, COUNT(*) FROM [%s] GROUP BY _RecorderTRef "
-	            "ORDER BY 2 DESC" % table)
+	cur.execute("SELECT _RecorderTRef, COUNT(*) FROM %s GROUP BY _RecorderTRef "
+	            "ORDER BY 2 DESC" % store.quote(table))
 	rows = cur.fetchall()
 
 	# a document's type id is its table number; _RecorderTRef stores it big-endian

@@ -26,6 +26,7 @@ import handlers
 import meta
 import migrate
 import paths
+import store
 
 TARGET = os.path.join(paths.OUT, "docusage.json")
 
@@ -46,14 +47,14 @@ def documents():
 
 
 def measure(cur, table):
-	cur.execute("SELECT COUNT(*), MAX(_Date_Time) FROM dbo.[%s]" % table)
+	cur.execute("SELECT COUNT(*), MAX(_Date_Time) FROM %s" % store.quote(table))
 	rows, last = cur.fetchone()
 	return rows, last
 
 
 def main():
 	migrate.load_env()
-	cur = migrate.mssql_connect().cursor()
+	cur = migrate.source_connect().cursor()
 	docs = documents()
 	newest = None
 	raw = []
@@ -68,8 +69,8 @@ def main():
 		recent = posted = 0
 		if rows:
 			cur.execute("SELECT SUM(CASE WHEN _Date_Time >= ? THEN 1 ELSE 0 END),"
-			            " SUM(CASE WHEN _Posted = 0x01 THEN 1 ELSE 0 END) FROM dbo.[%s]"
-			            % table, cutoff)
+			            " SUM(CASE WHEN _Posted = %s THEN 1 ELSE 0 END) FROM %s"
+			            % (store.literal(store.TRUE), store.quote(table)), cutoff)
 			recent, posted = [int(v or 0) for v in cur.fetchone()]
 		result.append({
 			"name": name,

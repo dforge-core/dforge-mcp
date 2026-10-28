@@ -9,6 +9,13 @@ Bring a loaded tenant up to date with what 1C changed since the load: the cutove
     python tools/1c.py delta --baseline [module ...] # mark a tenant loaded before marks existed
     python tools/1c.py delta --since 2026-09-17      # dry run as if loaded on that day
 
+It reads the export, not 1C: bring it up to date with `dump1c data --changes` first (minutes,
+where a full `dump1c data` is an hour and more), and the delta is what changed between
+the rows the tenant was loaded from and the rows that export holds. Only an export of a
+server infobase can carry one - a file infobase's `_Version` is a per-table counter, not a
+database-wide rowversion, so a file export has no horizon to read changes against, and a
+file infobase is small enough to reload whole (`migrate run --truncate`).
+
 What 1C gives to detect change was measured, not assumed (docs/design-cutover.md section 3.1):
 
 - `_Version` (rowversion) is on the OBJECT tables only - catalogs, documents, charts of
@@ -37,7 +44,7 @@ deletion left dangling, `seedstate` reseeds a balance whose journal moved, and t
 `posted` markers are converged on the documents (that needs a token).
 
 The watermark is kept in the tenant, in `df1c.watermark`, one row per loaded entity: the
-`MIN_ACTIVE_ROWVERSION()` 1C reported before the rows were read. Below it every
+`MIN_ACTIVE_ROWVERSION()` 1C reported before the export read the rows (`store.horizon()`). Below it every
 transaction had committed, so the next delta reads `_Version >= mark` and misses nothing.
 In the tenant rather than a file, because it is a fact about the tenant's rows - written in
 the transaction that wrote them, so neither can survive without the other, and a second
@@ -51,11 +58,13 @@ from __future__ import print_function
 import argparse
 import datetime
 import re
+import struct
 import sys
 import time
 
 import migrate
 import paths
+import store
 
 SCHEMA = "df1c"
 KEYS_IN_LIST = 500
@@ -104,12 +113,6 @@ def unsettled(pg, module):
 	cur = pg.cursor()
 	cur.execute("SELECT entity FROM %s.unsettled WHERE module = %%s" % SCHEMA, (module,))
 	return set(r[0] for r in cur.fetchall())
-
-
-def horizon(mssql):
-	"""Everything below this `_Version` is committed; anything written later is at or above."""
-	mssql.execute("SELECT MIN_ACTIVE_ROWVERSION()")
-	return bytes(mssql.fetchone()[0])
 
 
 def record(pg, module, job, version, lower_only=False):
@@ -182,9 +185,9 @@ class Infobase(object):
 	detection for objects, lines and movements.
 	"""
 
-	def __init__(self, mssql, source, since):
+	def __init__(self, export, source, since):
 		self.versions = {}          # table -> [(raw key, raw version)] at or after `since`
-		self.now = horizon(mssql)
+		self.now = store.horizon()
 		started = time.time()
 		self.keys = 0
 		self.alive = []
@@ -195,15 +198,12 @@ class Infobase(object):
 				continue
 			if "_IDRRef" not in info["columns"]:
 				continue
-			# Two reads rather than one: the key alone comes off the narrowest index,
-			# while `_Version` lives only in the clustered one. Measured on 2.7 M keys:
-			# 90 s for (key, version) over every row, a few seconds this way.
-			mssql.execute("SELECT _IDRRef, _Version FROM [%s] WHERE _Version >= %s"
-			              % (name, hexed(since)))
-			self.versions[name] = [(bytes(k), bytes(v)) for k, v in mssql.fetchall()]
-			mssql.execute("SELECT _IDRRef FROM [%s]" % name)
+			export.execute('SELECT "_IDRRef", "_Version" FROM %s WHERE "_Version" >= %s'
+			              % (store.quote(name), store.literal(since)))
+			self.versions[name] = [(bytes(k), bytes(v)) for k, v in export.fetchall()]
+			export.execute('SELECT "_IDRRef" FROM %s' % store.quote(name))
 			while True:
-				batch = mssql.fetchmany(50000)
+				batch = export.fetchmany(50000)
 				if not batch:
 					break
 				self.keys += len(batch)
@@ -222,6 +222,19 @@ class Infobase(object):
 			keys = [k for k, v in rows if v >= mark]
 			if keys:
 				out[table_number(name)] = keys
+		# Recorders whose accounting entries were switched on or off: the document was not
+		# written, so its `_Version` says nothing, and `dump1c data --changes` names them.
+		# A run ending AT the mark counts too: entries have no rowversion, so switching them
+		# does not move the horizon, and a run can end on the very mark a load was taken at.
+		# Taking one too many only re-reads recorders that then compare unchanged.
+		for run in store.manifest().get("changes", []):
+			if bytes.fromhex(run["to"]) < mark:
+				continue
+			for table in run["tables"].values():
+				for number, keys in (table.get("switched") or {}).items():
+					held = out.setdefault(int(number), [])
+					seen = set(held)
+					held.extend(k for k in map(bytes.fromhex, keys) if k not in seen)
 		return out
 
 	def load_alive(self, pg):
@@ -244,7 +257,7 @@ def q(name):
 	return '"%s"' % name.replace('"', '""')
 
 
-def stage(pg, mssql, job, columns, restricts):
+def stage(pg, export, job, columns, restricts):
 	"""Read the rows `restricts` select from 1C through the load's own conversions into a
 	temporary table shaped like the target. `restricts` is a list of alias -> condition
 	functions, each one query (a long key list is split), or [None] for the whole source."""
@@ -252,12 +265,12 @@ def stage(pg, mssql, job, columns, restricts):
 	cur.execute("DROP TABLE IF EXISTS pg_temp.df1c_stage")
 	cur.execute('CREATE TEMP TABLE df1c_stage AS SELECT %s FROM "%s"."%s" WITH NO DATA'
 	            % (", ".join(q(c) for c in columns), job.schema, job.table))
-	select = ", ".join("[%s]" % p[1] for p in job.pairs)
+	select = ", ".join(store.quote(p[1]) for p in job.pairs)
 	staged = 0
 	for restrict in restricts:
-		mssql.execute("SELECT %s FROM %s" % (select, migrate.reading(job, restrict)))
+		export.execute("SELECT %s FROM %s" % (select, migrate.reading(job, restrict)))
 		while True:
-			batch = mssql.fetchmany(migrate.CHUNK)
+			batch = export.fetchmany(migrate.CHUNK)
 			if not batch:
 				break
 			rows = migrate.converted(job, batch)
@@ -268,10 +281,10 @@ def stage(pg, mssql, job, columns, restricts):
 
 
 def in_lists(keys, column, alias):
-	"""`alias.column IN (0x.., ...)`, one condition per slice of the key list."""
+	"""`alias.column IN (from_hex(..), ...)`, one condition per slice of the key list."""
 	out = []
 	for at in range(0, len(keys), KEYS_IN_LIST):
-		listed = ", ".join(hexed(k) for k in keys[at:at + KEYS_IN_LIST])
+		listed = ", ".join(store.literal(k) for k in keys[at:at + KEYS_IN_LIST])
 		out.append(lambda a, listed=listed: "%s.%s IN (%s)" % (a, column, listed))
 	return out
 
@@ -285,7 +298,7 @@ def recorder_lists(changed, typed):
 		return in_lists(keys, "_RecorderRRef", None)
 	out = []
 	for number, keys in sorted(changed.items()):
-		tref = "0x%08x" % number
+		tref = store.literal(struct.pack(">I", number))
 		for cond in in_lists(keys, "_RecorderRRef", None):
 			out.append(lambda a, tref=tref, cond=cond:
 			           "%s._RecorderTRef = %s AND %s" % (a, tref, cond(a)))
@@ -316,7 +329,7 @@ def has_missing(pg, job):
 	return any(c[0] == "is_missing" for c in migrate.table_columns(pg, job.schema, job.table))
 
 
-def run_entity(pg, mssql, lookup, base, module, job, kind, detail, mark, apply, now):
+def run_entity(pg, export, lookup, base, module, job, kind, detail, mark, apply, now):
 	res = Result(module, job, kind)
 	job = migrate.bind_enums(job, lookup)
 	columns = [p[0] for p in job.pairs] + ([job.derived] if job.derived else [])
@@ -329,8 +342,8 @@ def run_entity(pg, mssql, lookup, base, module, job, kind, detail, mark, apply, 
 
 	if kind == "object":
 		key_column = detail
-		res.staged = stage(pg, mssql, job, columns,
-		                   [lambda a: "%s._Version >= %s" % (a, hexed(mark))])
+		res.staged = stage(pg, export, job, columns,
+		                   [lambda a: "%s._Version >= %s" % (a, store.literal(mark))])
 		res.read = time.time() - started
 		started = time.time()
 		on = " AND ".join("t.%s = s.%s" % (q(k), q(k)) for k in keys)
@@ -407,7 +420,7 @@ def run_entity(pg, mssql, lookup, base, module, job, kind, detail, mark, apply, 
 		cur.execute("CREATE INDEX ON pg_temp.df1c_owners (id)")
 		cur.execute("ANALYZE pg_temp.df1c_owners")
 		res.owners = len(changed_ids) + gone_owners
-		res.staged = stage(pg, mssql, job, columns, restricts) if restricts else 0
+		res.staged = stage(pg, export, job, columns, restricts) if restricts else 0
 		if not restricts:
 			cur.execute("DROP TABLE IF EXISTS pg_temp.df1c_stage")
 			cur.execute('CREATE TEMP TABLE df1c_stage AS SELECT %s FROM %s WITH NO DATA'
@@ -447,7 +460,7 @@ def run_entity(pg, mssql, lookup, base, module, job, kind, detail, mark, apply, 
 		return res
 
 	# whole: read it all, compare by key.
-	res.staged = stage(pg, mssql, job, columns, [None])
+	res.staged = stage(pg, export, job, columns, [None])
 	res.read = time.time() - started
 	started = time.time()
 	on = " AND ".join("t.%s = s.%s" % (q(k), q(k)) for k in keys)
@@ -580,10 +593,10 @@ def settle(pg, module, results, apply, mark_documents):
 
 # --------------------------------------------------------------------------- command
 
-def since_date(mssql, source, day):
+def since_date(export, source, day):
 	"""A watermark for estimation: the lowest `_Version` of any document dated on or after
 	`day`. Everything 1C wrote from about then on is at or above it."""
-	shifted = "%04d-%s" % (int(day[:4]) + migrate.YEAR_OFFSET, day[5:])
+	shifted = "%04d-%s" % (int(day[:4]) + store.year_offset(), day[5:])
 	lowest = None
 	for name, info in source.items():
 		if not name.startswith("_Document") or not OBJECT.match(name):
@@ -591,8 +604,9 @@ def since_date(mssql, source, day):
 		if "_Date_Time" not in info["columns"] or \
 				(info["columns"].get("_Version") or {}).get("type") != "timestamp":
 			continue
-		mssql.execute("SELECT MIN(_Version) FROM [%s] WHERE _Date_Time >= '%s'" % (name, shifted))
-		found = mssql.fetchone()[0]
+		export.execute("SELECT MIN(_Version) FROM %s WHERE _Date_Time >= '%s'"
+		              % (store.quote(name), shifted))
+		found = export.fetchone()[0]
 		if found is not None and (lowest is None or bytes(found) < lowest):
 			lowest = bytes(found)
 	if lowest is None:
@@ -641,8 +655,23 @@ def main():
 				print("%-12s %-40s %s  %s" % (module, entity, hexed(version), at))
 		return 0
 
-	db = migrate.mssql_connect()
-	mssql, lookup = db.cursor(), db.cursor()
+	if store.horizon() is None:
+		raise SystemExit("delta: the export in %s has no horizon - %s.\n"
+		                 "    Reload instead: `dump1c data`, then `migrate run <module> --truncate`."
+		                 % (paths.OUT, "a file infobase's row versions are per table"
+		                    if store.source_kind() == "file" else "a table in it was exported without one"))
+	# Every object table is read for its keys - a deletion is a key 1C no longer holds, and
+	# a recorder is any object - so one left out of the export is every row it owns taken
+	# for deleted. Asked here, by name, rather than as DuckDB's "Table _Acc33 does not exist".
+	exported = store.manifest()["tables"]
+	missing = sorted(n for n, info in source.items() if OBJECT.match(n) and n not in exported
+	                 and (info["columns"].get("_Version") or {}).get("type") == "timestamp")
+	if missing:
+		raise SystemExit("delta: %d object table(s) are not in the export (%s%s) - every object's keys"
+		                 " are needed.\n    `1c.py dump1c data --objects` exports them all."
+		                 % (len(missing), ", ".join(missing[:5]), ", ..." if len(missing) > 5 else ""))
+	db = migrate.source_connect()
+	export, lookup = db.cursor(), db.cursor()
 	plan = []
 	for module in modules:
 		for job in migrate.jobs_for(pg, module, mapping, source, args.entity):
@@ -651,7 +680,7 @@ def main():
 			plan.append((module, job))
 
 	if args.baseline:
-		now = horizon(mssql)
+		now = store.horizon()
 		set_ = 0
 		cur = pg.cursor()
 		cur.execute("BEGIN")
@@ -669,7 +698,7 @@ def main():
 	override = None
 	if args.since:
 		override = (bytes.fromhex(args.since[2:]) if args.since.startswith("0x")
-		            else since_date(mssql, source, args.since))
+		            else since_date(export, source, args.since))
 	unmarked = [(m, j.entity) for m, j in plan if (m, j.entity) not in known]
 	if unmarked and override is None:
 		raise SystemExit("delta: %d entit(ies) have no watermark (e.g. %s.%s) - load them with"
@@ -681,9 +710,9 @@ def main():
 
 	lowest = min(mark_of(m, j) for m, j in plan)
 	t0 = time.time()
-	base = Infobase(mssql, source, lowest)
+	base = Infobase(export, source, lowest)
 	alive_seconds = base.load_alive(pg)
-	print("1C horizon %s, reading from %s%s" % (hexed(base.now), hexed(lowest),
+	print("export horizon %s, reading from %s%s" % (hexed(base.now), hexed(lowest),
 	                                             " (--since %s)" % args.since if args.since else ""))
 	print("object keys: %d read in %.1fs, %.1fs into the tenant"
 	      % (base.keys, base.seconds, alive_seconds))
@@ -710,7 +739,7 @@ def main():
 			if m != module:
 				continue
 			kind, detail = classify(job, source, mapping[module][job.entity])
-			res = run_entity(pg, mssql, lookup, base, module, job, kind, detail,
+			res = run_entity(pg, export, lookup, base, module, job, kind, detail,
 			                 mark_of(module, job), args.apply, base.now)
 			results.append(res)
 			totals[0] += res.changed

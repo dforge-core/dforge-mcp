@@ -47,6 +47,7 @@ import sys
 
 import attrs
 import migrate
+import store
 
 Register = collections.namedtuple("Register", [
 	"module", "code", "state", "journal", "journal_entity", "direction", "date",
@@ -170,7 +171,7 @@ def totals_table(table):
 	return found[0] if found else None
 
 
-def one_c_balance(mssql, pg, reg, mapping, source, period=None):
+def one_c_balance(export, pg, reg, mapping, source, period=None):
 	"""(totals table, period, {tuple: resources}) - 1C's totals at a period, non-zero only.
 
 	No period means the table's last one: 5999-11-01, where 1C keeps its CURRENT totals. A
@@ -184,6 +185,10 @@ def one_c_balance(mssql, pg, reg, mapping, source, period=None):
 	table = totals_table(mapped["table"])
 	if not table:
 		raise SystemExit("seedstate: %s has no totals table in DBNames" % mapped["table"])
+	if table not in store.manifest()["tables"]:
+		# Totals are derived, so a default export leaves them out (dump1c.DERIVED).
+		raise SystemExit("seedstate: %s's totals %s are not in the export - `1c.py dump1c data %s`"
+		                 % (mapped["table"], table, table))
 	schema, name = [p.strip('"') for p in reg.journal.split(".")]
 	types = dict((c[0], c[1]) for c in migrate.table_columns(pg, schema, name))
 	held = source[mapped["table"]]["columns"]
@@ -199,13 +204,13 @@ def one_c_balance(mssql, pg, reg, mapping, source, period=None):
 			converters.append(migrate.converter(types[ours], held[physical]["type"]))
 
 	if period is None:
-		mssql.execute("SELECT MAX(_Period) FROM [%s]" % table)
-		period = mssql.fetchone()[0]
-	mssql.execute("SELECT %s FROM [%s] WHERE _Period = ?"
-	              % (", ".join("[%s]" % c for c in columns), table), period)
+		export.execute("SELECT MAX(_Period) FROM %s" % store.quote(table))
+		period = export.fetchone()[0]
+	export.execute("SELECT %s FROM %s WHERE _Period = ?"
+	              % (", ".join(store.quote(c) for c in columns), store.quote(table)), period)
 	width = len(reg.dimensions)
 	balance = collections.defaultdict(lambda: [decimal.Decimal(0)] * len(reg.resources))
-	for row in mssql.fetchall():
+	for row in export.fetchall():
 		values = [normal(f(v), types[c])
 		          for f, v, c in zip(converters, row, reg.dimensions + reg.resources)]
 		held_now = balance[tuple(values[:width])]
@@ -259,17 +264,17 @@ def as_of_balance(pg, reg, until):
 	return out
 
 
-def verify(pg, reg, mapping, source, mssql, month=None):
+def verify(pg, reg, mapping, source, export, month=None):
 	"""The state against 1C's current totals, or - given a month - the as-of read at its
 	end against 1C's totals row for the month after."""
 	if month:
 		year, number = [int(p) for p in month.split("-")]
 		until = datetime.date(year + number // 12, number % 12 + 1, 1)
-		period = datetime.datetime(until.year + migrate.YEAR_OFFSET, until.month, 1)
-		table, period, theirs = one_c_balance(mssql, pg, reg, mapping, source, period)
+		period = datetime.datetime(until.year + store.year_offset(), until.month, 1)
+		table, period, theirs = one_c_balance(export, pg, reg, mapping, source, period)
 		ours = as_of_balance(pg, reg, until)
 	else:
-		table, period, theirs = one_c_balance(mssql, pg, reg, mapping, source)
+		table, period, theirs = one_c_balance(export, pg, reg, mapping, source)
 		ours = state_balance(pg, reg)
 	both = set(theirs) & set(ours)
 	differ = [k for k in both if theirs[k] != ours[k]]
@@ -303,7 +308,7 @@ def month_end(month):
 	year, number = [int(p) for p in month.split("-")]
 	start = datetime.date(year + number // 12, number % 12 + 1, 1)
 	return (start - datetime.timedelta(days=1),
-	        datetime.datetime(start.year + migrate.YEAR_OFFSET, start.month, 1))
+	        datetime.datetime(start.year + store.year_offset(), start.month, 1))
 
 
 def sample(reg, tuples, size):
@@ -370,7 +375,7 @@ def expected(reg, theirs, dims):
 	return total
 
 
-def probe(pg, reg, mapping, source, mssql, size, months):
+def probe(pg, reg, mapping, source, export, size, months):
 	import posting
 	cur = pg.cursor()
 	cur.execute("""SELECT a.action_id FROM "dForge".action a
@@ -392,7 +397,7 @@ def probe(pg, reg, mapping, source, mssql, size, months):
 	dates = [(None, None)] + [month_end(m) for m in months]
 	theirs = {}
 	for as_of, period in dates:
-		theirs[as_of] = one_c_balance(mssql, pg, reg, mapping, source, period)[2]
+		theirs[as_of] = one_c_balance(export, pg, reg, mapping, source, period)[2]
 	pool = {}
 	for got in theirs.values():
 		for t, v in got.items():
@@ -474,13 +479,13 @@ def main():
 			      % ("%s.%s" % (reg.module, reg.code), rows, bad, undated, off))
 	else:
 		mapping, source = migrate.column_map(), migrate.source_schema()
-		mssql = migrate.mssql_connect().cursor()
+		export = migrate.source_connect().cursor()
 		for reg in found:
 			if args.command == "probe":
-				clean = probe(pg, reg, mapping, source, mssql, args.sample,
+				clean = probe(pg, reg, mapping, source, export, args.sample,
 				              [args.asof] if args.asof else PROBE_MONTHS) and clean
 			else:
-				clean = verify(pg, reg, mapping, source, mssql, args.asof) and clean
+				clean = verify(pg, reg, mapping, source, export, args.asof) and clean
 	return 0 if clean else 1
 
 

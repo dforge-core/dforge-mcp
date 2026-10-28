@@ -3,8 +3,8 @@
 """
 Copy the infobase's rows into a dForge tenant database.
 
-Straight from MS SQL into Postgres with `COPY`, no 1C software and no API: the
-column map (`out/columnmap.json`) says where every ported column comes from, and
+From the export `dump1c` made - MS SQL or a file infobase, it does not matter which -
+into Postgres with `COPY`, no 1C software and no API: the column map (`out/columnmap.json`) says where every ported column comes from, and
 everything in between is the eight conversions described in docs/design-migration.md.
 
 The target's physical shape is read from the tenant database itself - `"dForge".entity`
@@ -17,8 +17,7 @@ the loader cannot disagree with what the installer actually built.
     python tools/migrate.py check masterdata           # is anything mandatory empty?
     python tools/migrate.py fill masterdata            # placeholders on their own
 
-Source credentials come from DF1C_SERVER / DF1C_DB / DF1C_USER / DF1C_PASS (Windows
-auth when DF1C_USER is unset). The target from DF_PG_HOST / DF_PG_PORT / DF_PG_USER /
+The source is `out/` (see `store.py`); nothing here reads 1C. The target comes from DF_PG_HOST / DF_PG_PORT / DF_PG_USER /
 DF_PG_PASS plus DF_TENANT, which names the database through the platform's own
 `dforge_{tenantCd}` pattern. Both sides are read from `.env` if one is present.
 """
@@ -40,11 +39,11 @@ import uuid
 import attrs
 import paths
 import delta
-import dump1c
+import store
 
-# 1C stores dates shifted by the infobase's _YearOffset: 4012 in the column is 2012.
+# 1C stores dates shifted by the infobase's _YearOffset: 4012 in the column is 2012 on a
+# server infobase that has the usual 2000 (`store.year_offset()`; 0 in a file infobase).
 # The empty date is 0001-01-01, which shifted lands on 2001-01-01.
-YEAR_OFFSET = 2000
 ZERO_REF = b"\x00" * 16
 
 CHUNK = 20000
@@ -55,17 +54,9 @@ TRUE_TEXT = set([u"1", u"true", u"t", u"yes", u"y", u"\u0414\u0430"])
 # --------------------------------------------------------------------------- config
 
 def load_env():
-	"""Read `.env` into the environment without overriding what is already set."""
-	path = os.path.join(os.path.dirname(attrs.OUT), ".env")
-	if not os.path.isfile(path):
-		return
-	with codecs.open(path, "r", "utf-8") as f:
-		for line in f:
-			line = line.strip()
-			if not line or line.startswith("#") or "=" not in line:
-				continue
-			key, value = line.split("=", 1)
-			os.environ.setdefault(key.strip(), value.strip())
+	"""`paths` has read `<root>/.env` already; this also reads one beside a moved `out/`,
+	where it used to be looked for."""
+	paths.load_env(os.path.join(os.path.dirname(attrs.OUT), ".env"))
 
 
 def pg_connect():
@@ -80,9 +71,8 @@ def pg_connect():
 	return psycopg2.connect(host=host, port=port, dbname=db, user=user, password=password)
 
 
-def mssql_connect():
-	return dump1c.connect(paths.required("DF1C_SERVER", "which MS SQL server holds it"),
-	                      paths.required("DF1C_DB", "which MS SQL infobase to read"))
+def source_connect():
+	return store.connect()
 
 
 # --------------------------------------------------------------------------- the map
@@ -93,18 +83,41 @@ def column_map():
 		return json.load(f, object_pairs_hook=collections.OrderedDict)
 
 
+class Folded(dict):
+	"""A dict of 1C names that finds a key whatever its case.
+
+	A file infobase keeps its names in capitals, and the export puts the MS SQL spelling
+	back from DBNames and a harvested list - which cannot always tell: MS SQL itself has
+	both `_UserId` and `_UserID`. A map written against one spelling still finds the
+	other here; the keys stay as the export spells them.
+	"""
+
+	def __init__(self, pairs):
+		dict.__init__(self, pairs)
+		self._folded = dict((k.lower(), k) for k in self)
+
+	def _key(self, key):
+		return key if dict.__contains__(self, key) else self._folded.get(key.lower(), key)
+
+	def __getitem__(self, key):
+		return dict.__getitem__(self, self._key(key))
+
+	def __contains__(self, key):
+		return dict.__contains__(self, self._key(key))
+
+	def get(self, key, default=None):
+		return dict.get(self, self._key(key), default)
+
+
 def source_schema():
 	"""Physical column types on the 1C side, from the schema dump."""
 	path = os.path.join(attrs.OUT, "schema.json")
 	with codecs.open(path, "r", "utf-8") as f:
 		doc = json.load(f)
-	out = {}
-	for table in doc["tables"]:
-		out[table["name"]] = {
-			"rows": table.get("rows") or 0,
-			"columns": dict((c["column"], c) for c in table["columns"]),
-		}
-	return out
+	return Folded((table["name"], {
+		"rows": table.get("rows") or 0,
+		"columns": Folded((c["column"], c) for c in table["columns"]),
+	}) for table in doc["tables"])
 
 
 def target_tables(pg, module):
@@ -197,7 +210,7 @@ def shift_date(value):
 	"""Undo the +2000 year offset; 1C's empty date becomes NULL."""
 	if value is None:
 		return None
-	year = value.year - YEAR_OFFSET
+	year = value.year - store.year_offset()
 	if year <= 1:
 		return None
 	return value.replace(year=year)
@@ -271,7 +284,7 @@ def to_text(value):
 _ENUM_CACHE = {}
 
 
-def enum_decoder(mssql, spec):
+def enum_decoder(export, spec):
 	"""An enum reference -> the option code the port gave that value.
 
 	1C keeps an enum value's position in `_EnumOrder`, and the port read the values in
@@ -281,8 +294,8 @@ def enum_decoder(mssql, spec):
 	if key not in _ENUM_CACHE:
 		options = spec["options"]
 		found = {}
-		mssql.execute("SELECT _IDRRef, _EnumOrder FROM [%s]" % spec["table"])
-		for raw, order in mssql.fetchall():
+		export.execute('SELECT "_IDRRef", "_EnumOrder" FROM %s' % store.quote(spec["table"]))
+		for raw, order in export.fetchall():
 			position = int(order)
 			if 0 <= position < len(options):
 				found[to_uuid(raw)] = options[position]
@@ -310,11 +323,11 @@ def tableref_decoder(table):
 	return decode
 
 
-def bind_enums(job, mssql):
+def bind_enums(job, export):
 	"""Swap in the enum decoders once there is a connection to read the tables with."""
 	if not any(job.enums):
 		return job
-	converters = [enum_decoder(mssql, spec) if spec else f
+	converters = [enum_decoder(export, spec) if spec else f
 	              for f, spec in zip(job.converters, job.enums)]
 	return job._replace(converters=converters)
 
@@ -432,7 +445,7 @@ def since_beginning(value):
 	"""
 	if value is None:
 		return None
-	year = value.year - YEAR_OFFSET
+	year = value.year - store.year_offset()
 	return datetime.datetime(1, 1, 1) if year <= 1 else value.replace(year=year)
 
 
@@ -744,8 +757,8 @@ def reading(job, restrict=None):
 			return "(%s) AS src WHERE %s" % (period_window(job.query), restrict("src"))
 		return "(%s) AS src" % period_window(job.query, restrict)
 	if restrict:
-		return "[%s] AS src WHERE %s" % (job.source, restrict("src"))
-	return "[%s]" % job.source
+		return "%s AS src WHERE %s" % (store.quote(job.source), restrict("src"))
+	return store.quote(job.source)
 
 
 def converted(job, batch):
@@ -898,14 +911,14 @@ _COUNTING = []
 def counted(job):
 	"""How many rows the source actually offers - the table's count, or the query's.
 
-	`plan` otherwise reads everything from `out/schema.json` and needs no server; a
-	declared query is the one thing only the server can count, so the connection is
-	opened when one turns up and not before.
+	`plan` otherwise reads everything from `out/schema.json`; a declared query is the one
+	thing only running it can count, so the export is opened when one turns up and not
+	before.
 	"""
 	if not job.query:
 		return job.rows
 	if not _COUNTING:
-		_COUNTING.append(mssql_connect().cursor())
+		_COUNTING.append(source_connect().cursor())
 	_COUNTING[0].execute("SELECT COUNT(*) FROM %s" % reading(job))
 	return _COUNTING[0].fetchone()[0]
 
@@ -974,20 +987,21 @@ def cmd_run(args):
 			cur.execute('%s "%s"."%s"' % (verb, job.schema, job.table))
 		pg.commit()
 
-	source_db = mssql_connect()
-	mssql, lookup = source_db.cursor(), source_db.cursor()
+	source_db = source_connect()
+	export, lookup = source_db.cursor(), source_db.cursor()
 	grand = 0
 	for job in jobs:
 		job = bind_enums(job, lookup)
 		columns = [p[0] for p in job.pairs] + ([job.derived] if job.derived else [])
-		select = ", ".join("[%s]" % p[1] for p in job.pairs)
-		# Taken BEFORE the read: everything 1C changes from here on has a _Version at or
-		# above it, so the delta loader picks up exactly what this copy may have missed.
-		horizon = delta.horizon(lookup)
-		mssql.execute("SELECT %s FROM %s" % (select, reading(job)))
+		select = ", ".join(store.quote(p[1]) for p in job.pairs)
+		# Taken by the export BEFORE it read the rows: everything 1C changed from then on
+		# has a _Version at or above it, so the delta loader picks up exactly what this copy
+		# may have missed. A file export has none, and no delta follows it.
+		horizon = store.horizon()
+		export.execute("SELECT %s FROM %s" % (select, reading(job)))
 		copied = 0
 		while True:
-			batch = mssql.fetchmany(CHUNK)
+			batch = export.fetchmany(CHUNK)
 			if not batch:
 				break
 			rows = converted(job, batch)
@@ -998,8 +1012,9 @@ def cmd_run(args):
 		# In the copy's own transaction, so the mark cannot outlive or precede the rows.
 		# A pass that did not empty the table first - the ledger's quarters - only ever
 		# lowers the mark: an earlier quarter may have changed since it was read.
-		delta.record(pg, args.module, job, horizon,
-		             lower_only=not args.truncate or bool(os.environ.get("DF1C_FROM")))
+		if horizon is not None:
+			delta.record(pg, args.module, job, horizon,
+			             lower_only=not args.truncate or bool(os.environ.get("DF1C_FROM")))
 		pg.commit()
 		if job.rows > CHUNK:
 			sys.stderr.write("\r" + " " * 60 + "\r")
@@ -1028,7 +1043,7 @@ def cmd_verify(args):
 	"""Row counts, control sums and orphan references - the three cheap checks."""
 	mapping, source = column_map(), source_schema()
 	pg = pg_connect()
-	mssql = mssql_connect().cursor()
+	export = source_connect().cursor()
 	jobs = jobs_for(pg, args.module, mapping, source, args.entity)
 	cur = pg.cursor()
 
@@ -1036,8 +1051,8 @@ def cmd_verify(args):
 	print("-" * 70)
 	bad = 0
 	for job in jobs:
-		mssql.execute("SELECT COUNT(*) FROM %s" % reading(job))
-		want = mssql.fetchone()[0]
+		export.execute("SELECT COUNT(*) FROM %s" % reading(job))
+		want = export.fetchone()[0]
 		cur.execute('SELECT COUNT(*) FROM "%s"."%s"%s'
 		            % (job.schema, job.table, real_rows(pg, job)))
 		got = cur.fetchone()[0]
@@ -1051,9 +1066,9 @@ def cmd_verify(args):
 		numeric = [(c, s) for (c, s), f in zip(job.pairs, job.converters)
 		           if f is to_number]
 		for column, src in numeric:
-			mssql.execute("SELECT SUM(CAST([%s] AS decimal(38,8))) FROM %s"
-			              % (src, reading(job)))
-			want = mssql.fetchone()[0] or 0
+			export.execute("SELECT SUM(CAST(%s AS decimal(38,8))) FROM %s"
+			              % (store.quote(src), reading(job)))
+			want = export.fetchone()[0] or 0
 			cur.execute('SELECT COALESCE(SUM("%s"), 0) FROM "%s"."%s"%s'
 			            % (column, job.schema, job.table, real_rows(pg, job)))
 			got = cur.fetchone()[0] or 0
@@ -1096,10 +1111,15 @@ def cmd_verify(args):
 	return 1 if bad else 0
 
 
-EMPTY_BY_TYPE = {
-	"binary": "[%s] IS NULL OR [%s] = 0x00000000000000000000000000000000",
-	"datetime": "[%s] IS NULL OR [%s] < '2001-01-02'",
-}
+def empty_condition(kind, column):
+	"""The condition under which 1C's column holds nothing: NULL, the empty reference, or
+	the empty date - 0001-01-01 plus the year offset."""
+	name = store.quote(column)
+	if kind == "binary":
+		return "%s IS NULL OR %s = %s" % (name, name, store.literal(ZERO_REF))
+	if kind == "datetime":
+		return "%s IS NULL OR %s < '%04d-01-02'" % (name, name, 1 + store.year_offset())
+	return "%s IS NULL" % name
 
 
 TEXTUAL = ("char", "varchar", "nchar", "nvarchar", "text", "ntext")
@@ -1150,7 +1170,7 @@ def cmd_check(args):
 	out one failed COPY at a time. This asks every one of them up front.
 
 	`--types` asks only the questions the cached schema dump can answer - can this column
-	hold what it copies, and is it wide enough - and skips every count against MS SQL. That
+	hold what it copies, and is it wide enough - and skips every count against the export. That
 	half is seconds rather than an afternoon, which matters because the afternoon is why it
 	gets skipped: a standard configuration's 623 entities were loaded without it, and an
 	hour later `to_uuid` was handed a string this would have named at once. `all` in place of
@@ -1158,7 +1178,7 @@ def cmd_check(args):
 	"""
 	mapping, source = column_map(), source_schema()
 	pg = pg_connect()
-	mssql = None if args.types else mssql_connect().cursor()
+	export = None if args.types else source_connect().cursor()
 	modules = sorted(mapping) if args.module == "all" else [args.module]
 	jobs = [j for m in modules for j in jobs_for(pg, m, mapping, source, args.entity)]
 
@@ -1203,19 +1223,18 @@ def cmd_check(args):
 					width //= 2
 				if width > info[6]:
 					narrow.append((job.entity, column, info[6], width))
-			if mssql is None or info[2] == "YES" or info[3] is not None:
+			if export is None or info[2] == "YES" or info[3] is not None:
 				continue
 			kind = held["type"]
-			predicate = EMPTY_BY_TYPE.get(kind, "[%s] IS NULL")
-			predicate = predicate.replace("%s", src)
-			mssql.execute("SELECT COUNT(*), SUM(CASE WHEN %s THEN 1 ELSE 0 END)"
+			predicate = empty_condition(kind, src)
+			export.execute("SELECT COUNT(*), SUM(CASE WHEN %s THEN 1 ELSE 0 END)"
 			              " FROM %s" % (predicate, reading(job)))
-			total, empty = mssql.fetchone()
+			total, empty = export.fetchone()
 			if empty:
 				wrong += 1
 				print("%-26s %-22s %10d %10d" % (job.entity, column, total, empty))
 	print("-" * 72)
-	if mssql is None:
+	if export is None:
 		print("mandatory columns: not asked (--types)")
 	else:
 		print("%d mandatory column(s) the infobase leaves empty" % wrong)
@@ -1223,16 +1242,16 @@ def cmd_check(args):
 	# A uniqueness the port declares is a claim about the data too, and the same kind of
 	# guess: 359 plate numbers are on more than one vehicle.
 	clashes = []
-	for job in (jobs if mssql is not None else []):
+	for job in (jobs if export is not None else []):
 		for name, columns in unique_constraints(pg, job.schema, job.table):
 			sources = [dict(job.pairs).get(c) for c in columns]
 			if not all(sources):
 				continue
-			listed = ", ".join("[%s]" % c for c in sources)
-			mssql.execute("SELECT COUNT(*) FROM (SELECT %s FROM %s"
+			listed = ", ".join(store.quote(c) for c in sources)
+			export.execute("SELECT COUNT(*) FROM (SELECT %s FROM %s"
 			              " GROUP BY %s HAVING COUNT(*) > 1) d"
 			              % (listed, reading(job), listed))
-			repeated = mssql.fetchone()[0]
+			repeated = export.fetchone()[0]
 			if repeated:
 				clashes.append((job.entity, name, repeated))
 	if clashes:
@@ -1241,7 +1260,7 @@ def cmd_check(args):
 		for entity, name, repeated in clashes:
 			print("%-26s %-30s %10d" % (entity, name, repeated))
 		print("-" * 70)
-	if mssql is None:
+	if export is None:
 		print("unique constraints: not asked (--types)")
 	else:
 		print("%d unique constraint(s) the infobase does not honour" % len(clashes))

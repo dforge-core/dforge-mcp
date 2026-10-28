@@ -1,6 +1,6 @@
 ---
 name: dforge-1c-import
-description: How to port a 1C:Enterprise 8 infobase (УТП, УПП, УТ, БП or a configuration built on them) to dForge modules — how to decide a register's kind, where a posting takes each value from, what to carry and what to drop, and how to check every one of those decisions against the data instead of guessing. Use this whenever the work involves a 1C infobase, a 1C configuration, MS SQL tables named _Reference/_Document/_AccumRg/_InfoRg/_AccRg, регистры, проведение, ОбработкаПроведения, Движения, партионный учёт, or migrating a client off 1C onto dForge — including when the user only says "the client's old system" and the tables turn out to be 1C's, and including when they ask only for a piece of it such as "which register kind should this be" or "why does this document write more rows than 1C does". Also covers copying the rows (keys, dates, enums, composite references, empty values, reconciliation) and porting 1C print forms (MXL templates, Строка/Формат, НСтр) to dForge print templates.
+description: How to port a 1C:Enterprise 8 infobase (УТП, УПП, УТ, БП or a configuration built on them) to dForge modules — how to decide a register's kind, where a posting takes each value from, what to carry and what to drop, and how to check every one of those decisions against the data instead of guessing. Use this whenever the work involves a 1C infobase, a 1C configuration, a file infobase (1Cv8.1CD), MS SQL tables named _Reference/_Document/_AccumRg/_InfoRg/_AccRg, регистры, проведение, ОбработкаПроведения, Движения, партионный учёт, or migrating a client off 1C onto dForge — including when the user only says "the client's old system" and the tables turn out to be 1C's, and including when they ask only for a piece of it such as "which register kind should this be" or "why does this document write more rows than 1C does". Also covers copying the rows (keys, dates, enums, composite references, empty values, reconciliation) and porting 1C print forms (MXL templates, Строка/Формат, НСтр) to dForge print templates.
 ---
 
 # Porting a 1C infobase to dForge
@@ -341,7 +341,8 @@ judgement above, written down.
 Do not write the mechanical half again. `scripts/` in this skill's directory holds the
 Python library that did it on a real port:
 
-- reading the configuration and DBNames straight from MS SQL;
+- exporting the infobase (configuration, DBNames, schema, rows) to `out/`, from MS SQL or
+  from a file infobase (`1Cv8.1CD`). Every later step reads the export, never 1C;
 - parsing the metadata;
 - inventorying registers and handlers;
 - generating and validating modules;

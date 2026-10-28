@@ -95,6 +95,16 @@ def parse(text):
 	return read_value() if pos < n else []
 
 
+def root():
+	"""The configuration's own object: `root` names it, `{2,<guid>,}`. The GUID is the
+	configuration's, so it differs from one infobase to the next."""
+	match = re.search(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", load("root") or "")
+	if not match:
+		raise SystemExit("meta: %s has no root - run `1c.py dump1c extract` first"
+		                 % os.path.join(CONFIG, "root.txt"))
+	return match.group(0)
+
+
 def load(guid):
 	path = os.path.join(CONFIG, guid + ".txt")
 	if not os.path.isfile(path):
@@ -150,7 +160,7 @@ def dbnames_index():
 
 def cmd_kinds(args):
 	"""Each group's family is whatever DBNames calls its members - no guessing from counts."""
-	tree = parse(load("1e4190e9-76c2-456e-a607-4d817110ffd9") or "")
+	tree = parse(load(root()) or "")
 	groups = collect_guid_groups(tree)
 	dbn = dbnames_index()
 
@@ -279,7 +289,7 @@ def cmd_allobjects(args):
 	common modules, roles and subsystems are missing from it - and they hold most of the
 	configuration's code.
 	"""
-	tree = parse(load("1e4190e9-76c2-456e-a607-4d817110ffd9") or "")
+	tree = parse(load(root()) or "")
 	dbn = dbnames_index()
 	result = []
 	for group in collect_guid_groups(tree):

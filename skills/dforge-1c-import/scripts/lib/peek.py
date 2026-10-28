@@ -22,7 +22,7 @@ import paths
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import dump1c
+import store
 
 OUT = paths.OUT
 
@@ -52,10 +52,8 @@ def main():
 
 	table = sys.argv[1]
 	limit = int(sys.argv[2]) if len(sys.argv) > 2 else 5
-	cur = dump1c.connect(paths.required("DF1C_SERVER", "which MS SQL server holds it"),
-	                     paths.required("DF1C_DB",
-	                                    "which MS SQL infobase to read")).cursor()
-	cur.execute("SELECT TOP (%d) * FROM [%s]" % (limit, table))
+	cur = store.connect().cursor()
+	cur.execute("SELECT * FROM %s LIMIT %d" % (store.quote(table), limit))
 	columns = [d[0] for d in cur.description]
 	rows = cur.fetchall()
 	# drop columns that are empty across every sampled row - they only add noise

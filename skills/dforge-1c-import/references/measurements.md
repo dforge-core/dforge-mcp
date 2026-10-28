@@ -3,7 +3,7 @@
 Each decision in SKILL.md has a query that settles it. They are written against a loaded
 dForge tenant (Postgres) because that is where both sides are comparable — the 1C rows and
 what the platform writes. Where the question can only be asked of the infobase, the query
-is against MS SQL and says so.
+is against the export (DuckDB over `out/data/`, via `store.connect()`) and says so.
 
 Adapt names; the shapes are the point.
 
