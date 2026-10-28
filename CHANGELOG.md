@@ -6,6 +6,14 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+**Grids and lists group by a column.** A `grid` or `list` view's `viewConfig` can ship a default grouping:
+`groupByField`, `groupByOptions` (narrows the Group menu) and `collapsedGroups`, plus `inlineAdd` on a list.
+`dforge_module_validate` checks them as the install does (core `ViewGroupingValidator`, #1556): each named column is a
+dropdown, flags, reference or user column, `groupByOptions` includes `groupByField`, and `collapsedGroups` lists option
+values of a valid `groupByField`. `references/data-views.md` documents the keys and the validation checklist lists the
+rules. The vendored `dforge://schema/data-views` does not accept them yet; it follows the metadata release that carries
+them (after 0.0.46). **Needs platform 1.28.11.**
+
 **`dforge-1c-import`: porting a 1C infobase.** A fifth skill. It carries the decisions a 1C port turns on, each with the
 measurement that settles it: a register's kind, where a posting takes each value, what to carry, physical columns through
 DBNames, vendor against client. It adds `references/loading.md` (copying the rows: swapped uuid halves, the empty reference

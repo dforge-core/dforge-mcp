@@ -79,6 +79,7 @@ For each entity:
 - [ ] The rendered entity has **at least one visible scalar column** (a field with `V` in `flags`, `columnType` not `S`) — a grid/list/kanban/etc. view over an entity whose fields are all hidden (or only sets) is **rejected** at validate/pack and would render "No visible columns configured for this entity." `diagram`/`matrix`/`library` are exempt
 - [ ] If set, `viewType` is from the supported list (`grid`, `list`, `kanban`, `calendar`, `gallery`, `tree-grid`, `diagram`, `master-detail`, `library`, `matrix`)
 - [ ] A `matrix` view has a `viewConfig` with `rowAxis`, `colAxis`, and `cell` (cell `entity` matches the primary `dataSources` entity; `rowKey`/`colKey` are real cell columns)
+- [ ] A `grid`/`list` view's `groupByField` and every `groupByOptions` entry is a dropdown, flags, reference or user column; `groupByOptions` includes `groupByField`; `collapsedGroups` has a valid `groupByField` and, for a dropdown, lists only its option values. **Rejected at validate/install**
 - [ ] Sort uses the view-def-root `order` key — a `string[]` like `["-created_date", "name"]` (leading `-` = descending), NOT `sort` / `[{column_cd, direction}]` (that object shape belongs to queries & reports, not data views)
 
 ## Menus

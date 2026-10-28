@@ -26,7 +26,7 @@ import {
 	checkToString,
 	checkSetAggregates,
 } from "./validate/entities";
-import { checkDataViews, checkVisibleColumns, checkMenus } from "./validate/views";
+import { checkDataViews, checkVisibleColumns, checkViewGrouping, checkMenus } from "./validate/views";
 import { checkRoleRights, checkSelectCoverage } from "./validate/security";
 import { checkConstraintTranslations, checkMessageTranslations, checkTranslationCompleteness } from "./validate/translations";
 import { checkActions, checkTriggersJobsWebhooks, checkActionDsl } from "./validate/logic";
@@ -44,6 +44,7 @@ const CHECKS: Array<(ctx: ValidateContext) => void> = [
 	checkEntityViews,
 	checkDataViews,
 	checkVisibleColumns,
+	checkViewGrouping,
 	checkMenus,
 	checkRoleRights,
 	checkSelectCoverage,

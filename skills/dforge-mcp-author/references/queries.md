@@ -12,7 +12,8 @@ Lives in: `ui/queries.json`
 | Simple aggregation — "totals by X" | **Pre-built query** (`ui/queries.json`) |
 | Ad-hoc exploration by the user | **Query Builder** (runtime, no module authoring needed) |
 | Complex multi-dataset visualizations with charts/KPIs | **Report** (`ui/reports.json`) |
-| Full SQL with window functions, CTEs, cross-schema | **Report with stored procedure** |
+| Totals grouped by a reference, or summing a value computed per row (lines by product, totals by VAT rate) | **Pre-built query**: `group` on the reference, `sum` over an `F` column of the entity (see *Calculated columns*) |
+| Full SQL with window functions, CTEs, cross-schema, or a formula over an aggregate (`CEIL(SUM(qty) / box)`) | **Report with stored procedure** |
 
 Queries fill the gap between views (flat, no aggregation) and reports (heavy, need layout config).
 
@@ -130,6 +131,17 @@ Columns can traverse references up to 2 levels deep:
 ```
 
 The query engine automatically JOINs the referenced entities.
+
+A reference path can be grouped or aggregated like any column: `{ "c": "product.unit", "agg": "group" }`.
+
+### Calculated columns
+
+A value computed per row is aggregated in two ways:
+
+- **An `F` column of the entity**, named by its code: `{ "c": "places", "agg": "sum" }`. Its formula may navigate references (`[qty] / [product].[box_qty]`). This is the way for anything that reads another entity.
+- **An ad-hoc formula** in the query: `{ "formula": "[qty] * [price]", "agg": "sum", "alias": "amount" }`. It reads the root entity's own columns only: a navigation path fails the request.
+
+The aggregate is applied to the row value, `SUM(formula)`. A formula over the aggregate (`SUM([a]) / COUNT([a])`, `CEIL(SUM([qty]) / [box_qty])`) is not expressible: in grouped mode a column without `agg` is dropped, and `SUM` / `COUNT` are not formula functions. That needs a stored procedure. The query is grouped when at least one column, plain or formula, has `agg: "group"`; there is no `grouping` switch. Aggregates without a `group` column are not a grand total: the request runs as an ungrouped row query and the aggregates are ignored, with no error.
 
 ### Filters
 
@@ -306,7 +318,10 @@ Query names and descriptions are translated in each non-English `translations/<l
 
 - Putting SQL in the `query` object — **wrong**. Queries use the JSON format, not raw SQL. For raw SQL, use stored procedures in reports.
 - Using `"column"` instead of `"c"` in columns/filters — **wrong**. Use the short keys.
-- Forgetting `"agg"` on columns in grouped mode — every column needs an aggregation assignment.
+- Forgetting `"agg"` on columns in grouped mode — a column without one is dropped from the result.
+- Only aggregates, no `group` column, expecting one total row — **runs ungrouped**, the aggregates ignored and no error. Group by a constant-valued column, or total in a `G` column or a report.
+- Writing a stored procedure to group lines and sum them — **wrong tool**. Grouping by a reference and summing an `F` column is a grouped query, and it runs under the user's entity, column and row-level security, which a stored procedure bypasses. Reach for SQL only for what the JSON cannot say (a formula over an aggregate, window functions, CTEs).
+- Navigating a reference inside an ad-hoc `formula` (`[product].[box_qty]`) — **fails**. Declare an `F` column on the entity and aggregate it by code.
 - Referencing columns from unrelated entities — queries can only traverse the root entity's references.
 - Using `@TODAY`, `@CURRENT_USER`, or any `@placeholder` syntax in filter values — **wrong**. Queries do not support parameter substitution. Use the function operator instead: `{ "c": "due_date", "o": "f", "v": { "fn": "isPast" } }`.
 - Using a function as the value of a comparison operator (`<`, `>`, `=`, `!=`, `between`) — **wrong**. Functions are standalone conditions, valid only with `"o": "f"` (full detail + examples under "Dynamic date and user filters" above). `{ "c": "due_date", "o": "<", "v": { "fn": "isToday" } }` is invalid; use `{ "c": "due_date", "o": "f", "v": { "fn": "isPast" } }`.
