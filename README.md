@@ -2,7 +2,7 @@
 
 MCP server for dForge module authoring. Exposes 35 composable tools and the canonical schemas so AI agents (Claude Code, Cursor, Zed, etc.) can drive the full module lifecycle — scaffold → entities → actions → views → security → install — through structured tool calls instead of free-form JSON generation.
 
-Ships with **four Claude Skills** (`skills/`): a router plus one skill per lifecycle stage — design (Phase 0), build (Phases 1-5), and ship (Phase 6). The router directory carries 25 reference files (field types, flags, traits, formulas, DSL, security, etc.) and two annotated example modules.
+Ships with **five Claude Skills** (`skills/`): a router plus one skill per lifecycle stage — design (Phase 0), build (Phases 1-5), and ship (Phase 6) — and `dforge-1c-import` for porting a 1C infobase, with its Python toolkit. The router directory carries 25 reference files (field types, flags, traits, formulas, DSL, security, etc.) and two annotated example modules.
 
 **New here?** Start with **[docs/creating-modules.md](docs/creating-modules.md)** — three ways to scaffold a module (terminal CLI, VS Code sidebar, AI wizard) and when to pick each.
 
@@ -206,6 +206,7 @@ Authoring guidance ships as **four** skills, split by lifecycle stage. Each stag
 | `dforge-module-design` | 0a–0d | Identity, intake guardrails, design doc, pre-scaffold validation. Ends at `readyToScaffold: true`. |
 | `dforge-module-build` | 1–5 | Entities, behavior, views/menus, polish, security. Loading-policy table, core-rules cheat sheet, backtrack protocol. |
 | `dforge-module-ship` | 6 | Validate → pre-pack review → version audit → pack → install-fix loop. |
+| `dforge-1c-import` | — | Porting a 1C:Enterprise infobase: register kinds, posting bindings, what to carry, the row copy and its conversions, print forms. `scripts/` holds the Python toolkit (read the infobase from MS SQL without 1C, generate modules, load, reconcile, check postings, read MXL templates). |
 
 The handoff is deterministic rather than vibes-based: `dforge_module_plan({ action: "check" })` returns `currentPhase` **and** `nextSkill`, derived from the Phase 0 artifacts, the phase ledger in `docs/phase.json`, and evidence read from the module itself (entities without fields, entities without a view, entities without a Select grant).
 

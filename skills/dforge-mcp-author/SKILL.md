@@ -14,6 +14,11 @@ three stage skills, each loaded only when its stage is active:
 | `dforge-module-build` | 1–5 | Entities, behavior, views/menus, polish, security. |
 | `dforge-module-ship` | 6 | Validate → pre-pack review → pack → install-fix loop. |
 
+**Porting from 1C** (a 1C:Enterprise infobase, `_Reference`/`_Document`/`_AccumRg`
+tables, регистры, проведение) is its own skill, `dforge-1c-import`: the porting
+decisions, the row copy and the print forms, with a Python toolkit for the mechanical
+half. It produces modules this skill set then validates and installs.
+
 **Why split:** each stage needs a different half of the knowledge base. Phase 0
 needs none of the field-type/DSL detail; Phase 6 needs none of the intake
 guardrails. Loading only the active stage is what keeps a full module build
