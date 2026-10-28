@@ -32,6 +32,7 @@ const SKILLS = [
 	["dforge-module-design", "Phase 0  — identity, intake, design, validation"],
 	["dforge-module-build", "Phases 1-5 — entities, behavior, views, security"],
 	["dforge-module-ship", "Phase 6  — validate, pack, install-fix loop"],
+	["dforge-1c-import", "porting a 1C infobase — decisions, loading, print forms,\n                        and the Python toolkit that does the mechanical half"],
 ];
 
 const PKG = "@dforge-core/dforge-mcp";

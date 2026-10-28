@@ -4,6 +4,18 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## Unreleased
+
+**`dforge-1c-import`: porting a 1C infobase.** A fifth skill. It carries the decisions a 1C port turns on, each with the
+measurement that settles it: a register's kind, where a posting takes each value, what to carry, physical columns through
+DBNames, vendor against client. It adds `references/loading.md` (copying the rows: swapped uuid halves, the empty reference
+and the empty date as values in register keys and periods, the year offset, enums by `_EnumOrder`, composite references,
+register state, triggers, dangling references, verification) and `references/print-forms.md` (MXL templates, the print
+procedure, `Строка`/`Формат` in SQL, reproducing 1C's slips, datasets as queries). `scripts/` ships the Python toolkit
+from a real port: it reads the configuration and DBNames from MS SQL without 1C, generates and validates modules, copies and
+reconciles the rows, checks postings and reads print templates, pointed at a port by `DF1C_ROOT` / `DF1C_PROJECT` and
+started from `scripts/project-template/`. `install-skills` installs it with the other four.
+
 ## 0.2.45 — 2026-10-25
 
 **English is the base locale, and it lives in the definitions.** Install never reads

@@ -13,3 +13,7 @@ node_modules/
 # Local env overrides
 .env
 .env.local
+
+# Python bytecode (the 1C toolkit under skills/dforge-1c-import/scripts)
+__pycache__/
+*.pyc
