@@ -97,3 +97,84 @@ export function checkMenus(ctx: ValidateContext): void {
 	};
 	for (const [mcode, m] of Object.entries(menus)) walk(m, `menus → ${mcode}`);
 }
+
+// Grid/list grouping defaults in viewConfig. Mirrors the server's
+// ViewGroupingValidator, which fails the install: `groupByField` and every
+// `groupByOptions` entry name a dropdown, flags, reference or user column,
+// `groupByOptions` includes `groupByField`, and `collapsedGroups` needs a valid
+// `groupByField` (for a dropdown, its entries are option values). Extension
+// entities are skipped, as the server does.
+export function checkViewGrouping(ctx: ValidateContext): void {
+	const { err, entities, fieldDefsOf, views } = ctx;
+	for (const [vcode, v] of Object.entries(views)) {
+		const viewType = (v.viewType as string | undefined) ?? "grid";
+		if (viewType !== "grid" && viewType !== "list") continue;
+		const config = v.viewConfig;
+		if (!config || typeof config !== "object" || Array.isArray(config)) continue;
+		const cfg = config as Record<string, unknown>;
+		const ent = (v.dataSources as Array<Record<string, unknown>> | undefined)?.[0]?.entityCode as string | undefined;
+		if (!ent) continue;
+		const defs = fieldDefsOf[ent]; // undefined for system/cross-module entities — skip
+		if (!defs || entities[ent]?.extends) continue;
+		const where = `data_views → ${vcode}`;
+
+		const resolve = (key: string, cd: string): Record<string, unknown> | undefined => {
+			const f = defs[cd];
+			if (!f) err(where, `names '${cd}' in '${key}', which entity '${ent}' does not define`);
+			else if (!isGroupable(f)) err(where, `names '${cd}' in '${key}', which is not a dropdown, reference or user column`);
+			else return f;
+			return undefined;
+		};
+		const readStrings = (key: string): string[] | undefined => {
+			const val = cfg[key];
+			if (!Array.isArray(val)) return undefined;
+			const items: string[] = [];
+			for (const item of val) {
+				if (typeof item === "string") items.push(item);
+				else err(where, `has a non-string item in '${key}'`);
+			}
+			return items;
+		};
+
+		const groupBy = typeof cfg.groupByField === "string" ? cfg.groupByField : undefined;
+		const groupField = groupBy !== undefined ? resolve("groupByField", groupBy) : undefined;
+
+		const options = readStrings("groupByOptions");
+		if (options) {
+			for (const cd of options) resolve("groupByOptions", cd);
+			if (groupBy !== undefined && !options.includes(groupBy)) {
+				err(where, `has 'groupByOptions' without its 'groupByField' '${groupBy}'`);
+			}
+		}
+
+		const collapsed = readStrings("collapsedGroups");
+		if (collapsed) {
+			if (!groupField) err(where, "sets 'collapsedGroups' without a valid 'groupByField'");
+			else if (isDropdown(groupField)) {
+				const values = optionValues(groupField);
+				for (const val of collapsed.filter((c) => !values.has(c))) {
+					err(where, `lists '${val}' in 'collapsedGroups', which is not an option of '${groupBy}'`);
+				}
+			}
+		}
+	}
+}
+
+function isDropdown(f: Record<string, unknown>): boolean {
+	return f.fieldTypeCd === "dropdown" || f.fieldTypeCd === "flags";
+}
+
+function isGroupable(f: Record<string, unknown>): boolean {
+	return isDropdown(f) || f.fieldTypeCd === "user" || f.columnType === "R";
+}
+
+function optionValues(f: Record<string, unknown>): Set<string> {
+	const result = new Set<string>();
+	const options = (f.params as Record<string, unknown> | undefined)?.options;
+	if (!Array.isArray(options)) return result;
+	for (const item of options) {
+		const val = item && typeof item === "object" ? (item as Record<string, unknown>).value : item;
+		if (typeof val === "string" || typeof val === "number") result.add(String(val));
+	}
+	return result;
+}

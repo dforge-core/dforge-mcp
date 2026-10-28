@@ -253,6 +253,72 @@ describe("module_validate — data-view visible column", () => {
 	});
 });
 
+describe("module_validate — grid/list grouping", () => {
+	const fields = {
+		name: { fieldTypeCd: "text", dbDatatype: "varchar", flags: "VEM" },
+		status: {
+			fieldTypeCd: "dropdown",
+			dbDatatype: "varchar",
+			flags: "VEM",
+			params: { options: [{ value: "open", label: "Open" }, { value: "done", label: "Done" }] },
+		},
+		owner_id: { fieldTypeCd: "user", dbDatatype: "int", flags: "VE" },
+	};
+	const make = (viewConfig: Record<string, unknown>, viewType?: string, extra: Record<string, unknown> = {}) => {
+		const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-group-"));
+		mkdirSync(join(dir, "entities"), { recursive: true });
+		mkdirSync(join(dir, "ui"), { recursive: true });
+		writeFileSync(join(dir, "manifest.json"), JSON.stringify({ code: "t", entities: { thing: "./entities/thing.json" } }));
+		writeFileSync(
+			join(dir, "entities", "thing.json"),
+			JSON.stringify({ description: "Thing", traits: ["identity"], fields, ...extra }),
+		);
+		const view: Record<string, unknown> = { dataSources: [{ entityCode: "thing" }], viewConfig };
+		if (viewType) view.viewType = viewType;
+		writeFileSync(join(dir, "ui", "data_views.json"), JSON.stringify({ thing_view: view }));
+		try {
+			return JSON.parse(moduleValidate({ moduleDir: dir }).files["_validate.json"]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	it("passes a valid grouping on a grid (the default type) and a list", () => {
+		const config = { groupByField: "status", groupByOptions: ["status", "owner_id"], collapsedGroups: ["done"] };
+		for (const viewType of [undefined, "list"]) {
+			const res = make(config, viewType);
+			expect(res.errors, JSON.stringify(res.errors)).toEqual([]);
+		}
+	});
+
+	it("rejects a column that isn't groupable or doesn't exist", () => {
+		const errors = JSON.stringify(make({ groupByField: "name", groupByOptions: ["name", "ghost"] }).errors);
+		expect(errors).toContain("names 'name' in 'groupByField', which is not a dropdown, reference or user column");
+		expect(errors).toContain("names 'ghost' in 'groupByOptions', which entity 'thing' does not define");
+	});
+
+	it("rejects groupByOptions without groupByField", () => {
+		const errors = JSON.stringify(make({ groupByField: "status", groupByOptions: ["owner_id"] }).errors);
+		expect(errors).toContain("has 'groupByOptions' without its 'groupByField' 'status'");
+	});
+
+	it("rejects collapsedGroups that aren't options, or with no groupByField", () => {
+		expect(JSON.stringify(make({ groupByField: "status", collapsedGroups: ["closed"] }).errors)).toContain(
+			"lists 'closed' in 'collapsedGroups', which is not an option of 'status'",
+		);
+		expect(JSON.stringify(make({ collapsedGroups: ["done"] }).errors)).toContain(
+			"sets 'collapsedGroups' without a valid 'groupByField'",
+		);
+	});
+
+	it("ignores other view types and extension entities", () => {
+		expect(JSON.stringify(make({ groupByField: "name" }, "kanban").errors)).not.toContain("groupByField");
+		expect(JSON.stringify(make({ groupByField: "name" }, "grid", { extends: "fin.invoice" }).errors)).not.toContain(
+			"groupByField",
+		);
+	});
+});
+
 describe("module_validate — broken fixture", () => {
 	const dir = mkdtempSync(join(tmpdir(), "dforge-mcp-validate-"));
 	mkdirSync(join(dir, "entities"), { recursive: true });

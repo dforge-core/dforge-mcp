@@ -118,8 +118,8 @@ See [flags.md](flags.md) for the flag string, [column-types.md](column-types.md)
 
 | `viewType` | Description | `viewConfig` | When to use |
 |---|---|---|---|
-| `grid` | Spreadsheet-style table with sortable columns | — | Default for most entities; bulk data |
-| `list` | Compact list view | — | Mobile-friendly, card-sized items |
+| `grid` | Spreadsheet-style table with sortable columns | `groupByField`, `groupByOptions`, `collapsedGroups` (all optional) | Default for most entities; bulk data |
+| `list` | Compact list view | `groupByField`, `groupByOptions`, `collapsedGroups`, `inlineAdd`, `levels` (all optional) | Mobile-friendly, card-sized items |
 | `kanban` | Columns grouped by a status field | `groupByField` | Workflow entities with stages (deals, tickets) |
 | `gallery` | Image-forward card grid | — | Image-heavy entities (products, real estate) |
 | `tree-grid` | Hierarchical grid with expand/collapse | — | Tree structures (folders, categories, org charts) |
@@ -150,6 +150,42 @@ Some view types need additional configuration via the `viewConfig` property:
 ```
 
 `groupByField` — the dropdown/status column to group cards by. Each distinct value becomes a kanban column.
+
+### Grid and list grouping
+
+A `grid` or `list` view can ship a default grouping. Rows split under a header per value (colour or icon, label, count),
+and a header click folds its group away. Every key is optional; without them the view is ungrouped.
+
+```json
+{
+    "tickets_grid": {
+        "viewType": "grid",
+        "label": "Tickets",
+        "dataSources": [{
+            "entityCode": "ticket",
+            "columns": ["subject", "status", "priority", "assignee_id"]
+        }],
+        "viewConfig": {
+            "groupByField": "status",
+            "groupByOptions": ["status", "priority", "assignee_id"],
+            "collapsedGroups": ["closed"]
+        }
+    }
+}
+```
+
+- `groupByField`: the column the rows are grouped by. It must be a dropdown, flags, reference (`columnType: "R"`) or
+  `user` column.
+- `groupByOptions`: the columns the Group menu offers. Each follows the same rule, and the list must include
+  `groupByField`. Leave it out to offer every groupable column.
+- `collapsedGroups`: values of `groupByField` whose groups start folded. It needs a valid `groupByField`, and for a
+  dropdown each entry must be one of its option values.
+- `inlineAdd` (`list` only): an add row in each group, or at the top when ungrouped.
+
+The install refuses a view that breaks these rules, and `dforge_module_validate` reports it first. The default is a
+single level. A user can stack more levels (priority, then status) from the gear menu; that choice lives in their
+session, not in the module. A grouped grid loads up to 2,000 rows instead of paging and warns past that. Needs platform
+1.28.11.
 
 ### Calendar
 
