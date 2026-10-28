@@ -256,6 +256,7 @@ execute:
 ```
 
 - A dimension left out is summed over by `getBalance` and `getTurnover`. `getSlice` refuses an omitted dimension.
+- `getSlice` answers one dimension tuple from an action. A value per row — each line's price on its document's date, in a print form, report or view — is the formula `SLICE()` on an `F` column (formulas.md).
 - As-of reads and `getTurnover` need a journal with both stamps.
 - A read of the wrong kind is refused, naming the right one.
 - DSL reads are gated by the action's Execute right, not Select on the register tables.

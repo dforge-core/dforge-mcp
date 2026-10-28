@@ -6,6 +6,14 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+**`SLICE()`: an information register's value on a date, per row.** A formula function for `F` columns —
+`SLICE('module.register', 'resource', date, 'dimension', value, …)`, 1C's `СрезПоследних` — so a print form prints each
+line's price on its document's date, read in the query that loads the lines. Database-only (the browser keeps the loaded
+value), read with the user's rights on the register, refused in `G` columns; install checks the register, resource and
+dimensions. `references/formulas.md` documents it, `print-templates.md` and `registers.md` point to it. Print responses
+(`print.render`, `print.renderPdf`, DSL `printPdf()`) now carry `warnings` for what printed empty, and an upgrade deletes
+the print templates a package no longer declares. **Needs platform with dForge-core e0ba1dbee.**
+
 **Grids and lists group by a column.** A `grid` or `list` view's `viewConfig` can ship a default grouping:
 `groupByField`, `groupByOptions` (narrows the Group menu) and `collapsedGroups`, plus `inlineAdd` on a list.
 `dforge_module_validate` checks them as the install does (core `ViewGroupingValidator`, #1556): each named column is a

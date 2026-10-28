@@ -569,7 +569,7 @@ if (info.mimeType != 'application/pdf') { error('Receipt must be PDF') }
 ```
 
 #### `printPdf(entityCd, key, templateCd)`
-Render a print template to a PDF as the current user and return the archived file as `{ fileId, fileName, mimeType, size, checksum }`; attach it with `sendEmail()`. Pass a qualified entity code. Not in a scheduled job or a background action; max 10 per run.
+Render a print template to a PDF as the current user and return the archived file as `{ fileId, fileName, mimeType, size, checksum }`, plus `warnings` when a value printed empty because the user may not read it; attach it with `sendEmail()`. Pass a qualified entity code. Not in a scheduled job or a background action; max 10 per run.
 
 ```dsl
 execute:
