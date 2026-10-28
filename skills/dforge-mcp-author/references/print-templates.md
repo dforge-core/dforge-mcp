@@ -73,7 +73,7 @@ A printed set, nested or not, needs **Select** on its entity in the folder, as `
 
 A currency column prints its glyph for the common codes (`EUR` → `€`, `USD` → `$`, `GBP` → `£`, `UAH` → `₴`, `PLN` → `zł`); other codes print as the code. `format_currency` follows the same mapping.
 
-Formula columns (`F`) are read in the same SQL as the record, as `data.get` does, so a formula that navigates references or calls a SQL function prints what the grid shows, and `TODAY()` / `NOW()` work. A formula the SQL translator cannot express prints empty and the response carries a warning naming the column.
+Formula columns (`F`) are read in the same SQL as the record, as `data.get` does, so a formula that navigates references prints what the grid shows, and `TODAY()` / `NOW()` work. A formula uses the built-in formula functions only: it cannot call a module's SQL function. A formula the SQL translator cannot express prints empty and the response carries a warning naming the column.
 
 **Sets: loading and order.** A set is loaded when the template's Liquid code (`{% … %}` or `{{ … }}`) mentions its name anywhere: a `for`, a filter, a condition, `.size`, `.first`. Plain text, `{% comment %}` / `{% raw %}` blocks, string literals and the member of a path (`rec.lines`) do not count, and a snippet's code is not scanned (mention the set in the host template). Rows come in primary-key order; sort in the template:
 
@@ -84,6 +84,21 @@ Formula columns (`F`) are read in the same SQL as the record, as `data.get` does
 ```
 
 `sort` takes a column code and sorts the value as the template sees it (a dropdown or reference sorts by its label). Text order follows the engine, not the database collation. `{# … #}` after an expression in examples is a note for the reader, not syntax: write a real comment as `{% comment %} … {% endcomment %}`.
+
+## Computed values and grouped rows
+
+| The form needs | Do |
+| --- | --- |
+| A value of the record or of a record it references (the organization's requisites as one block) | An `F` column on the entity: references and built-in functions |
+| A value per line (places, weight through the product's units) | An `F` column on the line entity, printed as `line.<col>` |
+| One total over a set | A `G` column on the document (`SUM([lines].[amount])`), or a `plus` accumulator in the loop: `{% assign s = 0 %}{% for l in lines %}{% assign s = s \| plus: l.amount %}{% endfor %}` |
+| Lines grouped by a column, totals per group (by product and series, by VAT rate, a packing list by pallet) | **Not available in the print context yet.** It prints the record and its sets as stored |
+
+For the last row, do not work around it:
+
+- **Not in Liquid filters.** `where`, `sum`, `group_by` and `where_exp` run in the LiquidJS preview, but Scriban (the print) fails with "The function `where` was not found". Filter and total with `{% if %}` and `plus` inside a `for`, which both engines run.
+- **Not a print table filled by an action.** It stores a copy of the document that drifts from it.
+- **Not a stored procedure.** The grouping itself is a grouped query (`references/queries.md`): `group` on the column, `sum` over a line `F` column.
 
 ## Custom filters
 
@@ -113,7 +128,7 @@ Full mechanics + an EPC SEPA QR worked example: [`docs/ui/print-qr-codes.md`](..
 
 ### Amount in words
 
-The platform has no number-to-words filter. The `common-words` module (`modules/common-words`, a dependency to declare) ships snippets that write an amount or a plain quantity out in Ukrainian, English or German. Set the inputs, then include:
+The platform has no number-to-words filter. The `common-words` module (`modules/common-words`, a dependency to declare) ships snippets that write an amount or a plain quantity out in Ukrainian, Russian, English or German. Set the inputs, then include:
 
 ```liquid
 {% assign words_amount = total %}
@@ -122,9 +137,17 @@ The platform has no number-to-words filter. The `common-words` module (`modules/
 {% include 'common-words.money' %}
 ```
 
-1234.56 EUR prints «eintausendzweihundertvierunddreißig Euro 56 Cent». `words_amount` must be a numeric field, not text. `words_currency` is an ISO 4217 code in any case; an unlisted currency prints its code. `words_lang` is `uk` (default), `en` or `de`; an unknown code prints `[common-words: unknown language xx]`. `words_cap = true` capitalises the first letter. `common-words.money` only picks the language; `money_uk` / `money_en` / `money_de` can be included directly, and `common-words.quantity` writes a count of things («двадцять одна штука», «twenty-one pieces»): `words_number` (numeric, a fraction rounds half up), optional `words_unit` (forms joined by `|`: three for Ukrainian, two for English and German) and `words_gender` (`m` / `f` / `n`), plus `words_lang` and `words_cap` as above. The text lives in the module, so a fix or a new currency is a module update; a new language is a new `money_xx.html` plus a line in `money.html`.
+1234.56 EUR prints «eintausendzweihundertvierunddreißig Euro 56 Cent». `words_amount` must be a numeric field, not text. `words_currency` is an ISO 4217 code in any case; an unlisted currency prints its code. `words_lang` is `uk` (default), `ru`, `en` or `de`; an unknown code prints `[common-words: unknown language xx]`. `words_cap = true` capitalises the first letter. `common-words.money` only picks the language; `money_uk` / `money_ru` / `money_en` / `money_de` can be included directly, and `common-words.quantity` writes a count of things («двадцять одна штука», «twenty-one pieces»): `words_number` (numeric, a fraction rounds half up), optional `words_unit` (forms joined by `|`: three for Ukrainian and Russian, two for English and German) and `words_gender` (`m` / `f` / `n`), plus `words_lang` and `words_cap` as above; `quantity_uk` / `quantity_ru` can be included directly too. The text lives in the module, so a fix or a new currency is a module update; a new language is a new `money_xx.html` plus a line in `money.html`.
 
-Snippets run on Scriban (print) and LiquidJS (preview), so write them for both: no `floor` on big numbers, no number taken from `split` / `slice`, plain `{% comment %}` without trim dashes.
+`quantity_uk` and `quantity_ru` also write a fraction in words. With `words_minor` + `words_minor_digits` (1–6) the fraction gets its own unit, as 1C's ЧислоПрописью does for a weight: «одна тысяча двести пятьдесят кг. пятьсот г.» (a zero fraction prints «ноль г.»). With `words_decimal = true` the number is a decimal fraction up to three digits, trailing zeros dropped: «двадцять одна ціла дванадцять сотих тонни». The unit comes in the 2–4 form, or as `words_unit_fraction` ('кілограма' for a Ukrainian masculine unit). The grammar is correct where 1C's is not: 1.001 is «одна ціла одна тисячна». English and German take neither input.
+
+Snippets run on Scriban (print) and LiquidJS (preview), so write them for both:
+
+- No `floor` on big numbers: Scriban's goes through a double and rounds them up.
+- No `modulo: 1` on a fraction without snapping the whole part with `round`. LiquidJS 10.30 leaves float noise: `0.44 | modulo: 1` is 0.43999999999999995.
+- Round a fraction half up on its decimal digits, read from the number's text (`append: ''`; the server may print a comma; a browser double under 1e-6 prints as `5e-7`), never by `times` / `plus: 0.5` / `floor`. A double's text is the shortest decimal it stands for, so this matches the server's decimals both on a tie (960.015 → 02) and just below one (1000000000.0049999 → 00). No epsilon can do both.
+- No number taken from `split` / `slice`. A digit is read as `'x0123456789' | split: ch | first | size | minus: 1`.
+- Plain `{% comment %}` without trim dashes.
 
 ## Module package layout
 

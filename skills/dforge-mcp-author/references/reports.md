@@ -75,7 +75,7 @@ A report has a `label`, a `description`, a `datasets` map, a `layout` object (`{
 ```
 
 - `query.entityCd` — source entity code (**not** `entityCode`).
-- `query.columns` — column codes; supports dot navigation (`customer.name`).
+- `query.columns` — column codes; supports dot navigation (`customer.name`). Plain column codes and reference paths only: an `{ "c", "agg" }` or `{ "formula" }` object fails `report.run`. Grouping and ad-hoc formulas belong to `ui/queries.json`; in a report, aggregate in the visualization.
 - `query.filter` — canonical filter (`{c,o,v}` or `{g,i:[...]}`); use `@param_code` to reference a parameter.
 - `query.sort` — `[{ c, d }]` where `d` ∈ `asc | desc`.
 - `columnsDef` — optional per-column display overrides (`{ label, fieldTypeCd, format, width }`; each key replaces the projected value). `label` is a literal and wins over a translated header. `visible` is accepted but read by nothing. `baseDatatypeCd` is read only where the dataset projects no columns of its own.
