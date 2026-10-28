@@ -49,7 +49,7 @@ Then regenerate. If a port keeps needing hand edits, the generator is wrong.
 
 On Windows, set `PYTHONIOENCODING=utf-8`.
 
-Lay out a port directory and point the toolkit at it:
+Lay out a port directory, copy `project-template/.env.example` to `<root>/.env` and fill it in, and export `DF1C_ROOT` / `DF1C_PROJECT` in the shell:
 
 ```
 myport/
