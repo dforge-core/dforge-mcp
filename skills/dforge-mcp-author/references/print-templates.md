@@ -212,7 +212,7 @@ my_module/
 - **Writing an amount in words by hand.** Include `common-words.money` instead of a custom filter or lookup table.
 - **Module-installed template renamed in editor.** The editor preserves the original `template_cd` so `{% include %}` references stay intact — don't try to work around it.
 
-Module-installed print-template rows can't be deleted from the editor. A template or snippet the package no longer declares is deleted on upgrade (dropped from `print_templates.json`, moved to another entity, or the file gone entirely); tenant-authored rows are never touched. To retire a template, remove it from the package.
+Module-installed print-template rows can't be deleted from the editor. A template or snippet the package no longer declares is deleted on upgrade (dropped from `print_templates.json`, moved to another entity, or the file gone entirely); tenant-authored rows are never touched. To retire a template, remove it from the package, and remove or repoint any scheduled print subscription that names it: nothing references a template by key, so the subscription is not blocked, and its next run fails and suspends it.
 
 ## Reference
 

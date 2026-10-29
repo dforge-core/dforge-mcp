@@ -154,11 +154,20 @@ The whole date family evaluates identically **client-side and SQL-time** (report
   - **Computed by the database only** — in a print form, a report, and `data.get` naming the
     column. The browser does not recompute it on edit; it keeps the value the server loaded.
   - Read with the user's rights on the register's records: Select in the folder, the folder's
-    row filter, the resource column visible. Otherwise the cell is empty and the response
-    carries a warning.
+    row filter, the resource and every dimension column visible in the folder's view. Otherwise
+    the cell is empty and the response carries a warning. That includes a row filter over the
+    records that cannot be applied (a dotted path or an extension column): the `SLICE()` comes
+    back empty with a warning instead of failing the whole query.
   - Install refuses a register that is not an `info` register of this module or of a
-    dependency, an unknown resource or dimension, and a missing dimension; `dforge_module_pack`
-    checks the shape only. Refused in a `G` column (its value would freeze at write time).
+    dependency (a register of another kind "has no slice"), an unknown resource or dimension, a
+    missing dimension, and a literal `null` as a dimension value or as the date of a register
+    that declares a `period` (it matches no record). A `null` that only appears at runtime, such
+    as a line with an empty price type, still gives an empty cell, with no warning.
+    `dforge_module_validate` and `dforge_module_pack` (the CLI's static checks) catch only a
+    malformed call, such as a name that is not a text literal or a dimension without its value;
+    whether the register, resource and dimensions exist is known at install.
+  - Refused at install in a `G` column: it is computed when a row is written and would not
+    follow a record added to the register later. Use an `F` column.
   - Newest record only: there is no `first` mode as `getSlice` has. Each row is one index
     descent of the register's `(dimensions, period)` index, which the platform creates.
   - The date is compared as `period <= date`: against a `timestamp` period, a date-only

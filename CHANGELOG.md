@@ -12,7 +12,7 @@ line's price on its document's date, read in the query that loads the lines. Dat
 value), read with the user's rights on the register, refused in `G` columns; install checks the register, resource and
 dimensions. `references/formulas.md` documents it, `print-templates.md` and `registers.md` point to it. Print responses
 (`print.render`, `print.renderPdf`, DSL `printPdf()`) now carry `warnings` for what printed empty, and an upgrade deletes
-the print templates a package no longer declares. **Needs platform with dForge-core e0ba1dbee.**
+the print templates a package no longer declares. **Needs a platform with dForge-core 261029-formula-slice (commit hash pending).**
 
 **Grids and lists group by a column.** A `grid` or `list` view's `viewConfig` can ship a default grouping:
 `groupByField`, `groupByOptions` (narrows the Group menu) and `collapsedGroups`, plus `inlineAdd` on a list.
