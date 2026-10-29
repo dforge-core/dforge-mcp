@@ -52,6 +52,7 @@
 			},
 			"additionalProperties": false,
 			"allOf": [
+				{ "$ref": "#/$defs/rules/grid" },
 				{ "$ref": "#/$defs/rules/kanban" },
 				{ "$ref": "#/$defs/rules/calendar" },
 				{ "$ref": "#/$defs/rules/tree-grid" },
@@ -62,6 +63,17 @@
 		},
 
 		"rules": {
+			"grid": {
+				"if": {
+					"properties": { "viewType": { "const": "grid" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/gridViewConfig" }
+					}
+				}
+			},
 			"kanban": {
 				"if": {
 					"properties": { "viewType": { "const": "kanban" } },
@@ -131,6 +143,26 @@
 			}
 		},
 
+		"gridViewConfig": {
+			"type": "object",
+			"properties": {
+				"groupByField": {
+					"type": "string",
+					"description": "Dropdown, reference or user column the rows are grouped by under header rows"
+				},
+				"groupByOptions": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Columns the Group by menu offers; must include groupByField"
+				},
+				"collapsedGroups": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Option values of groupByField whose groups start collapsed"
+				}
+			},
+			"additionalProperties": false
+		},
 		"kanbanViewConfig": {
 			"type": "object",
 			"required": ["groupByField"],
@@ -195,6 +227,24 @@
 					"type": "array",
 					"items": { "$ref": "#/$defs/listLevelConfig" },
 					"description": "Hierarchical child levels for expandable list rows"
+				},
+				"groupByField": {
+					"type": "string",
+					"description": "Dropdown, reference or user column the rows are grouped by"
+				},
+				"groupByOptions": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Columns the user may regroup by; must include groupByField"
+				},
+				"collapsedGroups": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Option values of groupByField whose groups start collapsed"
+				},
+				"inlineAdd": {
+					"type": "boolean",
+					"description": "Show an add row in each group (at the top when ungrouped)"
 				}
 			},
 			"additionalProperties": false

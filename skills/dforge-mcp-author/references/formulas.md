@@ -142,11 +142,42 @@ The whole date family evaluates identically **client-side and SQL-time** (report
   `'bool'`/`'boolean'`, `'date'`, `'datetime'`/`'timestamp'`/`'timestamptz'`
 - `CURRENT_USER_ID()` — the id of the requesting user
 
+### Register functions
+
+- `SLICE('module.register', 'resource', date, 'dimension', value, …)` — an information
+  register's value in effect on `date` (1C `СрезПоследних`): the resource of the newest record
+  at or before the date whose dimensions equal the values, null when none is. The register,
+  resource and dimension names are text literals; the date and the values are expressions over
+  the row, so a document line reads its price on its document's date:
+  `SLICE('pricing.item_price', 'price', [doc].[doc_date], 'item_id', [item_id], 'price_type_id', [doc].[price_type_id])`.
+  Every dimension must be given; a register without `period` takes `null` as the date.
+  - **Computed by the database only** — in a print form, a report, and `data.get` naming the
+    column. The browser does not recompute it on edit; it keeps the value the server loaded.
+  - Read with the user's rights on the register's records: Select in the folder, the folder's
+    row filter, the resource and every dimension column visible in the folder's view. Otherwise
+    the cell is empty and the response carries a warning. That includes a row filter over the
+    records that cannot be applied (a dotted path or an extension column): the `SLICE()` comes
+    back empty with a warning instead of failing the whole query.
+  - Install refuses a register that is not an `info` register of this module or of a
+    dependency (a register of another kind "has no slice"), an unknown resource or dimension, a
+    missing dimension, and a literal `null` as a dimension value or as the date of a register
+    that declares a `period` (it matches no record). A `null` that only appears at runtime, such
+    as a line with an empty price type, still gives an empty cell, with no warning.
+    `dforge_module_validate` and `dforge_module_pack` (the CLI's static checks) catch only a
+    malformed call, such as a name that is not a text literal or a dimension without its value;
+    whether the register, resource and dimensions exist is known at install.
+  - Refused at install in a `G` column: it is computed when a row is written and would not
+    follow a record added to the register later. Use an `F` column.
+  - Newest record only: there is no `first` mode as `getSlice` has. Each row is one index
+    descent of the register's `(dimensions, period)` index, which the platform creates.
+  - The date is compared as `period <= date`: against a `timestamp` period, a date-only
+    document date is midnight, so a record later that day is not in the slice.
+
 ### Client-side vs SQL-time evaluation
 
 An `F` column is evaluated **client-side** in grids and cards, but translated to **SQL** when a
 report selects it, or when it is used in a filter or sort. **Every function listed here is
-implemented in both**, so a column reads the same in a grid and in a report; a test executes
+implemented in both** — except `SLICE()`, which only the database computes — so a column reads the same in a grid and in a report; a test executes
 each one against PostgreSQL and diffs the result against the client runtime.
 
 Four deliberate points of agreement, because the engines disagree by nature:

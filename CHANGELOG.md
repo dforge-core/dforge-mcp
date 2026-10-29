@@ -6,13 +6,24 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+## 0.2.46 — 2026-10-29
+
+Requires `@dforge-core/dforge-cli` 0.2.37 and `@dforge-core/metadata` 0.0.47; the vendored `dforge://schema/data-views` now accepts the grouping keys.
+
+**`SLICE()`: an information register's value on a date, per row.** A formula function for `F` columns —
+`SLICE('module.register', 'resource', date, 'dimension', value, …)`, 1C's `СрезПоследних` — so a print form prints each
+line's price on its document's date, read in the query that loads the lines. Database-only (the browser keeps the loaded
+value), read with the user's rights on the register, refused in `G` columns; install checks the register, resource and
+dimensions. `references/formulas.md` documents it, `print-templates.md` and `registers.md` point to it. Print responses
+(`print.render`, `print.renderPdf`, DSL `printPdf()`) now carry `warnings` for what printed empty, and an upgrade deletes
+the print templates a package no longer declares. **Needs a platform with the `SLICE()` release (CLI 0.2.37).**
+
 **Grids and lists group by a column.** A `grid` or `list` view's `viewConfig` can ship a default grouping:
 `groupByField`, `groupByOptions` (narrows the Group menu) and `collapsedGroups`, plus `inlineAdd` on a list.
 `dforge_module_validate` checks them as the install does (core `ViewGroupingValidator`, #1556): each named column is a
 dropdown, flags, reference or user column, `groupByOptions` includes `groupByField`, and `collapsedGroups` lists option
 values of a valid `groupByField`. `references/data-views.md` documents the keys and the validation checklist lists the
-rules. The vendored `dforge://schema/data-views` does not accept them yet; it follows the metadata release that carries
-them (after 0.0.46). **Needs platform 1.28.11.**
+rules. The vendored `dforge://schema/data-views` carries them from metadata 0.0.47. **Needs platform 1.28.11.**
 
 **`dforge-1c-import`: porting a 1C infobase.** A fifth skill. It carries the decisions a 1C port turns on, each with the
 measurement that settles it: a register's kind, where a posting takes each value, what to carry, physical columns through

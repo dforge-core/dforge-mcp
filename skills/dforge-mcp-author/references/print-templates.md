@@ -73,7 +73,9 @@ A printed set, nested or not, needs **Select** on its entity in the folder, as `
 
 A currency column prints its glyph for the common codes (`EUR` → `€`, `USD` → `$`, `GBP` → `£`, `UAH` → `₴`, `PLN` → `zł`); other codes print as the code. `format_currency` follows the same mapping.
 
-Formula columns (`F`) are read in the same SQL as the record, as `data.get` does, so a formula that navigates references prints what the grid shows, and `TODAY()` / `NOW()` work. A formula uses the built-in formula functions only: it cannot call a module's SQL function. A formula the SQL translator cannot express prints empty and the response carries a warning naming the column.
+Formula columns (`F`) are read in the same SQL as the record, as `data.get` does, so a formula that navigates references prints what the grid shows, and `TODAY()` / `NOW()` work. A formula uses the built-in formula functions only: it cannot call a module's SQL function. A formula the SQL translator cannot express, or one reading what the user may not read, prints empty, and `print.render` / `print.renderPdf` return it in `warnings` (a line column's prefixed with its set's name); the card's PDF button shows them.
+
+A value that changes over time — a price, an employee's position, an organization's code — lives in an information register: print it as it stood on the document's date with a `SLICE()` formula column on the line or the document (see formulas.md). Each line reads its own value in the query that loads the set.
 
 **Sets: loading and order.** A set is loaded when the template's Liquid code (`{% … %}` or `{{ … }}`) mentions its name anywhere: a `for`, a filter, a condition, `.size`, `.first`. Plain text, `{% comment %}` / `{% raw %}` blocks, string literals and the member of a path (`rec.lines`) do not count, and a snippet's code is not scanned (mention the set in the host template). Rows come in primary-key order; sort in the template:
 
@@ -210,7 +212,7 @@ my_module/
 - **Writing an amount in words by hand.** Include `common-words.money` instead of a custom filter or lookup table.
 - **Module-installed template renamed in editor.** The editor preserves the original `template_cd` so `{% include %}` references stay intact — don't try to work around it.
 
-Module-installed print-template rows can't be deleted from the editor — uninstall the owning module to remove them.
+Module-installed print-template rows can't be deleted from the editor. A template or snippet the package no longer declares is deleted on upgrade (dropped from `print_templates.json`, moved to another entity, or the file gone entirely); tenant-authored rows are never touched. To retire a template, remove it from the package, and remove or repoint any scheduled print subscription that names it: nothing references a template by key, so the subscription is not blocked, and its next run fails and suspends it.
 
 ## Reference
 
