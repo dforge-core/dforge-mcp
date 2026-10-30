@@ -56,6 +56,7 @@ taken for a deletion. While 1C is the system of record, nothing is entered in th
 from __future__ import print_function
 
 import argparse
+import collections
 import datetime
 import re
 import struct
@@ -65,6 +66,7 @@ import time
 import migrate
 import paths
 import store
+import transactions
 
 SCHEMA = "df1c"
 KEYS_IN_LIST = 500
@@ -515,6 +517,14 @@ def begin(cur):
 
 # --------------------------------------------------------------------------- after a module
 
+SettleResult = collections.namedtuple("SettleResult", "status notes")
+
+
+def settlement_exit_code(outcomes, apply):
+	"""Dry runs only estimate; an applied but unfinished module must block cutover."""
+	return 2 if apply and any(o.status != "ready" for o in outcomes) else 0
+
+
 def settle(pg, module, results, apply, mark_documents):
 	"""What a module needs once its rows moved: placeholders, balances, markers."""
 	import posted
@@ -526,11 +536,11 @@ def settle(pg, module, results, apply, mark_documents):
 	notes = []
 	settled = True
 	if apply and touched:
-		cur = pg.cursor()
-		cur.execute("BEGIN")
-		cur.execute("SET LOCAL session_replication_role = 'replica'")
-		filled = migrate.fill_missing(pg, schemas, verbose=False)
-		cur.execute("COMMIT")
+		with transactions.writing(pg):
+			cur = pg.cursor()
+			cur.execute("SET LOCAL session_replication_role = 'replica'")
+			filled = migrate.fill_missing(pg, schemas, verbose=False)
+			pg.commit()
 		if filled:
 			notes.append("%d placeholder(s)" % sum(f[4] for f in filled))
 
@@ -539,9 +549,8 @@ def settle(pg, module, results, apply, mark_documents):
 		if reg.journal_entity not in touched:
 			continue
 		if apply:
-			pg.autocommit = False
-			rows, written, _ = seedstate.seed(pg, reg)
-			pg.autocommit = True
+			with transactions.writing(pg):
+				rows, written, _ = seedstate.seed(pg, reg)
 			off = seedstate.drift(pg.cursor(), reg)
 			settled = settled and not off
 			notes.append("reseeded %s.%s: %d tuple(s), check %s"
@@ -587,8 +596,9 @@ def settle(pg, module, results, apply, mark_documents):
 		else:
 			notes.append("would converge markers on %d document table(s)" % len(work))
 	if apply and touched and settled:
-		pg.cursor().execute("DELETE FROM %s.unsettled WHERE module = %%s" % SCHEMA, (module,))
-	return notes
+		pg.cursor().execute("DELETE FROM %s.unsettled WHERE module = %%s AND entity = ANY(%%s)"
+		                    % SCHEMA, (module, sorted(touched)))
+	return SettleResult("dry_run" if not apply else ("ready" if settled else "partial"), notes)
 
 
 # --------------------------------------------------------------------------- command
@@ -733,6 +743,7 @@ def main():
 	print("-" * len(header))
 	totals = [0, 0, 0, 0, 0.0]
 	all_notes = []
+	outcomes = []
 	for module in modules:
 		results = []
 		for m, job in plan:
@@ -753,7 +764,20 @@ def main():
 				         res.owners if kind in ("lines", "movements") else "",
 				         res.changed, res.new, res.deleted, res.read, res.compare, res.write))
 				sys.stdout.flush()
-		for note in settle(pg, module, results, args.apply, jwt if args.apply else None):
+		try:
+			outcome = settle(pg, module, results, args.apply, jwt if args.apply else None)
+		except transactions.ConnectionRecoveryError:
+			raise  # Never continue on a connection whose cleanup failed.
+		except Exception as failure:
+			if not args.apply:
+				raise
+			transactions.recover(pg)
+			outcome = SettleResult("partial", ["settlement FAILED: %s: %s"
+			                                  % (type(failure).__name__, failure)])
+		outcomes.append(outcome)
+		all_notes.append("%s: status %s%s" % (module, outcome.status,
+		                                      "" if args.apply else " (estimate only, not a readiness verdict)"))
+		for note in outcome.notes:
 			all_notes.append("%s: %s" % (module, note))
 	print("-" * len(header))
 	print("%d entities  changed %d  new %d  deleted %d  (owners/recorders replaced %d)"
@@ -763,7 +787,11 @@ def main():
 		print("  " + note)
 	print("(rows of an entity with nothing changed and under 2s are not listed;"
 	      " lines/movements count rows replaced as new/deleted)")
-	return 0
+	code = settlement_exit_code(outcomes, args.apply)
+	if code:
+		print("delta incomplete (%s): do not cut over; resolve the notes and rerun --apply."
+		      % ", ".join(m for m, o in zip(modules, outcomes) if o.status != "ready"))
+	return code
 
 
 if __name__ == "__main__":

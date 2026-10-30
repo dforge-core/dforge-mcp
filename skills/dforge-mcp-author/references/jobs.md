@@ -33,7 +33,7 @@ Lives in: `logic/jobs.json` at the module root. Schema: [`docs/schemas/jobs.sche
 | `timeout`        | Yes      |              | Hard timeout in seconds. Range `(0, 3600]`. **No implicit default.** `timeout > 300` requires `class: "long_running"`.               |
 | `class`          | No       | `"standard"` | `"standard"` (≤ 300 s) or `"long_running"` (≤ 3600 s). Explicit opt-in for heavy jobs.                                               |
 | `concurrency`    | No       | `1`          | Max parallel runs `[1, 5]`. `1` = single-instance.                                                                                   |
-| `idempotencyKey` | No       |              | Template like `"{job_cd}:{run.month}"`. Successful run with same key blocks re-dispatch.                                             |
+| `idempotencyKey` | No       |              | **Not enforced yet.** Accepted and stored; the Scheduler does not read it. Scheduled slots deduplicate `(job, scheduled_at)`, not business keys across slots. Guard business idempotency inside the action; manual triggers skip the slot check.                                             |
 | `timeZone`       | No       | tenant tz    | IANA name. Falls back to `auth.tenant.time_zone`.                                                                                    |
 | `params`         | No       | `{}`         | Static parameters passed to the action as `__params`. Manifest-fixed — an admin cannot change them. For tenant-configurable values use module settings, resolved from the job's folder (below).       |
 | `enabled`        | No       | `true`       | `false` fully disables — no scheduler, no manual trigger.                                                                            |

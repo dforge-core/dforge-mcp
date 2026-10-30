@@ -162,3 +162,30 @@ reproducible.
 This copy is kept in step with the port it was developed on (`tools/lib`, `tools/1c.py`
 there). Fixes made in a port go back to the library here. A project's own files never
 come here.
+
+### Regression checks and restart contract
+
+From the MCP repository root: `pnpm test:1c` (Python 3, standard library only).
+These tests use synthetic inputs and mocked database boundaries, never a tenant or
+source infobase. They cover conversions, COPY encoding, settlement failure/retry and
+the initial loader's committed-per-entity restart contract; they do not replace
+Parquet/DuckDB/PostgreSQL integration or real source-to-target reconciliation.
+
+`delta --apply` prints each module's `ready` or `partial` status. Exit 0 means all
+selected modules settled; exit 2 means data may have committed but settlement is
+incomplete (state/totals drift or markers not converged, including `--no-mark`
+when markers are needed). Resolve the reported problem and rerun `--apply`;
+persisted unsettled entities are checked even when the new delta has no changes.
+Dry runs report `dry_run` and do not certify readiness. Settlement write failures
+roll back the current transaction before restoring autocommit; ordinary failures
+report `partial` and allow the next module to run on a clean connection. Failure to
+rollback or restore the connection stops the command immediately. Previously
+committed entities/years remain committed; a rollback does not undo the whole import.
+Exit 0 does not replace the wider migration reconciliation.
+
+`migrate run --truncate` is a destructive reload into an isolated migration target,
+not an atomic refresh of a live application: clearing commits before loading and
+each entity commits separately. If interrupted, keep users out, repair the cause,
+rerun the same complete selection with `--truncate` from the same export, then
+reconcile again. Do not use an append rerun to recover a partially loaded target.
+For an active target, load/reconcile a separate database and switch only afterward.

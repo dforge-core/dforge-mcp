@@ -50,6 +50,7 @@ import sys
 import time
 
 import migrate
+import transactions
 
 GRANULARITIES = ("day", "month", "quarter", "year")
 
@@ -334,8 +335,7 @@ def rebuild(pg, plan):
 
 	insert = ("INSERT INTO %s (%s) VALUES (%s)"
 	          % (plan.totals, ", ".join(key + cols), ", ".join(["%s"] * (len(key) + len(cols)))))
-	pg.autocommit = False
-	try:
+	with transactions.writing(pg):
 		for year in years:
 			cur.execute("SET LOCAL session_replication_role = 'replica'")
 			cur.execute("DELETE FROM %s WHERE %s >= %%s AND %s < %%s"
@@ -344,8 +344,6 @@ def rebuild(pg, plan):
 			if by_year.get(year):
 				cur.executemany(insert, by_year[year])
 			pg.commit()
-	finally:
-		pg.autocommit = True
 	print("%-28s %7d rows written over %d year(s)   checks %.0fs, fold %.0fs, write %.0fs"
 	      % (name(plan), len(rows), len(years), scanned - started, read - scanned,
 	         time.time() - read))

@@ -1,0 +1,30 @@
+name: 1C migration regressions
+
+on:
+  push:
+    paths:
+      - 'skills/dforge-1c-import/scripts/**'
+      - 'test/onec/**'
+      - 'package.json'
+      - '.github/workflows/onec-tests.yml'
+  pull_request:
+    paths:
+      - 'skills/dforge-1c-import/scripts/**'
+      - 'test/onec/**'
+      - 'package.json'
+      - '.github/workflows/onec-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regressions:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: pnpm/action-setup@v6
+      - name: Test synthetic migration contracts (no database required)
+        run: pnpm run test:1c

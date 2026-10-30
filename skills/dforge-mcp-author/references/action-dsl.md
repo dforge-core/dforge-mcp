@@ -117,53 +117,54 @@ Two consequences worth designing around:
 - **`canExecute: false` is the idiom for an action only automation may fire.** The
   server refuses it through `action.execute`; triggers and scheduled jobs invoke
   the script engine directly and are unaffected.
-- **Both evaluators have gaps, and both fail open.** The server is a scalar walker
-  — comparisons between fields and literals, combined with `AND` / `OR` / `NOT`,
-  nothing else — and lets anything richer through. The client implements the full documented formula
-  function set, so ordinary functions are fine there; it throws (and its `catch`
-  **enables** the button) on **ref navigation** (`[ref].target`), on the set
-  aggregates **`SUM` / `COUNT` / `AVG`** (deliberately not formula functions —
-  counting is a Generated `G` column's job), and on **any name it does not know, a
-  typo included** — a `canExecute` is never validated against the function set at
-  install, so `TOADY()` ships and enables the button for every record.
-- **`$[setting]` references are a separate case.** They do not throw: the client's
-  resolver is stubbed to `null`, so the predicate resolves however that operator
-  treats null (an ordered comparison against null is `false`, so it tends to
-  *disable* the button), while the server has no settings resolver and fails open.
-  Keep settings out of `canExecute` and read them in `execute:` instead.
+- **The server evaluates the whole formula, and refuses what it cannot read.**
+  (Needs platform 1.28.12; older platforms let these through, so the gate is not enforced there.)
+  Comparisons between fields and literals (with `AND` / `OR` / `NOT`, a bare
+  `true` / `false`) are checked in-process; anything richer — arithmetic, `IN`,
+  `BETWEEN`, formula functions, a bare boolean field, `[ref].[col]`
+  navigation — is computed in SQL over the record, by the same translator as formula
+  columns (chained hops are followed up to a depth cap; a null ref gives `NULL`, which
+  counts as not true). A condition the server cannot evaluate (`$[setting]` references, set
+  aggregates `SUM` / `COUNT` / `AVG`, an unknown function name, a typo included)
+  **refuses the action** with `ACTION_EXECUTION_FAIL` ("cannot be evaluated by the
+  server") instead of allowing it. A `NULL` result counts as not true.
+  Comparisons themselves are null-safe and two-valued (see `formulas.md`), so an empty
+  field does not make `NOT ([x] = 'A')` unknown.
+- **The client has gaps of its own, and its failures enable the button.** It
+  throws (and its `catch` **enables** the button) on **ref navigation**
+  (`[ref].target`), on **`SUM` / `COUNT` / `AVG`** (deliberately not formula
+  functions — counting is a Generated `G` column's job) and on **any name it does
+  not know, a typo included** (install refuses the last two, see below).
+- **`$[setting]` references** resolve to `null` in the client (an ordered comparison
+  against null is `false`, so it tends to *disable* the button) and are refused by
+  the server and at install (platform 1.28.12 and later). Keep settings out of `canExecute` and read them in `execute:` instead.
+- **`TODAY()`** names the requester's calendar day on the server too (their time
+  zone: the request's, else the user profile's, else the workspace's, else UTC; a profile zone of
+  `UTC` counts as unset). The button is evaluated in the browser and is meant to name the same
+  day; `execute:` stays the authority.
+- **Install refuses** a `canExecute` that uses `$[setting]`, `SUM` / `COUNT` / `AVG`
+  or an unknown function name (a typo included), since the server could never run
+  the action. Read settings and count children in `execute:` instead.
 
-| tier | construct | client | server |
-|---|---|---|---|
-| 1 | **comparisons** (`=` `!=` `<` `<=` `>` `>=`) between fields and literals, combined with `AND` / `OR` / `NOT`; a bare `true` / `false` | evaluates | **enforces** |
-| 2 | arithmetic, `IN`, `BETWEEN`, any formula function | evaluates | fail-open |
-| 3 | ref navigation, `SUM` / `COUNT` / `AVG`, any unknown function (a typo included) | **fail-open (throws)** | fail-open |
-| — | `$[setting]` references | **evaluates as null** (no throw) | fail-open |
+| construct | client | server |
+|---|---|---|
+| comparisons between fields and literals, `AND` / `OR` / `NOT`, bare `true` / `false` | evaluates | evaluates |
+| arithmetic, `IN`, `BETWEEN`, formula functions, bare boolean field | evaluates | evaluates (SQL) |
+| `[ref].[col]` navigation | **throws, button enabled** | evaluates (SQL) |
+| `SUM` / `COUNT` / `AVG`, unknown function (a typo included) | **throws, button enabled** | **refused at install**; if one is already installed, `action.execute` refuses it |
+| `$[setting]` references | evaluates as null | **refused at install**; if already installed, `action.execute` refuses it |
 
-**A bare boolean column is not tier 1.** The walker evaluates conditions, not
-values — a field is only resolvable as an operand of a comparison — so
-`canExecute: [is_active]` and `canExecute: NOT [is_blocked]` fail open. Write
-`[is_active] = true` and `NOT ([is_blocked] = true)`. (`canExecute: false` is fine:
-a bare literal is a complete condition.)
-
-Mixing tier 1 and tier 2 is the normal, healthy shape: the client evaluates the
-whole thing so the button state is right, and the server short-circuits `AND` /
-`OR` so the tier-1 half is still enforced.
-
-**Tier 3 is what breaks.** The server short-circuits, the client does not — so
-`[status] = 'Pending' AND COUNT([lines]) > 0` on a non-`Pending` record still
-evaluates `COUNT` in the browser, throws, and the button is **enabled**, then the
-server refuses the call: an error where a greyed-out button was wanted. And a
-`canExecute` is not validated against the function set at install, so that spelling
-ships silently. Count with a `G` column and compare the scalar
-(`[detail_count] > 0`); denormalise instead of navigating; put anything genuinely
-unexpressible in `execute:` behind `error()`.
+Both evaluators agreeing is the healthy shape; the one to design around is a
+construct the client throws on, which leaves a button that is enabled and then
+refused. Count with a `G` column and compare the scalar (`[detail_count] > 0`);
+denormalise instead of navigating; put anything genuinely unexpressible in
+`execute:` behind `error()`.
 
 > Never make `canExecute` the *only* guard for something that must hold. Between
-> the fail-open rules on both sides, the enqueue-only check on background runs, and
-> the fact that the client evaluates over the grid row (which does not carry
-> extension columns) while the server evaluates over a full record load, the
-> authoritative check belongs in `execute:` — validate and `error()` before the
-> first write.
+> the enqueue-only check on background runs and the fact that the client evaluates
+> over the grid row (which does not carry extension columns) while the server
+> evaluates over a full record load, the authoritative check belongs in
+> `execute:` — validate and `error()` before the first write.
 
 ```
 canExecute:
@@ -225,6 +226,8 @@ var note = params[note]             // no quotes around param name in this DSL
 ## Platform global functions
 
 ### Data operations
+
+**No entity rights are checked inside a script.** `insert()`, `update()`, `delete()` and `query()` do not look at the signed-in user's `S`/`I`/`U`/`D` on the entity, nor at column security or the folder's row filter. Only `E` on the action is checked, when it is run. A user with `S` only on an entity can still change it through an action they may execute (core #1580). Treat `E` on an action as write access to everything its script touches; to keep a log free of changes, grant `E` on no action that writes to it.
 
 | Function | Returns | Description |
 |---|---|---|

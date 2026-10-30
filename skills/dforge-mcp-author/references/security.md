@@ -81,6 +81,8 @@ Example:
 |---|---|
 | `E` | Execute (run the action/report/stored procedure, access the folder) |
 
+**`E` on an action is not limited by the user's entity rights.** The gate is on running the action, not on the statements inside it: `insert()` / `update()` / `delete()` / `query()` in its script work on an entity where the user has only `S`. Entity rights apply to the grid, the card and the API, not to action scripts (core #1580).
+
 ### Common combinations
 
 | Rights | Meaning |

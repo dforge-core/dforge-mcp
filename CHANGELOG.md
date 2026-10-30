@@ -6,6 +6,40 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+**1C migration readiness and regressions.** `delta --apply` now reports per-module
+`ready` / `partial` status and exits 2 if state, totals or imported markers remain
+unsettled; retained retry markers are settled on a later run even without new rows.
+Dry runs do not certify readiness. `pnpm test:1c` covers conversion precision,
+reference/date semantics, failed settlement/retry and the per-entity reload restart
+contract using synthetic fixtures and mocked database boundaries. The loader remains
+a non-atomic migration-target reload; its restart procedure is documented.
+A new CI job (`.github/workflows/onec-tests.yml`) runs it on changes to the 1C scripts or tests. A module's retry
+markers (`df1c.unsettled`) are now cleared only for the entities it settled, not for the whole module.
+Placeholder, balance-state and yearly totals writers roll back failed transactions before
+restoring autocommit; settlement continues to the next module only after connection
+recovery, and failed recovery stops the command. Strict transaction-state tests cover
+original-error preservation, partial yearly commits, continuation and unrecoverable connections.
+Jobs authoring/schema guidance now describes `idempotencyKey` as reserved and not enforced.
+
+**Action scripts bypass entity rights.** `action-dsl.md` and `security.md` now state that `insert()` / `update()` /
+`delete()` / `query()` in an action script check neither entity rights nor column security nor the folder's row filter
+(core #1580): only `E` on the action is checked, so treat `E` as write access to everything the script touches.
+
+**`canExecute` is enforced in full on the server.** `action.execute` now computes arithmetic, `IN`, `BETWEEN`, formula
+functions, a bare boolean column, `[ref].[col]` navigation and extension columns in SQL, instead of letting them through, and
+`TODAY()` names the requester's day. A condition it cannot compute refuses the action. Install rejects `$[setting]`,
+`SUM` / `COUNT` / `AVG` and unknown function names in `canExecute`, so a module that used them stops installing: read
+settings and count children in `execute:` instead (a count belongs in a `G` column). `references/action-dsl.md`
+(`canExecute:`), `formulas.md` and `validation-checklist.md` are rewritten to match. The button still evaluates over the
+grid row, which has no extension columns and throws on `[ref].[col]`, so keep both out of a gate that must also disable the
+button. **Needs platform 1.28.12.**
+
+**Registers: `postAction` / `unpostAction`.** `references/registers.md` documents the register-binding column params that make a direct
+`data.insert` / `data.update` flipping the state flag need `E` on the post or unpost action, and the "May edit is not may
+post" pitfall: declare both and grant `E` only to the roles that may post. Each direction is checked only when its own key
+is set; actions and DSL `update()` are not re-checked. A binding with neither gets a pack / validate warning, silenced by
+`"editorMayPost": true`. **Needs a platform release after 1.28.12 (not in it).**
+
 ## 0.2.46 — 2026-10-29
 
 Requires `@dforge-core/dforge-cli` 0.2.37 and `@dforge-core/metadata` 0.0.47; the vendored `dforge://schema/data-views` now accepts the grouping keys.
