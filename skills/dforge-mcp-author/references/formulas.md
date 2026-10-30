@@ -167,6 +167,11 @@ The whole date family evaluates identically **client-side and SQL-time** (report
     `dforge_module_validate` and `dforge_module_pack` (the CLI's static checks) catch only a
     malformed call, such as a name that is not a text literal or a dimension without its value;
     whether the register, resource and dimensions exist is known at install.
+  - The resource and dimensions must be stored columns of the register's entity. Install
+    refuses a register whose dimension or resource is a formula, reference or set column
+    — nothing is stored there to read. A register installed before that gives an empty
+    cell with a warning. To print a referenced name, read the reference id with `SLICE()` and
+    resolve it elsewhere, or keep the name in a stored column. `SLICE(...).[name]` does not exist.
   - Refused at install in a `G` column: it is computed when a row is written and would not
     follow a record added to the register later. Use an `F` column.
   - Newest record only: there is no `first` mode as `getSlice` has. Each row is one index
@@ -421,7 +426,8 @@ An `F` column is virtual: not stored, not editable. To fill a **stored, editable
 - Using JavaScript syntax like `row.field` or `this.field` — **wrong**. Only `[field]`.
 - Forgetting `baseDatatypeCd` on formula columns — **required**. Without it, filters and SQL don't work.
 - Using SQL syntax like `SELECT`, `JOIN`, `WHERE` — **wrong**. Formulas are expressions, not queries.
-- String concatenation with commas — **wrong**. Use `+` or `CONCAT()`.
+- String concatenation with commas — **wrong**. Use `+` or `CONCAT()`. `+` concatenates when either side is text: a text column or literal, a string function, an `IF` whose branch is text, `COALESCE` / `NULLIF` of text, or a `SLICE()` of a text resource. `CONCAT()` also reads a null as empty, so prefer it when a part may be missing.
+- `[x] != ''` is true when `[x]` is null: comparisons are null-safe. To test "has text", write `COALESCE([x], '') != ''`.
 
 ## Reference
 
