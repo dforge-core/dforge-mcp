@@ -273,6 +273,8 @@ Each column is either a simple string or an object:
 ]
 ```
 
+A query column (`columnType: "Q"`) is a list the record reads, not a value: a view that lists one is refused at validate/pack. It shows on the record's card instead (column-types.md § Query columns).
+
 ## Filters
 
 Filters use dForge's canonical JSON filter format — see [filters.md](filters.md) for the full grammar. Keys are `c` (column), `o` (operator), `v` (value) for conditions, and `g` (group operator), `i` (items) for groups.
