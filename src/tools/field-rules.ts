@@ -116,7 +116,7 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 	// contradiction — the platform's MandatoryFlagNormalizer rejects it and the
 	// whole pack fails. Catch it here, where the author can still see which field.
 	if (typeof v.flags === "string" && v.flags.includes("M") && v.isNullable === true) {
-		const virtual = typeof v.columnType === "string" && ["R", "S", "F"].includes(v.columnType);
+		const virtual = typeof v.columnType === "string" && ["R", "S", "F", "Q"].includes(v.columnType);
 		err(
 			`flags '${v.flags}' includes 'M' (mandatory) while "isNullable": true — a contradiction that fails ` +
 				"at pack time. 'M' is resolved into isNullable:false at install. Drop 'M' if the column is " +
@@ -139,12 +139,13 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 	}
 
 	// columnType, when present, must be a known column kind. A plain data column
-	// omits it; R/S/F cover reference/set/formula; A/L/G are register columns.
+	// omits it; R/S/F/Q cover reference/set/formula/query rows; A/L/G are register columns.
 	const columnType = typeof v.columnType === "string" ? v.columnType : "";
 	if (columnType.length > 0 && !getColumnType(columnType)) {
 		err(
-			`columnType '${columnType}' is invalid. Use 'R' (reference), 'S' (set/child list), or ` +
-				"'F' (formula) — or omit it for a plain data column. (A/L/G exist for register columns.)",
+			`columnType '${columnType}' is invalid. Use 'R' (reference), 'S' (set/child list), ` +
+				"'F' (formula) or 'Q' (a list of rows the record reads) — or omit it for a plain data column. " +
+				"(A/L/G exist for register columns.)",
 		);
 	}
 
@@ -183,6 +184,24 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 		if (typeof v.flags === "string" && v.flags !== "V" && /^[VIEM]+$/.test(v.flags)) {
 			warn(
 				`formula column has flags '${v.flags}' — a computed column is read-only, expected flags 'V'.`,
+			);
+		}
+	}
+
+	// ── Query columns (columnType 'Q') — a list the record reads, no physical column ──
+	if (columnType === "Q") {
+		if (v.params === undefined || typeof v.params !== "object" || v.params === null) {
+			err(
+				"query column (columnType 'Q') requires 'params': { register, asOf, dimensions? } or " +
+					"{ entity, query, params? }. (See dforge://reference/column-types.)",
+			);
+		}
+		if (v.dbDatatype !== undefined) {
+			err("query column (columnType 'Q') must NOT set 'dbDatatype' — it owns no physical column.");
+		}
+		if (typeof v.flags === "string" && /[EM]/.test(v.flags)) {
+			warn(
+				`query column has flags '${v.flags}' — a list the record reads is never edited or required; the platform ignores them.`,
 			);
 		}
 	}

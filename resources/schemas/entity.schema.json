@@ -345,11 +345,90 @@
 			},
 			"additionalProperties": false
 		},
+		"queryColumnParams": {
+			"type": "object",
+			"description": "Binding of a query column (columnType Q): a read-only list of rows for the record, with no physical column. It reads either a balance register as of the record's date (register, asOf, dimensions) or a query written in the column and filled from the record (entity, query, params). Shown on the card and read by print forms, with the reader's rights.",
+			"oneOf": [
+				{
+					"required": ["register", "asOf"],
+					"properties": {
+						"register": {
+							"type": "string",
+							"description": "A balance register of this module or of one it depends on, as 'module_cd.register_cd'. It needs a journal that stamps the date and the direction of each movement.",
+							"examples": ["wms-registry.stock"]
+						},
+						"asOf": {
+							"type": "string",
+							"description": "Date (or timestamp) column of this entity the balance is taken on. The day itself is included."
+						},
+						"viz": {
+							"type": "object",
+							"description": "How the card shows the rows: a report visualization by its type (table, a chart, pivot...) and its config as that visualization takes it. Unset: a table. A print form reads the rows as a table whatever this says.",
+							"required": ["type"],
+							"properties": {
+								"type": { "type": "string" },
+								"config": { "type": "object" }
+							},
+							"additionalProperties": false
+						},
+						"dimensions": {
+							"type": "object",
+							"description": "Register dimension → column of this entity that narrows it. A dimension left out is not narrowed, so its tuples all come back. A narrowing column that is empty on the record leaves the list empty.",
+							"additionalProperties": { "type": "string" },
+							"examples": [{ "warehouse_id": "warehouse_id" }]
+						}
+					},
+					"additionalProperties": false
+				},
+				{
+					"required": ["entity", "query"],
+					"properties": {
+						"entity": {
+							"type": "string",
+							"description": "The entity the query reads, as 'module_cd.entity_cd' (a bare code is this module's own). Of this module or of one it depends on.",
+							"examples": ["retail.goods_line"]
+						},
+						"query": {
+							"type": "object",
+							"description": "The query itself, in the shape query.run takes: columns (a plain name, or { c, agg } with agg group / sum / count / avg / min / max — grouped if any column has one), filter and sort. A filter value written '@name' is filled from the record through 'params'. An aggregate is read under its column's code. Written here and not saved elsewhere, so no edit of a shared query can change the form.",
+							"properties": {
+								"columns": { "type": "array" },
+								"filter": {},
+								"sort": { "type": "array" }
+							},
+							"additionalProperties": false
+						},
+						"viz": {
+							"type": "object",
+							"description": "How the card shows the rows: a report visualization by its type (table, a chart, pivot...) and its config as that visualization takes it. Unset: a table. A print form reads the rows as a table whatever this says.",
+							"required": ["type"],
+							"properties": {
+								"type": { "type": "string" },
+								"config": { "type": "object" }
+							},
+							"additionalProperties": false
+						},
+						"params": {
+							"type": "object",
+							"description": "Query parameter (the name after '@' in a filter value) → stored column of this entity that fills it. Every @param of the query is listed, and only those. A column that is empty on the record leaves the list empty rather than widening the query.",
+							"additionalProperties": { "type": "string" },
+							"examples": [{ "doc": "document_id" }]
+						}
+					},
+					"additionalProperties": false
+				}
+			]
+		},
 		"registryColumnParams": {
 			"type": "object",
 			"description": "params of an accumulation (A) or ledger (L) registry column. The lock lists are what BOTH generated guards freeze — the posted-document guard while the document is posted, the period guard while its period is closed — and they are required: install refuses a registry column that omits or empties them. The header's periodDateField and the state column are watched in addition, whatever the list says.",
 			"required": ["lockedFields"],
+			"if": { "required": ["editorMayPost"], "properties": { "editorMayPost": { "const": true } } },
+			"then": { "not": { "anyOf": [ { "required": ["postAction"] }, { "required": ["unpostAction"] } ] } },
 			"properties": {
+				"postAction": { "type": "string", "minLength": 1, "description": "Code of the action (available for this entity) that posts the document. A direct data.insert / data.update that turns the state flag on needs 'E' on it, as the button does, so \"may edit\" and \"may post\" stay two rights through the API too. An action's own writes are not re-checked. Pack refuses a name that no action declared for this entity carries. Unset: the transition needs only Insert/Update." },
+				"unpostAction": { "type": "string", "minLength": 1, "description": "Code of the action that unposts the document; the same gate for a direct write that turns the state flag off." },
+				"editorMayPost": { "type": "boolean", "description": "Declares that Insert/Update on the document includes posting it: no separate right to post is intended, so no postAction / unpostAction is named. Changes nothing at run time; it silences the pack warning for a column that names no posting action. Not together with postAction / unpostAction." },
 				"lockedFields": {
 					"type": "array",
 					"minItems": 1,
@@ -408,6 +487,10 @@
 				{
 					"if": { "required": ["columnType"], "properties": { "columnType": { "enum": ["A", "L"] } } },
 					"then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/registryColumnParams" } } }
+				},
+				{
+					"if": { "required": ["columnType"], "properties": { "columnType": { "const": "Q" } } },
+					"then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/queryColumnParams" } } }
 				}
 			],
 			"properties": {
@@ -422,8 +505,8 @@
 				},
 				"columnType": {
 					"type": "string",
-					"enum": ["D", "R", "S", "F", "A", "L", "G"],
-					"description": "Column type: D=Data (physical column), R=Reference (N:1 lookup), S=Set (1:N collection), F=Formula (virtual calculated), G=Generated/Computed (physical, auto-maintained), A=Accumulation registry, L=Ledger registry"
+					"enum": ["D", "R", "S", "F", "A", "L", "G", "Q"],
+					"description": "Column type: D=Data (physical column), R=Reference (N:1 lookup), S=Set (1:N collection), F=Formula (virtual calculated), G=Generated/Computed (physical, auto-maintained), A=Accumulation registry, L=Ledger registry, Q=Query (virtual list of rows read from a register, bound to this record)"
 				},
 				"fieldTypeCd": {
 					"type": "string",

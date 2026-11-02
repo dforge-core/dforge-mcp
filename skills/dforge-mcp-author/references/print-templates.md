@@ -63,11 +63,14 @@ Every column on the entity is a top-level variable. Display formatting is pre-ap
 | `{{ _settings.<cd> }}`  | Folder-resolved module setting. Image/file settings come as base64 data URIs (drop into `<img src>`).   |
 | `{{ _today }}`          | Typed `DateTimeOffset` (UTC); `{{ _fmt._today }}` is the pre-formatted string                          |
 | `{{ <set_name> }}`      | Child set — array, in primary-key order. Loaded wherever the template's Liquid code names it (see below) |
+| `{{ <query_column> }}`  | Query column (`Q`) — the rows the record reads (`{% for r in old_stock %}{{ r.quantity }} {{ r._fmt.quantity }}`). Loaded only where the template's Liquid code names it, like a set; always a table here, whatever the column's `viz` says |
 | `{{ _css }}`            | The CSS string attached to the template (rarely needed in template body)                                |
 
 Inside a child-set loop, the same shape applies per row: `line._fmt.<col>`, `line._raw.<col>`, `line._color.<col>`.
 
 A loop over a document's set can read a set of the line's own entity off each line (`{% for l in lines %}{% for a in l.attributes %}`): detected by the template reading it, loaded for every line in one query under the same rights and row filter, one level deep. The editor preview does not fill it.
+
+A query column's rows are read with the **printer's** rights: without Select on its source the list prints empty and `print.render` says so in `warnings`, while `print.renderPdf`, `printPdf()` and a subscription are refused with 403 (a PDF that is archived or mailed must not silently miss data). A record with an empty date or narrowing column lists nothing, with a warning. The default form (no template) lists no query column. See column-types.md § Query columns.
 
 A printed set, nested or not, needs **Select** on its entity in the folder, as `data.get` does; one the user cannot read prints empty. `print.render` and `print.renderPdf` check Select on the printed entity.
 

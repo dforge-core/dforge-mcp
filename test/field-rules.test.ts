@@ -205,3 +205,15 @@ describe("the validator re-runs the rules across the whole module", () => {
 		expect(JSON.stringify(res.errors)).toMatch(/'toString' references \{name\}/);
 	});
 });
+
+describe("query column (columnType 'Q')", () => {
+	it("accepts a register binding", () => {
+		const q = { columnType: "Q", flags: "V", params: { register: "m.stock", asOf: "doc_date" } };
+		expect(checkFieldSpec("e.q", q)).toEqual([]);
+	});
+
+	it("requires params and refuses a physical datatype", () => {
+		expect(messages({ columnType: "Q" })).toMatch(/requires 'params'/);
+		expect(messages({ columnType: "Q", params: {}, dbDatatype: "varchar" })).toMatch(/NOT set 'dbDatatype'|must NOT set 'dbDatatype'/);
+	});
+});
