@@ -6,6 +6,13 @@ the release workflow, so committed `package.json` versions are placeholders.
 
 ## Unreleased
 
+**Query columns (`columnType: "Q"`).** A column that gives a record a read-only list of rows — a balance register on the
+record's date, or a query written in the column and filled from the record, optionally shown as a report visualization.
+It is shown on the card and read by print forms, with the reader's rights (core #1584). `column-types.md` gains the
+section and the install refusals; `print-templates.md`, `data-views.md`, `reports.md` and `registers.md` say how it
+meets each. `dforge_entity_field_add` accepts `columnType: "Q"` (requires `params`, no `dbDatatype`). The vendored
+entity schema and `@dforge-core/metadata` (^0.0.48) carry it. The model editor cannot add one yet.
+
 **1C migration readiness and regressions.** `delta --apply` now reports per-module
 `ready` / `partial` status and exits 2 if state, totals or imported markers remain
 unsettled; retained retry markers are settled on a later run even without new rows.

@@ -391,7 +391,7 @@ Each entry becomes one attachment row, and the report gains a toolbar entry on t
 | Rule | Detail |
 |---|---|
 | `entityCd` | Qualified `module.entity` for anything outside this module, and that module must be a **declared dependency**. |
-| Source columns | The entity PK, a reference (`R`) column, or a bounded scalar (number, date/datetime, bool, dropdown/radio/flags code). `text`, `json`, `file`/`image` are rejected. |
+| Source columns | The entity PK, a reference (`R`) column, or a bounded scalar (number, date/datetime, bool, dropdown/radio/flags code). `text`, `json`, `file`/`image` are rejected, and so is a set (`S`), formula (`F`) or query (`Q`) column: it holds no value of its own. |
 | Types | Source and target must be compatible; only `lookup`↔`number` and `date`↔`datetime` widen. A names-only match like `{ "customer_id": "created_date" }` is an error, not a runtime surprise. |
 | One per pair | One attachment per (entity, report). Two entries for the same entity overwrite each other. |
 | Unmapped params | Keep their normal behaviour — default value, or prompt the user. |
