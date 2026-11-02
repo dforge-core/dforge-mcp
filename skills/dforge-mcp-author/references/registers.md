@@ -256,6 +256,7 @@ execute:
     var price = getSlice("wms-registry.outlet_price", { warehouse_id: [warehouse_id], product_id: [product_id] }, [order_date])
 ```
 
+- A form that lists what a balance register held on the record's date (a revaluation's old stock) needs no action: a `Q` column (`register`, `asOf`, `dimensions`; column-types.md § Query columns) reads it with the reader's rights.
 - A dimension left out is summed over by `getBalance` and `getTurnover`. `getSlice` refuses an omitted dimension.
 - `getSlice` answers one dimension tuple from an action. A value per row — each line's price on its document's date, in a print form, report or view — is the formula `SLICE()` on an `F` column (formulas.md).
 - As-of reads and `getTurnover` need a journal with both stamps.

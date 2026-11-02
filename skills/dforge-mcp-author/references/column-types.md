@@ -11,6 +11,7 @@ Every column has a `columnType` (optional for the default physical type). Seven 
 | `"A"` | Yes | **Accumulation register column** — stores posted state for accumulation registers. Advanced (accounting modules). |
 | `"L"` | Yes | **Ledger register column** — stores posted state for double-entry bookkeeping. Advanced (accounting modules). |
 | `"G"` | Yes | **Generated column** — DB-level computed value. Two strategies, auto-detected from the formula: a **trigger-based aggregate over a child set** (`SUM([lines].[amount])`), or a same-row PostgreSQL `GENERATED ALWAYS AS` (`[qty] * [price]`). This is the correct type for **roll-up totals over child rows** (see below). The aggregated child column **must be physical** (a `D` column, or a same-row `G`) — never a virtual `F`/`R`/`S` column. |
+| `"Q"` | No | **Query column** — read-only list of rows the record does not own: a balance register as of the record's date, or a query filled from the record. See "Query columns" below. |
 
 **For most module development, you'll use D, R, S, and F.** Add `G` when you need a **roll-up total over a child set** (`SUM`/`COUNT`/`AVG`/`MIN`/`MAX`) — see below. Types A and L are for advanced accounting/registry modules that use the `postable`, `accumulation`, or `ledger` traits.
 
@@ -165,6 +166,43 @@ Do **not** include `dbDatatype` on formula columns (there's no physical storage)
 
 See `formulas.md` for syntax.
 
+## Query columns (`columnType: "Q"`)
+
+A read-only list of rows the card shows beside its sets and a print form reads like a set. No physical column, no `link`; the binding is `params`, one of two sources:
+
+```json
+"old_stock": {
+    "columnType": "Q",
+    "description": "Balance on the document's date",
+    "params": {
+        "register": "wms-registry.stock",
+        "asOf": "doc_date",
+        "dimensions": { "warehouse_id": "warehouse_id" }
+    }
+},
+"lines_by_product": {
+    "columnType": "Q",
+    "params": {
+        "entity": "retail.document_line",
+        "query": {
+            "columns": [ { "c": "product_id", "agg": "group" }, { "c": "quantity", "agg": "sum" } ],
+            "filter": { "c": "document_id", "o": "eq", "v": "@doc" },
+            "sort": [ { "c": "product_id", "d": "asc" } ]
+        },
+        "params": { "doc": "document_id" }
+    }
+}
+```
+
+- **Register balance** — `register` (a `balance` register of this module or a dependency, with a dated journal), `asOf` (the record's date column; the day is included) and `dimensions` (register dimension → record column; a dimension left out is not narrowed). Rows are the register's state entity rows as of that date; tuples holding nothing are left out.
+- **Query** — `entity` (bare for this module's, or a dependency's), `query` (`columns`, `filter`, `sort` as `query.run` takes them; `group` / `sum` apply) and `params` filling each filter `@param` from a stored record column. An aggregate is read under its column's code (`r.quantity`). State a `sort` on a grouped query.
+- `params.viz` — `{ "type": "bar", "config": { … } }` — shows the card's rows as a report visualization instead of a table. A print reads the rows as a table whatever `viz` says.
+- Read with the reader's rights. At most 1000 rows. An empty date or narrowing column lists nothing, with a warning — never every row.
+- **Install refuses:** an unknown register or entity (or one in a module this one does not depend on); a missing `asOf`; an unfilled or extra `@param`; a `viz` without a `type`; both `register` and `query`; a Q column in a data view or as a report parameter source; a Q column in an extension of another module's entity.
+- `data.get` skips it like a set and DSL `select()` refuses it. It is a list for a form, not a figure on a card: for a single total use a `G` column.
+
+Full details: `registers.md` and core docs/business-logic/registers.md#query-columns-a-registers-balance-on-the-records-date.
+
 ## Roll-up totals over child rows — use `G`, not `F`
 
 To total a child set on a header (line items → order total, movements → quantity on hand),
@@ -213,5 +251,6 @@ inside one aggregate must point at the **same** set column, and `COUNT(*)` is re
 - **"User picker" (points to admin.user)** → omit `columnType`, use `fieldTypeCd: "user"` (writes user ID directly, no paired FK)
 - **"Polymorphic link to any entity"** → omit `columnType`, use `fieldTypeCd: "entitylink"` (stored as JSON)
 - **"Roll-up total over child rows"** (line items → header total, movements → quantity on hand) → `"G"` with `SUM([set].[field])` (trigger-maintained, stored; see "Roll-up totals" above). Aggregate only a **physical** child column — never an `F`/`R`/`S` column. Do **not** use `"F"` for set aggregation — it silently renders empty.
+- **"A list of what the register held on this document's date" / "this record's lines grouped and summed"** → `"Q"` (read-only; see "Query columns" above)
 - **"Accumulation register state"** → `"A"` (advanced accounting — requires `postable` + `accumulation` traits)
 - **"Double-entry ledger state"** → `"L"` (advanced accounting — requires `postable` + `ledger` traits)

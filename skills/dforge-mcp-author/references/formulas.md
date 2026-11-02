@@ -168,10 +168,18 @@ The whole date family evaluates identically **client-side and SQL-time** (report
     malformed call, such as a name that is not a text literal or a dimension without its value;
     whether the register, resource and dimensions exist is known at install.
   - The resource and dimensions must be stored columns of the register's entity. Install
-    refuses a register whose dimension or resource is a formula, reference or set column
-    — nothing is stored there to read. A register installed before that gives an empty
-    cell with a warning. To print a referenced name, read the reference id with `SLICE()` and
-    resolve it elsewhere, or keep the name in a stored column. `SLICE(...).[name]` does not exist.
+    refuses a register whose dimension or resource is a formula, reference or set column:
+    nothing is stored there to read. A register installed before that rule gives an empty
+    cell with a warning.
+  - A resource or dimension name may follow ONE reference (#1585). This is 1C's
+    `СрезПоследних(...).ФизЛицо.Наименование`. As the resource, `'person_id.name'` reads `name`
+    of what the record in effect references. As a dimension, `'employee_id.person_id', [person_id]`
+    matches the records whose employee is that person's; the newest across them wins. The column
+    followed must be the `thisKey` of a single-key reference column on the register's entity, and
+    the column named must be stored on the target's own table. The target is read with the user's
+    rights (Select, visible columns, row filter). A target the user cannot see gives an empty
+    cell, never an older record. Install refuses a path through a non-reference or to an unstored
+    column; pack refuses two hops.
   - Refused at install in a `G` column: it is computed when a row is written and would not
     follow a record added to the register later. Use an `F` column.
   - Newest record only: there is no `first` mode as `getSlice` has. Each row is one index

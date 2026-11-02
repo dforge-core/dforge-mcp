@@ -63,13 +63,16 @@ Every column on the entity is a top-level variable. Display formatting is pre-ap
 | `{{ _settings.<cd> }}`  | Folder-resolved module setting. Image/file settings come as base64 data URIs (drop into `<img src>`).   |
 | `{{ _today }}`          | Typed `DateTimeOffset` (UTC); `{{ _fmt._today }}` is the pre-formatted string                          |
 | `{{ <set_name> }}`      | Child set — array, in primary-key order. Loaded wherever the template's Liquid code names it (see below) |
+| `{{ <q_column> }}`      | Query column (`Q`) — array of rows: a register balance on the record's date, or a query filled from the record. Read like a set; loaded only when named |
 | `{{ _css }}`            | The CSS string attached to the template (rarely needed in template body)                                |
 
 Inside a child-set loop, the same shape applies per row: `line._fmt.<col>`, `line._raw.<col>`, `line._color.<col>`.
 
 A loop over a document's set can read a set of the line's own entity off each line (`{% for l in lines %}{% for a in l.attributes %}`): detected by the template reading it, loaded for every line in one query under the same rights and row filter, one level deep. The editor preview does not fill it.
 
-A printed set, nested or not, needs **Select** on its entity in the folder, as `data.get` does; one the user cannot read prints empty. `print.render` and `print.renderPdf` check Select on the printed entity.
+A printed set or Q column, nested or not, needs **Select** on its entity in the folder, as `data.get` does (for a register Q column: the state entity and the journal). Print reads only the sets and Q columns the template names; the default form (no template) lists none. Where the user lacks Select, the on-screen preview (`print.render`) prints the list empty with a warning, but a PDF (`print.renderPdf`, `printPdf()`, archive, email, subscription) is **refused with 403** naming the entity. `print.render` and `print.renderPdf` check Select on the printed entity.
+
+A **Q column** row has the columns of the register's state entity (`r.quantity`, `r._fmt.quantity`, `r.product_label`), or of the query's entity; a grouped query's aggregate is read under its column's code. Rows come in key order (the query's `sort` if it has one). See column-types.md § Query columns.
 
 A currency column prints its glyph for the common codes (`EUR` → `€`, `USD` → `$`, `GBP` → `£`, `UAH` → `₴`, `PLN` → `zł`); other codes print as the code. `format_currency` follows the same mapping.
 
@@ -94,13 +97,14 @@ A value that changes over time — a price, an employee's position, an organizat
 | A value of the record or of a record it references (the organization's requisites as one block) | An `F` column on the entity: references and built-in functions |
 | A value per line (places, weight through the product's units) | An `F` column on the line entity, printed as `line.<col>` |
 | One total over a set | Over a stored line column (`D`, or a `G` on the line): a `G` column on the document (`SUM([lines].[amount])`). Over a line `F` column: a `plus` accumulator in the loop, `{% assign s = 0 %}{% for l in lines %}{% assign s = s \| plus: l.places %}{% endfor %}`, since a `G` cannot sum an `F` child (install fails with `column old.<field> does not exist`) |
-| Lines grouped by a column, totals per group (by product and series, by VAT rate, a packing list by pallet) | **Not available in the print context yet.** It prints the record and its sets as stored |
+| Lines grouped by a column, totals per group (by product and series, by VAT rate, a packing list by pallet) | A `Q` column with a grouped query on the line entity (`group` on the column, `sum` on the amounts, `@doc` filled from the record), printed as `{% for r in lines_by_product %}` (column-types.md § Query columns) |
+| A register's balance on the document's date, per product | A `Q` column with `register` / `asOf` / `dimensions`, printed as `{% for r in old_stock %}` |
 
-For the last row, do not work around it:
+For grouped rows, use a `Q` column; do not work around it:
 
 - **Not in Liquid filters.** `where`, `sum`, `group_by` and `where_exp` run in the LiquidJS preview, but Scriban (the print) fails with "The function `where` was not found". Filter and total with `{% if %}` and `plus` inside a `for`, which both engines run.
 - **Not a print table filled by an action.** It stores a copy of the document that drifts from it.
-- **Not a stored procedure.** The grouping itself is a grouped query (`references/queries.md`): `group` on the column, `sum` over a line `F` column.
+- **Not a stored procedure.** The grouping itself is a grouped query (`references/queries.md`) held in the `Q` column: `group` on the column, `sum` over the amounts.
 
 ## Custom filters
 
@@ -111,7 +115,7 @@ For the last row, do not work around it:
 | `format_date: <strftime>`                       | `{{ invoice_date | format_date: '%B %d, %Y' }}`        | `"May 22, 2026"`             |
 | `qr_code: <size?>, <ecc?>, <margin?>, <format?>`| `{{ payment_url | qr_code: 200, 'M' }}`                | `data:image/png;base64,…`    |
 
-`format_date` supports strftime: `%Y %m %d %B %b %H %M %S %I %p %A %a %e`. `%B` / `%b` / `%A` / `%a` print **English** names whatever the user's language; for a month in another language keep a small snippet that maps `%m` to the name. `format_date` returns a **string**: arithmetic on its result fails ("Operator - not supported on string"), so compute on the raw value and format last.
+`format_date` supports strftime: `%Y %y %m %d %e %B %b %A %a %H %I %M %S %p` and `%%`. A dash drops the leading zero: `%-m %-d %-H %-I %-M %-S` (`'%-H:%M'` → `9:05`). Text around the specifiers prints as written (`'%d.%m.%Y г.'`). Month and weekday names follow the form's culture (`pageSettings.culture`, else the user's). `%B` beside a day of the month is the genitive (`березня`). `format_date` returns a **string**: compute on the raw value and format last.
 
 **Time zones.** A timestamp in `_fmt` and `format_date` on an instant render in the column's `params.timeZone`, else the request's zone (before platform 2026-10-25, always UTC). A bare date or a timestamp without a zone prints as written.
 
@@ -148,7 +152,7 @@ Snippets run on Scriban (print) and LiquidJS (preview), so write them for both:
 - No `floor` on big numbers: Scriban's goes through a double and rounds them up.
 - No `modulo: 1` on a fraction without snapping the whole part with `round`. LiquidJS 10.30 leaves float noise: `0.44 | modulo: 1` is 0.43999999999999995.
 - Round a fraction half up on its decimal digits, read from the number's text (`append: ''`; the server may print a comma; a browser double under 1e-6 prints as `5e-7`), never by `times` / `plus: 0.5` / `floor`. A double's text is the shortest decimal it stands for, so this matches the server's decimals both on a tie (960.015 → 02) and just below one (1000000000.0049999 → 00). No epsilon can do both.
-- No number taken from `split` / `slice`. A digit is read as `'x0123456789' | split: ch | first | size | minus: 1`.
+- A number taken from `split` / `slice` is a string. `plus`, `minus`, `times`, `divided_by` and `modulo` take a numeric string as its number on both engines: `'5' | plus: 0` is `5`, where before platform 2026-10-30 Scriban printed `50`. A list answers `.first` / `.last` as well as `| first`.
 - Plain `{% comment %}` without trim dashes.
 
 ## Module package layout
