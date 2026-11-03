@@ -716,6 +716,17 @@
 						"columnType": { "const": "G" },
 						"link": false
 					}
+				},
+				{
+					"title": "Query column (Q)",
+					"description": "Read-only list of rows the record reads, with no physical column (columnType 'Q'): a register's balance as of the record's date, or a query written in 'params' and filled from the record. Requires 'params'. Must NOT have 'dbDatatype', 'fieldTypeCd' or 'link'.",
+					"required": ["columnType", "params"],
+					"properties": {
+						"columnType": { "const": "Q" },
+						"dbDatatype": false,
+						"fieldTypeCd": false,
+						"link": false
+					}
 				}
 			],
 			"required": ["orderNum", "description"],

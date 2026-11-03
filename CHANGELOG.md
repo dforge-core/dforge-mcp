@@ -4,14 +4,14 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
-## Unreleased
+## 0.2.49 - 2026-11-03
 
 **Query columns (`columnType: "Q"`).** A column that gives a record a read-only list of rows — a balance register on the
 record's date, or a query written in the column and filled from the record, optionally shown as a report visualization.
 It is shown on the card and read by print forms, with the reader's rights (core #1584). `column-types.md` gains the
 section and the install refusals; `print-templates.md`, `data-views.md`, `reports.md` and `registers.md` say how it
 meets each. `dforge_entity_field_add` accepts `columnType: "Q"` (requires `params`, no `dbDatatype`). The vendored
-entity schema and `@dforge-core/metadata` (^0.0.48) carry it. The model editor cannot add one yet.
+entity schema and `@dforge-core/metadata` (^0.0.49) carry it. The model editor cannot add one yet.
 
 **1C migration readiness and regressions.** `delta --apply` now reports per-module
 `ready` / `partial` status and exits 2 if state, totals or imported markers remain

@@ -55,6 +55,11 @@
 							"left":   { "type": "string" }
 						},
 						"additionalProperties": false
+					},
+					"culture": {
+						"type": "string",
+						"description": "The form's own culture, e.g. 'uk-UA': format_number, format_currency, format_date, _fmt and Yes/No print in it whoever prints the form. Omitted: the user's culture. An unknown culture is refused at pack and install.",
+						"examples": ["uk-UA", "de-CH"]
 					}
 				},
 				"additionalProperties": false

@@ -52,7 +52,7 @@
 					},
 					"idempotencyKey": {
 						"type": "string",
-						"description": "Template like '{job_cd}:{run.month}'. Resolved at fire time. A successful run with the same key blocks re-dispatch (Phase 3 enforcement)."
+						"description": "Reserved; not enforced yet. Stored but never read by the scheduler, so it does not block re-dispatch. Only the scheduled slot (job, scheduled_at) is deduplicated; guard business-level 'once per period' inside the action."
 					},
 					"class": {
 						"type": "string",
