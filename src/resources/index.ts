@@ -203,6 +203,11 @@ export const resources: ResourceDef[] = [
 		"Demo data variables JSON schema",
 		"JSON Schema for demo-data/vars.json — a flat map of variable name → literal or { \"$f\": formula }. Demo-data formulas read them as @name.",
 	),
+	schema(
+		"test-scenario",
+		"Module test scenarios JSON schema",
+		"JSON Schema for tests/*.test.json (not tests/upgrade.test.json) — scenarios run by `dforge-cli module test`: given / do / expect, steps insert, update, delete and action, expectations record, count, error and refused. v0 runs as the signed-in user only.",
+	),
 	{
 		uri: "dforge://docs/conventions",
 		name: "dForge module conventions",

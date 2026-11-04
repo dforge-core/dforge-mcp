@@ -190,6 +190,16 @@ credentials/connectivity, NOT a module defect. Tell the user to verify
 
 **Exit criterion:** install exits 0 against a real tenant.
 
+**Scenarios, when the module has `tests/*.test.json`:** run
+`dforge-cli module test <moduleDir> --url <workspace>` on a **fresh test workspace**
+with the module installed `--with-demo-data`. It runs them in the module's own
+folder as the signed-in user: steps `insert` / `update` / `delete` / `action`,
+expectations `record`, `count`, `error`, `refused: "canExecute"`. A step or
+expectation it does not support **fails** the test, it is never skipped. Tests
+commit and leave their records behind, so a second run on the same workspace can
+fail with "matched 2 records". Needs the API and CLI on 0.2.39 or later. A failing
+scenario is a module defect: fix it, then re-install.
+
 ## Step 6 — Record and close out
 
 1. `dforge_module_plan({ action: "complete_phase", moduleDir, phase: "6", note: "installed v<x.y.z>" })`.

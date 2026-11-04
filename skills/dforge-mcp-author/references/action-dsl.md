@@ -263,6 +263,8 @@ var note = params[note]             // no quotes around param name in this DSL
 > **Keys of any type.** A field saved with `[field] = value` binds the record key by the key column's own
 > type, so a `uuid` or a digits-only `varchar` key works.
 
+> **Time zone.** A zoneless `timestamptz` string in `insert()`/`update()` is read in the caller's time zone, or the workspace's in a background action, async trigger or scheduled job — the same wall clock as in the UI. See field-types.md § Date/time-backed.
+
 > **These writes raise no events.** `insert()`, `update()`, `delete()` and `query()` are the raw
 > write layer: by design they skip folder row-filters, closed-period checks and registry state, and
 > they raise no trigger or webhook events either. Only the **acted-on record's own**

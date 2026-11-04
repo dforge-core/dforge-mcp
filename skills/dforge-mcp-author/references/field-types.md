@@ -55,6 +55,10 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `datetime` | `timestamp` | Date + time with timezone. Shown in the viewer's zone, unless `timeZone` pins one. | `timestamptz` | `min`, `max`, `timeZone` (an IANA name or `"UTC"`: show and edit on that zone's wall clock — a meeting, a check-in at a place; the stored value stays the UTC instant; an unknown zone is ignored) |
 | `time` | `time` | Time of day. | `time` | — |
 
+**Zoneless input (core #1008, #699).** A date-time without an offset (`2026-10-27T14:35`) written to a `timestamptz` column is read on the wall clock of the caller's time zone: the request's zone, or the workspace zone in background actions, async triggers and scheduled jobs. A value with an offset or `Z` is taken as given. This holds for `data.insert`/`data.update`, DSL `insert()`/`update()`/`select()` filters, record-field assignments, row filters, CSV import and SP report params. A time in a DST gap takes the offset before the gap; an ambiguous hour takes its first occurrence. `data.insert`/`data.update` refuse text that is not a date-time (`fieldFormat`) and a zoneless value when the caller's zone is unknown (`Cannot read '<col>' without a time zone`).
+
+**`timetz` columns** accept only a time of day with an optional offset (`09:15`, `09:15:30+02:00`, `09:15Z`; offsets up to ±14:00); a date or date-time is refused, in the API and in DSL. A time without an offset takes the caller's zone offset as of today, so the same input stored in July and in December gets different offsets.
+
 ## Binary / file
 
 > **Stored as `jsonb`, not `bytea`.** Despite the `binary` base datatype, a `file`/`image` column holds a JSON metadata reference (`{ storagePath, fileName, … }`) — the bytes live in file storage. The field tools derive `jsonb`; do **not** set `dbDatatype: "bytea"`.

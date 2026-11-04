@@ -231,6 +231,12 @@ must set `jobClass: 'long_running'`. `dforge_module_validate` flags violations.
 **2d Webhooks.** For authenticated endpoints, put credentials behind
 `getSecret()` and reference them as `"Authorization": "$secret:<secret_cd>"`.
 
+**Scenarios.** For each action and trigger, write a scenario in
+`tests/<name>.test.json` (schema: `dforge://schema/test-scenario`): `given` →
+`do` (insert / update / delete / action) → `expect` (record, count, error,
+refused). `tests/upgrade.test.json` and anything else outside `tests/*.test.json`
+is not read. Phase 6 runs them.
+
 ## Phase 3 — Views + menus (3a required), reports (optional)
 
 **3a. Default grids first.** Every entity gets a `viewType: "grid"` view with

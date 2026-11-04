@@ -143,11 +143,12 @@ Every entry in `dependencies` needs a contract file at `deps/<module_code>.json`
 ```
 
 - `version` must be the same range as the manifest's dependency entry.
-- `entities` needs at least one entry, except against a system module (where `{}` is a pure platform-version gate) or a contract that imports only `functions`. Each entry needs a `pk` and a non-empty `use`.
+- `entities` needs at least one entry, except against a system module (where `{}` is a pure platform-version gate) or a contract that imports only `functions` or `snippets`. Each entry needs a `pk` and a non-empty `use`.
 - `columns` is optional — omit it when you touch no specific column of that entity. Declare only real storage columns you read, write or join on, at their **storage class** (`int8`, `varchar`, `numeric`, `bool`, `date`, `timestamptz`, …; a `cuid` PK is `int8`). Never declare a virtual column (`R`/`S`/`F`) or a column your own extension adds.
 - `use` tokens are `<kind>:<symbol>` where kind is `ref`, `extends`, `formula`, `action`, `view`, `report`, `print` or `role`. `extends` must be fully qualified: `extends:parties.party`.
 
 - `functions` (optional) lists the library functions of that dependency you call: `"functions": ["roleOf"]`, called as `<module_with_underscores>.roleOf()`. Install checks each is a top-level function of the installed provider's libraries. A contract that imports only functions may declare `"entities": {}`. See *Function libraries* in `action-dsl.md`.
+- `snippets` (optional) lists the print snippets of that dependency your templates include: `"snippets": ["money_uk"]` for `{% include 'common-words.money_uk' %}` (core #1627). Every include of another module's snippet — in a template or a snippet, either quote — needs the module as a dependency and the snippet listed here; validate and pack refuse it otherwise, and install refuses a listed snippet the installed provider does not ship. Codes have no `.`, no spaces, and are listed once. Your own module's snippets need no entry. Only a literal name is checked, so an include built at run time is not seen. A contract that imports only snippets may declare `"entities": {}`.
 - `logic/functions/*.dsl` (function libraries) is detected by presence. No `manifest.json` key declares it, and `actions` does not list it.
 
 Full schema: `dforge://schema/deps`.

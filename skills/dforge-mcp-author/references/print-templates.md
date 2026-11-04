@@ -134,7 +134,7 @@ Full mechanics + an EPC SEPA QR worked example: [`docs/ui/print-qr-codes.md`](..
 
 ### Amount in words
 
-The platform has no number-to-words filter. The `common-words` module (`modules/common-words`, a dependency to declare) ships snippets that write an amount or a plain quantity out in Ukrainian, Russian, English or German. Set the inputs, then include:
+The platform has no number-to-words filter. The `common-words` module (`modules/common-words`, a dependency to declare, with the snippets you include listed under `"snippets"` in `deps/common-words.json` — see `manifest.md`) ships snippets that write an amount or a plain quantity out in Ukrainian, Russian, English or German. Set the inputs, then include:
 
 ```liquid
 {% assign words_amount = total %}

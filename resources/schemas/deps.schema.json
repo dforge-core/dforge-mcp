@@ -18,7 +18,7 @@
 		},
 		"entities": {
 			"type": "object",
-			"description": "Consumed provider entities, keyed by entity code (e.g. 'party'). At least one, except against a system module (admin, metadata, workspace, sys-billing), where {} declares a pure platform-version gate for a feature that introduced no entity, or when 'functions' imports at least one function.",
+			"description": "Consumed provider entities, keyed by entity code (e.g. 'party'). At least one, except against a system module (admin, metadata, workspace, sys-billing), where {} declares a pure platform-version gate for a feature that introduced no entity, or when 'functions' imports at least one function or 'snippets' lists at least one print snippet.",
 			"additionalProperties": { "$ref": "#/definitions/entityContract" }
 		},
 		"functions": {
@@ -27,13 +27,21 @@
 			"items": { "type": "string", "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$" },
 			"uniqueItems": true,
 			"minItems": 1
+		},
+		"snippets": {
+			"type": "array",
+			"description": "The provider's print snippets (type 'snippet' in its ui/print_templates.json) the consumer's print templates include as {% include '<provider>.<snippet>' %}. Every such include must be listed, and install checks the installed provider ships each. See docs/modules/dependency-contracts.md.",
+			"items": { "type": "string", "pattern": "^[^.\\s]+$" },
+			"uniqueItems": true,
+			"minItems": 1
 		}
 	},
 	"if": {
 		"not": {
 			"anyOf": [
 				{ "properties": { "module": { "enum": ["admin", "metadata", "workspace", "sys-billing"] } }, "required": ["module"] },
-				{ "required": ["functions"] }
+				{ "required": ["functions"] },
+				{ "required": ["snippets"] }
 			]
 		}
 	},

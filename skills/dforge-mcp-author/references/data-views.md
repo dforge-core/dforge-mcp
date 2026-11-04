@@ -122,7 +122,7 @@ See [flags.md](flags.md) for the flag string, [column-types.md](column-types.md)
 | `list` | Compact list view | `groupByField`, `groupByOptions`, `collapsedGroups`, `inlineAdd`, `levels` (all optional) | Mobile-friendly, card-sized items |
 | `kanban` | Columns grouped by a status field | `groupByField` | Workflow entities with stages (deals, tickets) |
 | `gallery` | Image-forward card grid | — | Image-heavy entities (products, real estate) |
-| `tree-grid` | Hierarchical grid with expand/collapse | — | Tree structures (folders, categories, org charts) |
+| `tree-grid` | Hierarchical grid with expand/collapse | `parentField` (the self-referencing FK column), `labelField`, `iconField` | Tree structures (folders, categories, org charts) |
 | `calendar` | Calendar display of date-based records | `dateField`, `titleField` | Schedules, due dates, events |
 | `matrix` | Pivot grid: `rowAxis` × `colAxis`, one value-source record per cell | `rowAxis`, `colAxis`, `cell` | Cross-tab data: P&L (accounts × periods), timesheets (tasks × days), budgets (categories × months) |
 | `card` | Single-record detail view | — | Record detail pages (implicit — every entity has one) |
@@ -336,5 +336,6 @@ Most views only have one source. Order is view-level and applies to the primary 
 - Using `"sort"` for data view ordering — **wrong**. The field is `"order"` and it lives at view-def root (not inside `dataSources[]`).
 - Object-array order like `[{ column_cd: "...", direction: "asc" }]` — **wrong shape for data views**. Use `string[]` with leading `-` for descending.
 - `viewType` is **optional** — omitted or unknown values fall back to `grid` at runtime. Set it explicitly for any non-grid view (`kanban`, `calendar`, `matrix`, …); a `matrix` view also **requires** a `viewConfig` with `rowAxis`/`colAxis`/`cell`.
+- `viewConfig.parentField` on a `grid` or `list` view — **refused** at validate, pack and install (core #1626): only `tree-grid` reads it, and elsewhere it silently showed a flat list. Set `viewType: "tree-grid"` instead of dropping the key.
 - Inventing view types like `"spreadsheet"` or `"table"` — **wrong**. Use `grid`.
 - A grid-style view over an entity with **no visible scalar column** (no field flagged `V`, or only set columns) — **rejected** at validate/pack. Mark at least one non-set field visible. See the [critical rule above](#critical-rule--the-entity-needs-a-visible-column). `diagram`/`matrix`/`library` are exempt.

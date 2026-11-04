@@ -4,6 +4,23 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.50 - 2026-11-04
+
+**Print snippets in dependency contracts (core #1627).** `deps/<provider>.json` takes `"snippets"`, the provider's print
+snippets the module's templates include as `{% include '<provider>.<snippet>' %}`. Validate, pack and install refuse an
+include of another module's snippet whose module is not a dependency or whose snippet the contract does not list; install
+also refuses a listed snippet the installed provider does not ship. A contract listing only snippets may declare
+`"entities": {}`. `manifest.md` and `print-templates.md` say so; the vendored deps schema carries it.
+`@dforge-core/metadata` 0.0.50 adds the schema and `DepsFile.snippets`; the dependency range here moves to ^0.0.50 once
+that is published.
+
+**Module tests (core #1628).** `dforge-cli` 0.2.39 adds `module test <path> --url <workspace>`, which runs a module's
+`tests/*.test.json` (insert / update / delete / action steps; record, count, error and refused expectations) over the API
+as the signed-in user, in the module's own folder. The dependency floor on `@dforge-core/dforge-cli` is ^0.2.39, and the
+vendored schemas now include `test_scenario.schema.json` from `@dforge-core/metadata` 0.0.50, served as
+`dforge://schema/test-scenario`. The ship skill's Step 5 says how to run the scenarios after install, and the build skill
+says to write one per action and trigger. There is no `dforge_module_test` tool yet.
+
 ## 0.2.49 - 2026-11-03
 
 **Query columns (`columnType: "Q"`).** A column that gives a record a read-only list of rows — a balance register on the
