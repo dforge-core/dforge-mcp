@@ -12,8 +12,8 @@ importers:
         specifier: ^0.2.46
         version: 0.2.46
       '@dforge-core/metadata':
-        specifier: ^0.0.59
-        version: 0.0.59
+        specifier: ^0.0.60
+        version: 0.0.60
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.7)
@@ -80,8 +80,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@dforge-core/metadata@0.0.59':
-    resolution: {integrity: sha512-Uwnk7erI4l4M7EkO7lBLTGJMFTJkGNDTU1QgTFyhN8uJpbhrkAns3jHBzOHhF5GabN4nxUbt4fVGEi8WOc8TrA==}
+  '@dforge-core/metadata@0.0.60':
+    resolution: {integrity: sha512-X/FQGhhRT3PSrkg1YNJQXuNFxdkBeBcqa/fD4wV9VRFrdW35+VsBFFv2WTPre+bkcR8XrjQMt5JP1AmhpLhHpA==}
 
   '@emnapi/core@2.0.0-beta.2':
     resolution: {integrity: sha512-MzCVoWtcg4Pm2B3je5mMvYMvj3MmBKw+fU7vbsJc9/iT8ip6/eYIHo/Dsm/mr+wsHB6SEyJDuxB09Yy6r/8+4A==}
@@ -1511,7 +1511,7 @@ snapshots:
       '@dforge-core/dforge-cli-win32-arm64': 0.2.46
       '@dforge-core/dforge-cli-win32-x64': 0.2.46
 
-  '@dforge-core/metadata@0.0.59': {}
+  '@dforge-core/metadata@0.0.60': {}
 
   '@emnapi/core@2.0.0-beta.2':
     dependencies:

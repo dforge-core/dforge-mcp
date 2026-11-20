@@ -256,7 +256,7 @@ execute:
     var price = getSlice("wms-registry.outlet_price", { warehouse_id: [warehouse_id], product_id: [product_id] }, [order_date])
 ```
 
-- A form that lists what a balance register held on the record's date (a revaluation's old stock) needs no action: a `Q` column (`register`, `asOf`, `dimensions`; column-types.md § Query columns) reads it with the reader's rights.
+- A form that lists what a balance register held on the record's date (a revaluation's old stock) needs no action: a `Q` column (`register`, `asOf` or `before`, `dimensions`; column-types.md § Query columns) reads it with the reader's rights. For the balance before the document's own movements, use `before`.
 - A dimension left out is summed over by `getBalance` and `getTurnover`. `getSlice` refuses an omitted dimension.
 - `getSlice` answers one dimension tuple from an action. A value per row — each line's price on its document's date, in a print form, report or view — is the formula `SLICE()` on an `F` column (formulas.md).
 - As-of reads and `getTurnover` need a journal with both stamps.
@@ -268,7 +268,7 @@ execute:
 
 ### Showing a balance on a record: a `Q` column
 
-`getBalance` answers one tuple inside an action. To show a document its register's balance **on its own date**, as a list on the card and in print forms, declare a query column (`columnType: "Q"`, `params`: `register`, `asOf`, `dimensions`) instead of an action that computes it. Install refuses a register that is not `balance` or has no dated journal. It reads with the reader's rights and cannot read the totals cache. See column-types.md § Query columns.
+`getBalance` answers one tuple inside an action. To show a document its register's balance **on its own date**, as a list on the card and in print forms, declare a query column (`columnType: "Q"`, `params`: `register`, `asOf` or `before`, `dimensions`) instead of an action that computes it. The record's date goes in exactly one of the two keys. `asOf` is the balance at the end of the record's day. `before` is the balance strictly before the record's moment, so the document's own movements, and anything else posted at that same moment, are left out: use it for "balance before this document" on a card or print form. A journal whose date column is `date` (no time) compares by day, so `before` there is the balance before the record's day. A record whose date is empty shows an empty list and a warning. Install refuses a register that is not `balance` or has no dated journal, a binding that names both keys or neither, and a key that does not name a stored date column of the entity. It reads with the reader's rights and cannot read the totals cache. See column-types.md § Query columns.
 
 ## Totals cache
 

@@ -98,7 +98,7 @@ A value that changes over time — a price, an employee's position, an organizat
 | A value per line (places, weight through the product's units) | An `F` column on the line entity, printed as `line.<col>` |
 | One total over a set | Over a stored line column (`D`, or a `G` on the line): a `G` column on the document (`SUM([lines].[amount])`). Over a line `F` column: a `plus` accumulator in the loop, `{% assign s = 0 %}{% for l in lines %}{% assign s = s \| plus: l.places %}{% endfor %}`, since a `G` cannot sum an `F` child (install fails with `column old.<field> does not exist`) |
 | Lines grouped by a column, totals per group (by product and series, by VAT rate, a packing list by pallet) | A `Q` column with a grouped query on the line entity (`group` on the column, `sum` on the amounts, `@doc` filled from the record), printed as `{% for r in lines_by_product %}` (column-types.md § Query columns) |
-| A register's balance on the document's date, per product | A `Q` column with `register` / `asOf` / `dimensions`, printed as `{% for r in old_stock %}` |
+| A register's balance on the document's date, per product | A `Q` column with `register` / `asOf` / `dimensions`, printed as `{% for r in old_stock %}`. For the balance before this document (old stock beside the new, as a revaluation prints it), `before` in place of `asOf`: read to the end of the day, the document's own movements are already in |
 
 For grouped rows, use a `Q` column; do not work around it:
 

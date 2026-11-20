@@ -351,10 +351,14 @@
 		},
 		"queryColumnParams": {
 			"type": "object",
-			"description": "Binding of a query column (columnType Q): a read-only list of rows for the record, with no physical column. It reads either a balance register as of the record's date (register, asOf, dimensions) or a query written in the column and filled from the record (entity, query, params). Shown on the card and read by print forms, with the reader's rights.",
+			"description": "Binding of a query column (columnType Q): a read-only list of rows for the record, with no physical column. It reads either a balance register as of the record's date or before its moment (register, asOf or before, dimensions) or a query written in the column and filled from the record (entity, query, params). Shown on the card and read by print forms, with the reader's rights.",
 			"oneOf": [
 				{
-					"required": ["register", "asOf"],
+					"required": ["register"],
+					"oneOf": [
+						{ "required": ["asOf"] },
+						{ "required": ["before"] }
+					],
 					"properties": {
 						"register": {
 							"type": "string",
@@ -364,6 +368,10 @@
 						"asOf": {
 							"type": "string",
 							"description": "Date (or timestamp) column of this entity the balance is taken on. The day itself is included."
+						},
+						"before": {
+							"type": "string",
+							"description": "Date (or timestamp) column of this entity the balance is taken up to, exclusive, in place of asOf: 1C's Остатки(&Дата). Movements at that moment or later are left out, so the record's own movements, dated at it, are not in the balance it reads; other movements in the same moment are left out too. Compared to the precision of the journal's date column."
 						},
 						"viz": {
 							"type": "object",

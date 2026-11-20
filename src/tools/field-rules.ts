@@ -236,7 +236,7 @@ export function checkFieldSpec(where: string, field: unknown): FieldIssue[] {
 	if (columnType === "Q") {
 		if (v.params === undefined || typeof v.params !== "object" || v.params === null) {
 			err(
-				"query column (columnType 'Q') requires 'params': { register, asOf, dimensions? } or " +
+				"query column (columnType 'Q') requires 'params': { register, asOf | before, dimensions? } or " +
 					"{ entity, query, params? }. (See dforge://reference/column-types.)",
 			);
 		}

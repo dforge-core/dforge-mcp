@@ -111,6 +111,7 @@ parents first; a `translations/<locale>.json` for every `supportedLocales` entry
 each carrying a label for every trait-provided field and every role, and a
 `translations/README.<locale>.md` (pack and validate warn when one is missing). No English
 file — install skips `en*.json`; English is the definitions' own short labels.
+`module pack` generates `assets/data-model.svg` unless the module ships its own.
 
 If translations are thin, run **`dforge_translation_sync`** now rather than
 hand-patching — it fills exactly the keys install requires.
@@ -232,12 +233,14 @@ constraint fails the run before anything is installed, and all of them are named
 once. Flags: `--filter <text>`, `--keep` (keep each workspace for a day),
 `--no-demo-data`, `--shared` (run in the workspace you are signed in to, in the
 module's own folder, for debugging: tests commit there and a rerun can fail on
-"matched 2 records"). Steps `insert` / `update` / `delete` / `action` (any step but `insert` may name the one
+"matched 2 records"; a test with SQL in `given` or `expect` fails there).
+`given` with records or SQL. Steps `insert` / `update` / `delete` / `action` (any step but `insert` may name the one
 record it added, through an action's `insert()` or a synchronous trigger, with
 `"$as": { "<name>": "<entity>" }`; the test fails unless exactly one was added), expectations
 `record`, `count`, `error`, `refused: "canExecute"`, and checks over rows: `query` (a
-`query.run` query as the test's user; `agg` group/sum/count/avg/min/max; at most 1000 rows)
-and `register` (an accounting register's balances per account, `params` for its interval),
+`query.run` query as the test's user; `agg` group/sum/count/avg/min/max; at most 1000 rows),
+`register` (an accounting register's balances per account, `params` for its interval)
+and `sql` (read-only),
 matched with `equals` / `contains` / `rowCount` and `precision` (a whole number 0 to 28);
 a truncated register or a query that returned warnings fails the test. A step or expectation it does not
 support **fails** the test, it is never skipped. Exit 0 all passed, 1 a test failed,
