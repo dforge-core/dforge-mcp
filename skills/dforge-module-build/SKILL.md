@@ -251,6 +251,14 @@ Every test starts from the module, its dependencies and their demo data, so `giv
 only creates what the scenario needs. Do not write `fixture` or `isolation` in a
 suite: the schema refuses them and the runner fails every test of that suite.
 `refused: "canExecute"` matches the `ACTION_NOT_AVAILABLE` refusal.
+Check through records, `query` and `register` first; SQL is for what the API cannot
+show (platform metadata, a column no view shows). A `given` block `{ "sql": "…" }`
+(a string or an array of lines, and nothing else in that block) commits what it
+writes; an expectation `{ "sql": "…" }` only reads, matched with `equals` /
+`contains` / `rowCount`. Bare table names are the module's; a platform table is named
+in full (`"dForge".module`). SQL skips what the platform does on a write (the module's
+`logic/triggers.json`, number sequences, validation); the database's own triggers
+still run. It works only in a test's temporary workspace: with `--shared` the test fails.
 `expect: [{"error": …}]` needs at least one of `code` / `contains` — `{"error": {}}` is rejected by the schema.
 
 **Hand-written JSON.** Patch tools refuse to write a file that the vendored schema rejects (nothing is written; the message lists the new violations). That guard does not see files you edit by hand, so after any manual edit of a module JSON run `dforge_module_validate` and read its schema warnings — the editor shows each one as an error. Typical slips: a field without `orderNum`/`description`, a `numberSequence` without `defaultPrefix`, a report filter mixing `{c,o,v}` with `{g,i}`.

@@ -112,9 +112,9 @@ The request's zone is the browser's (sent on every call), else the user's profil
 - `YEAR(d)`, `MONTH(d)`, `DAY(d)` — date parts (`MONTH` is 1-based)
 - `HOUR(dt)`, `MINUTE(dt)`, `SECOND(dt)` — time parts
 - `WEEKDAY(d)` — day of week, `0` = Sunday
-- `DATE(y, m, d)` — build a date from parts; `DATE(v)` casts a value to a date
+- `DATE(y, m, d)` — build a date from parts; `DATE(v)` is the calendar day of a date or date-time, its time of day dropped (a date-time's day is read in the requester's time zone, as `TODAY()` is). A value that is not a date gives null. So `FORMAT(DATE([ts]), 'HH:mm')` is `00:00`
 - `DATEADD(d, count, unit)` — add time; unit is a **string literal**: `'DAY'`, `'HOUR'`, `'MINUTE'`, `'SECOND'`, `'MONTH'`, `'YEAR'` (plural forms accepted)
-- `DATEDIFF(d1, d2, unit)` — difference `d2 − d1` in the given unit (same unit list). `DAY`/`HOUR`/`MINUTE`/`SECOND` floor the elapsed time; `MONTH`/`YEAR` are calendar-component deltas. E.g. days overdue: `DATEDIFF([due_date], TODAY(), 'DAY')`
+- `DATEDIFF(d1, d2, unit)` — difference `d2 − d1` in the given unit (same unit list). `DAY`/`HOUR`/`MINUTE`/`SECOND` floor the elapsed time; `MONTH`/`YEAR` are calendar-component deltas. E.g. days overdue: `DATEDIFF([due_date], TODAY(), 'DAY')`. Between two calendar dates (a date column, `TODAY()`, `DATE(…)`, a period function, `DATEADD` over them) `DAY` counts wall-clock days, so a daylight-saving change does not lose one. Between date-times it counts whole 24-hour periods: a record created this morning is `-1` days old by `DATEDIFF([created_date], TODAY(), 'DAY')`. Take the day first: `DATEDIFF(DATE([created_date]), TODAY(), 'DAY')` is `0` for it (#1182)
 - `STARTMONTH(d?)`, `ENDMONTH(d?)`, `STARTQUARTER(d?)`, `ENDQUARTER(d?)`, `STARTYEAR(d?)`, `ENDYEAR(d?)`, `STARTNEXTMONTH(d?)` — period boundaries. **Omitting** the argument means today; passing one that is null gives null (a row with no date renders blank, it does not fall back to today)
 
 The whole date family evaluates identically **client-side and SQL-time** (reports, filters, sorts on formula columns) — the SQL translator mirrors the client runtime, including `MONTH` 1-based and `WEEKDAY` 0=Sunday. Unit arguments must be string literals; an unknown unit fails loud with the accepted list.

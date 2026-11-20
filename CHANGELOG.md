@@ -4,6 +4,12 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## Unreleased
+
+**Skills synced with dForge-core (#1725-#1744).** `action-dsl.md`: a `date` / `datetime` action parameter goes straight into a message placeholder (`{ date: params[date_from] }`), never through `new Date()` (core #1735); `fmt(value, fieldType, precision?)` writes a message value as a column of that type, and replaces `{total:n2}` as the advice for amounts (core #1744). `formulas.md`: `DATE(v)` is the calendar day, read in the requester's zone, null for a value that is not a date; `DATEDIFF(…, 'DAY')` between dates counts wall-clock days across daylight saving; take `DATE()` of a date-time first (i-1182, #1727). Build and ship skills: module tests with `{ "sql" }` in `given` (commits) and `expect` (reads, row matchers), only in a temporary workspace; what raw SQL skips (#1725). `conventions.md` README section: the per-language fallback and the `assets/data-model.svg` that `module pack` generates (`dforge-cli module diagram`) (#1729). `column-types.md`, `registers.md`, `print-templates.md`: a register `Q` column takes `before` in place of `asOf`, the balance strictly before the record's moment, without the document's own movements (core #1726).
+
+**Dependencies.** `@dforge-core/metadata` 0.0.60 (the entity schema accepts a `Q` column's `before`; the DSL checker knows `fmt()`).
+
 ## 0.2.61 - 2026-11-19
 
 **Skills synced with dForge-core.** `manifest.md`: `secrets` declarations (undeclared code refused once declared, per-folder values). `column-types.md`: `lookupCreate` on an entity and on a Reference column. `dforge-module-ship`: module tests with `$as`, `query` and `register` row checks.

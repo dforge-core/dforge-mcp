@@ -142,6 +142,10 @@ Depth: the platform changelog entry "Demo data: its own folder, formulas, and a 
 
 The marketplace page has three tabs: **Details** (your `README.md`), **Features** (generated from the module: entities with fields, views, reports, print forms, actions grouped by entity with their description and icon, roles, settings; labels follow the reader's language from `translations/`) and **Changelog** (`changelog/<version>.md` of each published version). So keep the README short and do not list entities, actions or roles in it. To mark something important use a GitHub-style callout: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]` or `> [!CAUTION]`. Diagrams in `assets/` are referenced relative to the package root.
 
+`README.md` is the English module page. For each locale in `supportedLocales`, add `translations/README.<locale>.md` (`translations/README.uk-UA.md`): the marketplace, dforge.io and the in-app module dialog show it to a reader of that language and fall back to `README.md` otherwise. A declared locale without one is a **warning** at `module pack` and `module validate`, never an error. Image paths stay relative to the package root in every language (`assets/x.svg`), so one set of pictures serves them all. `shortDescription` is not translated.
+
+`module pack` draws the data model from the entity definitions into the package as `assets/data-model.svg` (none for a single-entity module; a module that ships its own file keeps it). Show it with `![Data model](assets/data-model.svg)`. The file exists only in the package, so the link resolves on the marketplace and in the app, not in a repo view. `dforge-cli module diagram <path> [--out file.svg]` writes the same SVG without packing.
+
 ## Translations
 
 Translation files live in `translations/` and are named after the **IETF locale tag** (`de-DE.json`, `uk-UA.json`, etc.). Filenames are auto-discovered; declare which ones you ship in `manifest.supportedLocales`. English is the default — labels and descriptions live in entity/view JSON, so **don't** create `en.json` or `en-US.json` (they're skipped by the installer).
