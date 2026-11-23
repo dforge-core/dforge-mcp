@@ -203,6 +203,18 @@
 				},
 				{
 					"type": "object",
+					"required": ["report"],
+					"allOf": [{ "$ref": "#/$defs/rows" }],
+					"additionalProperties": false,
+					"properties": {
+						"report": { "type": "string", "minLength": 1, "description": "The report's code: the module under test's (\"sales_funnel\"), or another module's (\"crm.sales_funnel\"). Run with report.run as the test's user." },
+						"dataset": { "type": "string", "description": "The dataset whose rows are checked; required when the report has more than one." },
+						"params": { "type": "object", "description": "The report's param values." },
+						"equals": true, "contains": true, "rowCount": true, "precision": true
+					}
+				},
+				{
+					"type": "object",
 					"required": ["sql"],
 					"allOf": [{ "$ref": "#/$defs/rows" }],
 					"additionalProperties": false,

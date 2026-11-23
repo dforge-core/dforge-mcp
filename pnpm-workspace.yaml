@@ -1,7 +1,7 @@
 packages:
   - '.'
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
 # Install the native dforge-cli binary for the current machine only, and always install it
 # (it is an optional dependency, so a silent skip leaves a launcher with no binary).
 supportedArchitectures:

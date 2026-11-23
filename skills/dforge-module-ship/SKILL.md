@@ -239,10 +239,13 @@ record it added, through an action's `insert()` or a synchronous trigger, with
 `"$as": { "<name>": "<entity>" }`; the test fails unless exactly one was added), expectations
 `record`, `count`, `error`, `refused: "canExecute"`, and checks over rows: `query` (a
 `query.run` query as the test's user; `agg` group/sum/count/avg/min/max; at most 1000 rows),
-`register` (an accounting register's balances per account, `params` for its interval)
+`register` (an accounting register's balances per account, `params` for its interval),
+`report` (a report run by its code, another module's as `"crm.sales_funnel"`, with `params`;
+`dataset` is required when the report has more than one; `module validate` checks the report
+and dataset against `ui/reports.json`, a dependency's report is left to the run)
 and `sql` (read-only),
 matched with `equals` / `contains` / `rowCount` and `precision` (a whole number 0 to 28);
-a truncated register or a query that returned warnings fails the test. A step or expectation it does not
+a truncated register, a report cut at the row cap, or a query that returned warnings fails the test. A step or expectation it does not
 support **fails** the test, it is never skipped. Exit 0 all passed, 1 a test failed,
 2 the run could not start. Exit 2 with a message that temporary workspaces are not
 allowed means the server does not set `ModuleTests__Enabled=true` (the local docker
