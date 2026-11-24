@@ -221,7 +221,7 @@ credentials/connectivity, NOT a module defect. Tell the user to verify
 
 **Exit criterion:** install exits 0 against a real tenant.
 
-**Scenarios, when the module has `tests/*.test.json`:** run
+**Scenarios, when the module has `tests/*.test.json`** (writing and fixing them: `dforge-module-test`): run
 `dforge-cli module test <moduleDir> --url <server>` (sign in first with
 `dforge-cli auth login --url <server>`). Every test runs in a temporary workspace of
 its own, a copy of a template that holds the module, every module it depends on and
@@ -244,6 +244,14 @@ record it added, through an action's `insert()` or a synchronous trigger, with
 `dataset` is required when the report has more than one; `module validate` checks the report
 and dataset against `ui/reports.json`, a dependency's report is left to the run)
 and `sql` (read-only),
+`module validate` reads a test file without a server: a `register` check must name an accounting
+register of `registers.json` in full (`gl.ledger`, not `ledger`) with a `resource` it declares; a
+`query` check must name an entity of the module, and every column its `columns`, `filter` and
+`sort` name (a `count`'s `where` too) must be one of that entity's, a reference path checked by
+its first column; a step's `"$as": { "q": "quote" }` must name an entity the module has, and the
+name is then checked as that entity in later `update` values and `record` checks. An `insert` with
+an object `$as`, or any other step with a string one, is reported. A dependency's registers and
+entities are left to the run (core #1162),
 matched with `equals` / `contains` / `rowCount` and `precision` (a whole number 0 to 28);
 a truncated register, a report cut at the row cap, or a query that returned warnings fails the test. A step or expectation it does not
 support **fails** the test, it is never skipped. Exit 0 all passed, 1 a test failed,

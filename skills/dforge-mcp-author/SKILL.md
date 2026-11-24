@@ -6,13 +6,14 @@ description: Entry point for authoring dForge modules with the dforge-mcp tool s
 # dForge Module Author — router
 
 This skill routes. It does **not** contain the phase instructions — those live in
-three stage skills, each loaded only when its stage is active:
+stage skills, each loaded only when its stage is active:
 
 | Stage skill | Phases | What it owns |
 |---|---|---|
 | `dforge-module-design` | 0a–0d | Identity, intake, design doc, pre-scaffold validation. Ends at `readyToScaffold: true`. |
 | `dforge-module-build` | 1–5 | Entities, behavior, views/menus, polish, security. |
 | `dforge-module-ship` | 6 | Validate → pre-pack review → pack → install-fix loop. |
+| `dforge-module-test` | any | Module tests: what to cover, how to write `tests/*.test.json`, what the runner cannot do, how to read a failure. Load it when the user asks for tests or a scenario fails. |
 
 **Porting from 1C** (a 1C:Enterprise infobase, `_Reference`/`_Document`/`_AccumRg`
 tables, регистры, проведение) is its own skill, `dforge-1c-import`: the porting

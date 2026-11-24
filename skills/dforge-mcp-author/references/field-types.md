@@ -43,7 +43,9 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 
 | `fieldTypeCd` | `baseDatatypeCd` | Description | Common `dbDatatype` | Params |
 |---|---|---|---|---|
-| `checkbox` | `bool` | Boolean checkbox. | `bool` | — |
+| `checkbox` | `bool` | Boolean checkbox. | `bool` | `todo` |
+
+> **`params.todo: true` marks a yes/no column as "this record is done".** A checklist (a set shown as a checklist on a card, or a `checklist` view) offers only editable `todo` columns as its done field, so an `is_overdue` flag is not offered. Put the status or date that should follow from ticking it in a trigger on the column (`logic/triggers.json`), not in the view (core #1572).
 
 > **`checkbox` is the only valid `fieldTypeCd` for boolean fields.** Do not use `bool`, `boolean`, or `toggle` as `fieldTypeCd` — those are not valid field type codes. (`bool` IS the correct `dbDatatype` for this field, but `checkbox` is the only correct `fieldTypeCd`.)
 
@@ -76,6 +78,7 @@ Source of truth: `server/database/system-modules/metadata/seed-data/field_types.
 | `user` | `cuid` | `D` | User picker. Writes a user ID directly, no paired FK needed. |
 | `grid` | `set` | `S` | Detail grid of related records (1:N backwards reference). Used with `link` declaring the relation. |
 | `list` | `set` | `S` | Detail list — same 1:N set as `grid`, rendered as a card list instead of a table. |
+| `checklist` | `set` | `S` | Detail checklist — same 1:N set as `grid`, rendered as a checklist: a done circle per row. The child entity needs an editable yes/no column with `params.todo: true`; without one the checklist is not offered (core #1572). |
 | `entitylink` | `json` | `D` | Polymorphic link to any entity. Stores `{entityId, entity, pk: {col: "val"}, description?}` — `pk` is a per-column map (values as strings), there is no `id` key. Populate from action DSL with the `entityLink('entityCd', record, description?)` built-in; pass a qualified entity code (see `action-dsl.md`). |
 
 ## JSON

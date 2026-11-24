@@ -43,13 +43,13 @@
 				},
 				"sets": {
 					"type": "object",
-					"description": "Per-set-field view config, keyed by the set column code. Chooses the renderer a detail grid uses ('grid' or 'list') and its persisted options.",
+					"description": "Per-set-field view config, keyed by the set column code. Chooses the renderer a detail grid uses ('grid', 'list' or 'checklist') and its persisted options.",
 					"additionalProperties": {
 						"type": "object",
 						"properties": {
 							"viewType": {
 								"type": "string",
-								"enum": ["grid", "list"],
+								"enum": ["grid", "list", "checklist"],
 								"description": "Set renderer. Defaults to the column's own metadata."
 							},
 							"options": {

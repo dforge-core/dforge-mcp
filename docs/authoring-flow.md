@@ -20,6 +20,7 @@ The skills split by stage so that each loads only what it needs:
 | `dforge-module-design` | 0a–0d | Identity, intake, design document, design validation. |
 | `dforge-module-build` | 1–5 | Entities, behaviour, views and menus, polish, security. |
 | `dforge-module-ship` | 6 | Validate, pack, install, fix loop. |
+| `dforge-module-test` | any | Write, run and fix module tests. |
 
 ## Stages and artifacts
 
@@ -154,5 +155,5 @@ Prefer a warning with a clear next step to an error. Promote to an error only wh
 ## Related
 
 - [Creating a dForge module — three paths](creating-modules.md)
-- Skills: `skills/dforge-mcp-author`, `dforge-module-design`, `dforge-module-build`, `dforge-module-ship`
+- Skills: `skills/dforge-mcp-author`, `dforge-module-design`, `dforge-module-build`, `dforge-module-ship`, `dforge-module-test`
 - `CHANGELOG.md` for the history of changes to checks and skills.

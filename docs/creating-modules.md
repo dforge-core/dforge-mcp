@@ -42,7 +42,7 @@ Sidebar also gives you right-click commands: **Pack Module**, **Install Module t
 
 ## Path 3 — AI co-pilot, wizard-driven
 
-Claude Code (or Cursor / Zed) with `dforge-mcp` connected. You describe what you want; the AI walks you through seven phases (0-6) via MCP tool calls, pausing at each gate for your approval. Guidance ships as four skills — a router plus one per lifecycle stage — so only the active stage is loaded.
+Claude Code (or Cursor / Zed) with `dforge-mcp` connected. You describe what you want; the AI walks you through seven phases (0-6) via MCP tool calls, pausing at each gate for your approval. Guidance ships as a router plus one skill per lifecycle stage (and one for module tests) — so only the active stage is loaded.
 
 Setup once:
 
@@ -63,6 +63,7 @@ copy instead. See the README's "Windows notes" for the WSL caveat.
 | `dforge-module-design` | Phase 0 — identity, requirements, design, validation |
 | `dforge-module-build` | Phases 1-5 — entities, behavior, views, security |
 | `dforge-module-ship` | Phase 6 — validate, pack, install |
+| `dforge-module-test` | Any phase — write, run and fix module tests |
 
 Restart Claude Code, approve the MCP server on first prompt, then in a new conversation:
 
@@ -160,5 +161,6 @@ VS Code with the [dForge extension](https://github.com/dforge-core/dforge-editor
 - [dforge-module-design](../skills/dforge-module-design/SKILL.md) — Phase 0, including the intake guardrails and gap scans
 - [dforge-module-build](../skills/dforge-module-build/SKILL.md) — Phases 1-5, the loading-policy table, core-rules cheat sheet, and the deterministic backtrack protocol
 - [dforge-module-ship](../skills/dforge-module-ship/SKILL.md) — Phase 6 and the install-fix loop
+- [dforge-module-test](../skills/dforge-module-test/SKILL.md) — writing, running and fixing `tests/*.test.json`
 - [README.md](../README.md) — full tool reference (35 tools) + maintainer docs
 - [iash44/dForge-core](https://github.com/iash44/dForge-core) — the platform itself: source of truth for the schemas + DSL conventions

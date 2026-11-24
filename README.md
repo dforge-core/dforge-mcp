@@ -199,9 +199,9 @@ https://cdn.jsdelivr.net/npm/@dforge-core/dforge-mcp@latest/resources/schemas/<n
 
 **Compatibility:** schemas vendored for this release came from `iash44/dForge-core` `main` as of the publish date stamped in `package.json`. If the platform adds new entity properties / field types after this release, generated modules using those features may validate locally but be rejected at install time. Bump the dforge-mcp version when the platform schemas change materially.
 
-## Claude Skills — router + three stage skills
+## Claude Skills — router + stage skills
 
-Authoring guidance ships as **four** skills, split by lifecycle stage. Each stage needs a different half of the knowledge base — Phase 0 needs none of the field-type/DSL detail, Phase 6 needs none of the intake guardrails — so loading only the active stage is what keeps a full module build inside one context window.
+Authoring guidance ships as a router plus stage skills, split by lifecycle stage. Each stage needs a different half of the knowledge base — Phase 0 needs none of the field-type/DSL detail, Phase 6 needs none of the intake guardrails — so loading only the active stage is what keeps a full module build inside one context window.
 
 | Skill | Phases | Owns |
 |---|---|---|
@@ -209,6 +209,7 @@ Authoring guidance ships as **four** skills, split by lifecycle stage. Each stag
 | `dforge-module-design` | 0a–0d | Identity, intake guardrails, design doc, pre-scaffold validation. Ends at `readyToScaffold: true`. |
 | `dforge-module-build` | 1–5 | Entities, behavior, views/menus, polish, security. Loading-policy table, core-rules cheat sheet, backtrack protocol. |
 | `dforge-module-ship` | 6 | Validate → pre-pack review → version audit → pack → install-fix loop. |
+| `dforge-module-test` | any | Writing, running and fixing `tests/*.test.json`: what a scenario should cover, how each check is written, what the runner cannot test yet. |
 | `dforge-1c-import` | — | Porting a 1C:Enterprise infobase: register kinds, posting bindings, what to carry, the row copy and its conversions, print forms. `scripts/` holds the Python toolkit (read the infobase from MS SQL without 1C, generate modules, load, reconcile, check postings, read MXL templates). |
 
 The handoff is deterministic rather than vibes-based: `dforge_module_plan({ action: "check" })` returns `currentPhase` **and** `nextSkill`, derived from the Phase 0 artifacts, the phase ledger in `docs/phase.json`, and evidence read from the module itself (entities without fields, entities without a view, entities without a Select grant).

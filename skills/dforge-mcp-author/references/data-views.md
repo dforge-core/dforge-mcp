@@ -123,9 +123,12 @@ See [flags.md](flags.md) for the flag string, [column-types.md](column-types.md)
 | `kanban` | Columns grouped by a status field | `groupByField` | Workflow entities with stages (deals, tickets) |
 | `gallery` | Image-forward card grid | — | Image-heavy entities (products, real estate) |
 | `tree-grid` | Hierarchical grid with expand/collapse | `parentField` (the self-referencing FK column), `labelField`, `iconField` | Tree structures (folders, categories, org charts) |
+| `checklist` | Rows with a done circle, the title and aligned columns; ticking the circle saves at once | `doneField` (an editable `todo` yes/no column, or a dropdown with `doneValue` and optional `undoneValue`), `titleField`, `groupByField`, `groupByOptions`, `collapsedGroups`, `inlineAdd` | Task and step lists |
 | `calendar` | Calendar display of date-based records | `dateField`, `titleField` | Schedules, due dates, events |
 | `matrix` | Pivot grid: `rowAxis` × `colAxis`, one value-source record per cell | `rowAxis`, `colAxis`, `cell` | Cross-tab data: P&L (accounts × periods), timesheets (tasks × days), budgets (categories × months) |
 | `card` | Single-record detail view | — | Record detail pages (implicit — every entity has one) |
+
+A set column on a record card can also be shown as a checklist: declare `fieldTypeCd: "checklist"` on the set column, or choose it per card in `ui/card_layouts.json` with `sets.<column>` = `{"viewType": "checklist", "options": {"doneField", "titleField", "listColumns", "columnWidths"}}`. The switch is offered only when the set's entity has an editable yes/no column with `params.todo: true`; a status that should follow from ticking it is a trigger (core #1572).
 
 ## View config (`viewConfig`)
 
@@ -186,6 +189,32 @@ The install refuses a view that breaks these rules, and `dforge_module_validate`
 single level. A user can stack more levels (priority, then status) from the gear menu; that choice lives in their
 session, not in the module. A grouped grid loads up to 2,000 rows instead of paging and warns past that. Needs platform
 1.28.11.
+
+### Color rules (`colorRules`)
+
+A `grid` or `list` view can paint records that match a condition. Each rule is a `when` filter (the same `{c,o,v}` /
+`{g,i}` shape as the view's `filter`) plus `bg` and/or `fg`:
+
+```json
+"viewConfig": {
+    "colorRules": [
+        { "when": { "c": "status", "o": "eq", "v": "overdue" }, "bg": "#f8d7da", "wholeRow": true },
+        { "when": { "c": "priority", "o": "eq", "v": "high" }, "fg": "#b02a37" }
+    ]
+}
+```
+
+- Later rules override earlier ones, and the colors follow the record as it is edited.
+- `wholeRow: true` paints the whole row. Without it, a grid paints the cells of the columns `when` reads, and a list
+  paints the inline fields of those columns (a list row itself is painted only by a `wholeRow` rule). Rows of a child
+  level (another entity) get no color.
+- A user can add their own rules from the gear menu (**Colors**); they apply after the view's and are kept in that
+  browser per view and folder.
+- The condition is read as the server reads a filter: an empty value matches no comparison, a reference compares its
+  FK, `mask` is a case-sensitive `LIKE`.
+- Pack and install refuse a column the entity does not define, an operator the server cannot translate, a rule with no
+  `when` or with neither `bg` nor `fg`, and `colorRules` on any view type other than `grid` or `list` (core #1752).
+  `dforge_module_validate` reports it first.
 
 ### Calendar
 
@@ -255,7 +284,7 @@ A pivot grid. The view's primary `dataSources` entity is the **cell** entity (on
 
 - `"dataset"` — axis values are an entity's records. `entity` + `labelField` required; optional `keyField` (defaults to the axis entity PK — what the cell's `rowKey`/`colKey` matches), `lockedField` (boolean column → that axis value's cells are read-only), `filter` (same `{c,o,v}` grammar as everywhere — scopes which axis records load), `hideEmpty` (**column axis only** — drop columns with no cell record in any row, e.g. periods with no postings; ignored if it would blank the whole grid), `rangeControl` (**column axis only** — show a From/To range control so the user can narrow the visible columns to a span; persists in view options; composes with `hideEmpty`), `sort` (`[{ col, dir }]`).
 - `"dropdown"` — axis values are a dropdown/flags column's options. `kind` + `column` (an `"entity.column"` reference); optional `values` (`[...]` of option value codes — a subset + order of columns, chosen the way kanban lanes are; omit to show every option in field order). Codes line up by construction.
-- `"date"` — generated date window, **column axis only** (not valid on `rowAxis`). `kind` + `grain: "day"` + `window: "week"` (v1). *Roadmap (designed, not built): arbitrary `range` (`{from, to}`) + `grain` (`day`/`week`/`month`/`quarter`/`year`), surfaced as a date-picker variant of the range bar — lets a time matrix generate its columns instead of needing seeded period records. Don't author against it yet.*
+- `"date"` — generated date window, **column axis only** (not valid on `rowAxis`). `kind` + `grain` + `window`, the pair being one of `day`/`week`, `month`/`year`, `quarter`/`year`, `year`/`years`; any other pair is refused at pack and install, naming the view. Months, quarters and years need no entity of periods: a record is shown in the column of its period, a new cell inserts the period's first day, and a cell holding several records shows the sum of each summable field and a count, read-only (core #1570).
 
 > **The matrix is source-agnostic.** A matrix is just config over generic entities: point the cell at *any* dated/keyed entity that fits your model — a pre-aggregated registry (e.g. `gl.balance_register`, fast but period-grained), raw dated movements (any-grain, heavier), or your own table. `gl` is a regular, replaceable module, not a platform requirement; nothing about the matrix knows or needs "gl". Choosing a pre-aggregated source vs raw rows (and the grain) is a per-view config decision, with the usual perf-vs-flexibility trade.
 

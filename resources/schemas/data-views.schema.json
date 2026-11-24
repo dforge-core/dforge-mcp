@@ -171,8 +171,28 @@
 					"type": "array",
 					"items": { "type": "string" },
 					"description": "Option values of groupByField whose groups start collapsed"
+				},
+				"colorRules": {
+					"type": "array",
+					"description": "Conditional colors: records matching a rule's condition are painted. Later rules override earlier ones. The user can add their own from the grid's gear menu",
+					"items": { "$ref": "#/$defs/colorRule" }
 				}
 			},
+			"additionalProperties": false
+		},
+		"colorRule": {
+			"type": "object",
+			"required": ["when"],
+			"properties": {
+				"when": {
+					"$ref": "#/$defs/filter",
+					"description": "Which records: the same filter as a view's `filter`, over the view's entity"
+				},
+				"bg": { "type": "string", "description": "Background color, e.g. #f8d7da" },
+				"fg": { "type": "string", "description": "Text color" },
+				"wholeRow": { "type": "boolean", "description": "Paint the whole row. Without it, only the cells of the columns `when` reads are painted" }
+			},
+			"anyOf": [{ "required": ["bg"] }, { "required": ["fg"] }],
 			"additionalProperties": false
 		},
 		"kanbanViewConfig": {
@@ -253,6 +273,11 @@
 					"type": "array",
 					"items": { "type": "string" },
 					"description": "Option values of groupByField whose groups start collapsed"
+				},
+				"colorRules": {
+					"type": "array",
+					"description": "Conditional colors: records matching a rule's condition are painted. A rule with wholeRow paints the row; any other paints the inline fields of the columns its `when` reads. Later rules override earlier ones. Applies to the first level's rows only",
+					"items": { "$ref": "#/$defs/colorRule" }
 				},
 				"inlineAdd": {
 					"type": "boolean",
@@ -464,19 +489,24 @@
 		},
 		"matrixDateAxis": {
 			"type": "object",
-			"description": "Date axis — axis values generated from a date window rather than entity records. Column axis only.",
+			"description": "Date axis — axis values generated from a date window rather than entity records. Column axis only. Each grain has one window: day/week, month/year, quarter/year, year/years.",
 			"required": ["kind", "grain", "window"],
 			"properties": {
 				"kind": { "const": "date" },
 				"grain": {
-					"const": "day",
-					"description": "Column granularity. v1: 'day'."
+					"enum": ["day", "month", "quarter", "year"],
+					"description": "Column granularity. A cell's date is bucketed to the period it falls in and shown in that period's column."
 				},
 				"window": {
-					"const": "week",
-					"description": "How many columns are shown. v1: 'week' (7 days, Monday-start)."
+					"enum": ["week", "year", "years"],
+					"description": "How many columns are shown: 'week' (7 days, Monday-start), 'year' (12 months or 4 quarters of one year), 'years' (5 years). Fixed by the grain."
 				}
 			},
+			"allOf": [
+				{ "if": { "properties": { "grain": { "const": "day" } }, "required": ["grain"] }, "then": { "properties": { "window": { "const": "week" } } } },
+				{ "if": { "properties": { "grain": { "enum": ["month", "quarter"] } }, "required": ["grain"] }, "then": { "properties": { "window": { "const": "year" } } } },
+				{ "if": { "properties": { "grain": { "const": "year" } }, "required": ["grain"] }, "then": { "properties": { "window": { "const": "years" } } } }
+			],
 			"additionalProperties": false
 		},
 		"matrixAxisSort": {

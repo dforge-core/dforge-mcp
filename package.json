@@ -38,8 +38,8 @@
 		"install-skills": "node scripts/install-skills.mjs"
 	},
 	"dependencies": {
-		"@dforge-core/dforge-cli": "^0.2.48",
-		"@dforge-core/metadata": "^0.0.61",
+		"@dforge-core/dforge-cli": "^0.2.49",
+		"@dforge-core/metadata": "^0.0.62",
 		"@modelcontextprotocol/sdk": "^1.32.2",
 		"zod": "^4.6.7"
 	},

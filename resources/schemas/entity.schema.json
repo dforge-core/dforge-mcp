@@ -526,7 +526,7 @@
 						"text", "avatar", "email", "phone", "url", "textarea", "number", "currency", "percent", "filesize",
 						"checkbox", "date", "datetime", "time",
 						"dropdown", "flags", "tags", "json", "hidden", "color", "image", "file",
-						"markdown", "richtext", "lookup", "user", "grid", "list", "entitylink", "code"
+						"markdown", "richtext", "lookup", "user", "grid", "list", "checklist", "entitylink", "code"
 					],
 					"description": "UI field type code from field_type table"
 				},
@@ -636,6 +636,10 @@
 								}
 							},
 							"additionalProperties": false
+						},
+						"todo": {
+							"type": "boolean",
+							"description": "On a yes/no column: it marks a record as done, so a checklist may tick it (the card's checklist and a checklist view offer only these). An \"overdue\" flag is not one. Also read from a field type's default params."
 						},
 						"patternFlags": {
 							"type": "string",

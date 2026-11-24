@@ -4,6 +4,14 @@ All notable changes to `@dforge-core/dforge-mcp`. This project uses semver-ish
 `0.1.0-rc.N` pre-release tags; the published version is set at publish time via
 the release workflow, so committed `package.json` versions are placeholders.
 
+## 0.2.64 - 2026-11-24
+
+**Skills synced with dForge-core.** `data-views.md`: the `checklist` view type and a set column shown as a checklist on a card (`fieldTypeCd: "checklist"`, or `sets.<column>` in `ui/card_layouts.json`) (core #1572); the matrix date axis takes `grain` `day`, `month`, `quarter` or `year`, each with its own `window`, replacing the "roadmap, don't author against it" note (core #1570); `viewConfig.colorRules` on a `grid` and a `list` view (core #1752). `dforge-module-ship`: `module validate` checks a module test's `register`, `query` and `$as` against the module without a server (core #1162). `field-types.md`: `params.todo: true` marks a yes/no column as the one a checklist ticks; the `checklist` set field type (core #1572).
+
+**New skill `dforge-module-test`:** how to write, run and fix module tests — what a scenario should cover per module element, the shape of each step and check, keeping a test independent of demo data, what the runner cannot test yet (other users, async work, upgrade passes, general actions), and how to read a failure. `dforge-module-build` now points to it instead of carrying the scenario text; the `dforge-mcp-author` router and the README list it.
+
+**Dependencies.** `@dforge-core/metadata` 0.0.62 (vendored schemas: the `checklist` field type, `params.todo`, matrix date `grain`, `viewConfig.colorRules`) and `@dforge-core/dforge-cli` 0.2.49 (`module validate` checks registers, query columns and `$as` steps in module tests; refuses an unsupported matrix date axis and a bad `colorRules`).
+
 ## 0.2.63 - 2026-11-23
 
 **Skills.** `dforge-module-ship`: module tests check a report by its code with `{ "report": "code", "dataset"?, "params"? }` (another module's as `"crm.sales_funnel"`); `dataset` is required when the report has more than one; a result cut at the row cap or run with warnings fails the check; `module validate` checks the report and dataset against `ui/reports.json` (core #1162).
