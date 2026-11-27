@@ -278,13 +278,20 @@
 				},
 				"datasets": {
 					"type": "object",
-					"description": "Dataset code → caption.",
+					"description": "Dataset code → caption and column headers.",
 					"additionalProperties": {
 						"type": "object",
 						"additionalProperties": false,
 						"properties": {
 							"caption": {
 								"type": "string"
+							},
+							"columns": {
+								"type": "object",
+								"description": "Dataset column code → header. Covers a header the dataset's columnsDef label renamed as well as one the entity or stored procedure names.",
+								"additionalProperties": {
+									"$ref": "#/$defs/labelOnly"
+								}
 							}
 						}
 					}
@@ -294,7 +301,7 @@
 				},
 				"panels": {
 					"type": "object",
-					"description": "Panel title as authored in the report's layout → its translation. Keyed by the title because a panel has no code; a panel whose title a user changed in a saved layout shows as typed.",
+					"description": "Text as authored in the report's layout → its translation: a panel's title, and a KPI metric's label. Keyed by the text because neither has a code; one a user changed in a saved layout shows as typed.",
 					"additionalProperties": {
 						"type": "string",
 						"minLength": 1

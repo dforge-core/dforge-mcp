@@ -30,6 +30,11 @@
 		"toString": {
 			"description": "Display pattern using column placeholders, e.g. \"{first_name} {last_name}\" — the caption of a record wherever it is referenced. Every `{placeholder}` must name a field of the entity (trait columns included) and not a set; pack and install fail otherwise. Omitted, the install generates one from the fields and warns. Not declared on extension entities (with `extends`). No `type` constraint here because `toString` collides with Object.prototype.toString in JSON validators — they read the inherited function and reject it, even when the property is absent from the JSON."
 		},
+		"color": {
+			"type": "string",
+			"pattern": "^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$",
+			"description": "The entity's own colour as a hex colour (`#2196F3`): the marker in front of a reference to one of its records, and the badge on a list row. Unset, a neutral grey. Not declared on extension entities (with `extends`)."
+		},
 		"comments": {
 			"type": "boolean",
 			"description": "Records of this entity accept comments \u2014 the composer and thread appear on the record card, beside the audit history. Opt-in per entity; `comments` in the manifest sets a module-wide default that this overrides in both directions."

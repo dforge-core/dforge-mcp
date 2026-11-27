@@ -54,6 +54,8 @@
 			"allOf": [
 				{ "$ref": "#/$defs/rules/grid" },
 				{ "$ref": "#/$defs/rules/kanban" },
+				{ "$ref": "#/$defs/rules/gallery" },
+				{ "$ref": "#/$defs/rules/library" },
 				{ "$ref": "#/$defs/rules/calendar" },
 				{ "$ref": "#/$defs/rules/tree-grid" },
 				{ "$ref": "#/$defs/rules/list" },
@@ -82,6 +84,28 @@
 				"then": {
 					"properties": {
 						"viewConfig": { "$ref": "#/$defs/kanbanViewConfig" }
+					}
+				}
+			},
+			"gallery": {
+				"if": {
+					"properties": { "viewType": { "const": "gallery" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/galleryViewConfig" }
+					}
+				}
+			},
+			"library": {
+				"if": {
+					"properties": { "viewType": { "const": "library" } },
+					"required": ["viewType"]
+				},
+				"then": {
+					"properties": {
+						"viewConfig": { "$ref": "#/$defs/libraryViewConfig" }
 					}
 				}
 			},
@@ -190,7 +214,7 @@
 				},
 				"bg": { "type": "string", "description": "Background color, e.g. #f8d7da" },
 				"fg": { "type": "string", "description": "Text color" },
-				"wholeRow": { "type": "boolean", "description": "Paint the whole row. Without it, only the cells of the columns `when` reads are painted" }
+				"wholeRow": { "type": "boolean", "description": "Paint the whole row (a card, a tile). Without it, only the cells or fields of the columns `when` reads are painted; a library view needs it on every rule" }
 			},
 			"anyOf": [{ "required": ["bg"] }, { "required": ["fg"] }],
 			"additionalProperties": false
@@ -201,7 +225,60 @@
 			"properties": {
 				"groupByField": {
 					"type": "string",
-					"description": "Column code of a dropdown/flags/reference field to group cards by"
+					"description": "Column code of a dropdown/flags/reference/user field to group cards by; the board's Column by menu switches it per user"
+				},
+				"groupByOptions": {
+					"type": "array",
+					"items": { "type": "string" },
+					"description": "Columns the board's Column by menu offers; must include groupByField. Every dropdown, flags, reference and user column when absent"
+				},
+				"laneTotals": {
+					"type": "array",
+					"description": "Totals shown in each lane header beside the card count, in display order (the board's Totals dialog). each column takes the aggregates its field type does (a percent column has no sum; text and dates take min, max, count); the key, a set and a dropdown, flags, reference or user column cannot be totalled; a total may not repeat",
+					"items": {
+						"type": "object",
+						"properties": {
+							"column": { "type": "string", "description": "Column code to aggregate over the lane's cards" },
+							"agg": { "enum": ["sum", "avg", "min", "max", "count"], "description": "The aggregate shown" }
+						},
+						"required": ["column", "agg"],
+						"additionalProperties": false
+					}
+				},
+				"colorRules": {
+					"type": "array",
+					"description": "Conditional colors: a card matching a rule's condition is painted. A rule with wholeRow paints the whole card; any other paints the fields of the columns its `when` reads. Later rules override earlier ones. The user can add their own from the gear menu",
+					"items": { "$ref": "#/$defs/colorRule" }
+				}
+			},
+			"additionalProperties": false
+		},
+		"galleryViewConfig": {
+			"type": "object",
+			"properties": {
+				"colorRules": {
+					"type": "array",
+					"description": "Conditional colors: a card matching a rule's condition is painted. A rule with wholeRow paints the whole card; any other paints the fields of the columns its `when` reads. Later rules override earlier ones. The user can add their own from the gear menu",
+					"items": { "$ref": "#/$defs/colorRule" }
+				}
+			},
+			"additionalProperties": false
+		},
+		"libraryViewConfig": {
+			"type": "object",
+			"properties": {
+				"colorRules": {
+					"type": "array",
+					"description": "Conditional colors for a file's tile or row. A tile has no cells, so every rule needs wholeRow. Later rules override earlier ones. The user can add their own from the gear menu",
+					"items": {
+						"allOf": [
+							{ "$ref": "#/$defs/colorRule" },
+							{
+								"required": ["wholeRow"],
+								"properties": { "wholeRow": { "const": true } }
+							}
+						]
+					}
 				}
 			},
 			"additionalProperties": false
